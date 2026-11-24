@@ -56,10 +56,6 @@ mark{background:var(--mark);color:inherit;border-radius:2px;padding:0 1px}
 .live strong{color:var(--ink);font-weight:600}
 .live.err b{animation:none;background:var(--ink4)}
 @keyframes pulse{0%{box-shadow:0 0 0 0 var(--red-soft)}60%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
-.clocks{display:flex;gap:16px;white-space:nowrap}
-.clk b{color:var(--ink);font-weight:500}
-.clk em{font-style:normal;margin-inline-start:5px}
-.clk.open em{color:var(--ok);font-weight:600}
 .sp{flex:1}
 .trs{font-size:12px;color:var(--red);white-space:nowrap;display:none}
 .trs.on{display:inline}
@@ -80,10 +76,36 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 #sbtn,.cancel{display:none}
 
 /* ---------- 报头与视图切换 ---------- */
-.mast{text-align:center;padding:26px 0 18px}
-.mast h1{margin:0;font:700 46px/1 var(--serif);letter-spacing:-.02em}
-.mast p{margin:9px 0 0;font-size:12px;letter-spacing:.2em;color:var(--ink3)}
-[dir=rtl] .mast p,[dir=rtl] .kick,[dir=rtl] .sec,[dir=rtl] .lbl{letter-spacing:0}
+.mast{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:end;gap:40px;padding-block:26px 20px}
+.mc{text-align:center;grid-column:2}
+.mkick{font-size:11px;font-weight:700;letter-spacing:.22em;color:var(--red)}
+.mast h1{margin:8px 0 0;font:700 54px/1 var(--serif);letter-spacing:-.03em;white-space:nowrap}
+.mast h1 i{display:inline-block;width:.17em;height:.17em;border-radius:50%;background:var(--red);margin-inline-start:.07em}
+.mast p{margin:12px 0 0;font-size:12px;letter-spacing:.2em;color:var(--ink3);display:flex;align-items:center;justify-content:center;gap:14px}
+.mast p:before,.mast p:after{content:'';width:34px;height:1px;background:var(--rule2)}
+.mseg{display:inline-flex;margin-top:14px;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--glass)}
+.mseg button{font-size:12.5px;font-weight:600;color:var(--ink3);padding:5px 15px;border-radius:999px;line-height:1.3;white-space:nowrap;transition:background .2s,color .2s}
+.mseg button:hover{color:var(--ink)}
+.mseg button.on{background:var(--ink);color:var(--bg)}
+.ear{min-width:0;max-width:330px;width:100%;padding-bottom:4px}
+.ear.e2{justify-self:end}
+.ear .eh{display:flex;align-items:baseline;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3)}
+.ear .eh b{font:700 21px/1 var(--serif);letter-spacing:-.01em;color:var(--ink);margin-inline-start:auto}
+.ear .eh small{font-size:10.5px;font-weight:500;letter-spacing:.04em;color:var(--ink4)}
+.ear .es{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12.5px;color:var(--ink3);white-space:nowrap;overflow:hidden}
+.ear .es strong{color:var(--ink);font-weight:600}
+.ear .es u{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ink4);text-decoration:none}
+.ear .es u.open{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.ear .es u.pre,.ear .es u.post{background:var(--amber)}
+.rail{position:relative;height:6px;border-radius:3px;background:var(--rule);margin-top:12px}
+.rail s{position:absolute;top:0;bottom:0;border-radius:3px;text-decoration:none;background:var(--rule2)}
+.rail s.open{background:var(--ink)}.rail.on s.open.cur{background:var(--ok)}
+.rail s.pre,.rail s.post{background:var(--ink4);opacity:.55}
+.rail em{position:absolute;top:-5px;bottom:-5px;width:2px;margin-inline-start:-1px;background:var(--red);border-radius:1px}
+.rax{position:relative;height:14px;margin-top:5px;font-size:10px;color:var(--ink4)}
+.rax span{position:absolute;transform:translateX(-50%);white-space:nowrap}[dir=rtl] .rax span{transform:translateX(50%)}
+.rax span.n{color:var(--red);font-weight:700}
+[dir=rtl] .mast p,[dir=rtl] .mkick,[dir=rtl] .ear .eh,[dir=rtl] .kick,[dir=rtl] .sec,[dir=rtl] .lbl{letter-spacing:0}
 .tabs{position:sticky;top:calc(47px + env(safe-area-inset-top));z-index:19;background:var(--bar);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)}
 .tabs .wrap>div{display:flex;align-items:center;gap:26px;height:45px;border-top:3px double var(--ink);border-bottom:1px solid var(--ink)}
 .tab{position:relative;font-size:13.5px;font-weight:600;color:var(--ink3);white-space:nowrap;height:100%;display:inline-flex;align-items:center;gap:6px}
@@ -277,7 +299,6 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .keys{padding:4px 26px 20px;font-size:12px;color:var(--ink3);line-height:2.1}
 .keys kbd{font:500 10.5px/1 var(--mono);border:1px solid var(--rule2);border-radius:3px;padding:2px 5px;color:var(--ink2);margin-inline-end:3px}
 .keys span{margin-inline-end:12px;white-space:nowrap;display:inline-block}
-.mclk{display:none;gap:18px;padding:4px 26px 0;font-size:12.5px;color:var(--ink3);flex-wrap:wrap}
 
 .pill{position:fixed;left:50%;top:calc(var(--top) + 14px);transform:translate(-50%,-110px);z-index:15;border-radius:999px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;padding:9px 16px;box-shadow:var(--shadow2);transition:transform .22s cubic-bezier(.2,.8,.2,1);white-space:nowrap}
 .pill.show{transform:translate(-50%,0)}
@@ -288,7 +309,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 /* ---------- 平板 ---------- */
 @media (max-width:1080px){
   .wrap{padding-inline:26px}
-  .clocks{display:none}.mclk{display:flex}
+  .mast{grid-template-columns:1fr 1fr;gap:18px 28px;align-items:start}.mc{grid-column:1/-1;grid-row:1}.ear{max-width:none}
   .top,.low{grid-template-columns:1fr;gap:0}
   .rank,.wire{border:0;padding:0;margin-top:26px}
   .rank h3{border-top:3px solid var(--ink);padding-top:10px;color:var(--ink)}
@@ -308,7 +329,9 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
   .searching .sbox{display:block}.searching .cancel{display:block;font-size:14px;color:var(--ink2);padding:6px 2px;white-space:nowrap}
   .trs{position:absolute;inset-inline:18px;top:calc(100% + 6px);text-align:center;background:var(--bg);border:1px solid var(--rule);border-radius:999px;padding:4px 10px}
   .util .wrap{position:relative}
-  .mast{padding:18px 0 14px}.mast h1{font-size:31px}.mast p{font-size:10.5px;letter-spacing:.14em}
+  .mast{padding-block:18px 16px;gap:16px 18px}.mast h1{font-size:35px}.mast p{font-size:10.5px;letter-spacing:.14em;margin-top:9px}.mkick{font-size:10px;letter-spacing:.16em}
+  .mseg{margin-top:12px}.mseg button{padding:6px 16px}
+  .ear .eh b{font-size:18px}.ear .eh small{display:none}.ear .es{font-size:11.5px;flex-wrap:wrap;white-space:normal;row-gap:2px}.rax{display:none}.rail{margin-top:9px}
   .tabs{top:calc(49px + env(safe-area-inset-top))}
   .tabs .wrap>div{gap:22px;overflow-x:auto;scrollbar-width:none}
   .tabs .wrap>div::-webkit-scrollbar{display:none}
@@ -331,7 +354,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
   [dir=rtl] .panel{transform:translateY(105%)}
   .keysec{display:none}
   .d{padding-inline:22px}.d h2{font-size:24px}
-  .sh,.grp,.so,.set,.mclk,.wform,.wchips{padding-inline:22px}.whint{margin-inline:22px}
+  .sh,.grp,.so,.set,.wform,.wchips{padding-inline:22px}.whint{margin-inline:22px}
   #pbtn{display:none}.show-top span[data-i]{display:none}
 }
 @media (prefers-reduced-motion:reduce){*:not(#showBar){animation:none!important;transition:none!important}}
@@ -339,10 +362,10 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 
 const JS = String.raw`
 var I18N={
-zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
+zh:{sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
  search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
- lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',hAgo:'{0} 小时前',nowL:'现在',
+ lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',
  topic:'话题',topicCnt:'{0} 条快讯 · {1} 条重要',timeline:'时间线 →',more:'更多重要快讯',wire:'实时快讯',viewAll:'查看全部 →',
  nSrc:'{0} 个来源证实',merged:'同一事件已合并',pts:'{0} 分',today:'今天',yesterday:'昨天',items:'{0} 条',seenHere:'上次看到这里',
  lvHot:'重要快讯',lvNone:'尚未评分',lvHigh:'高分',lvMid:'一般关注',lvLow:'常规消息',byAi:'AI 评分',byRule:'规则评分',byWait:'等待评分',boost:'原始 {0}，多源证实加分',
@@ -352,10 +375,10 @@ zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',f
  look:'外观',theme:'主题',tAuto:'跟随系统',tDark:'深色',tLight:'浅色',keys:'快捷键',kMove:'上下条',kOpen:'打开原文',kSearch:'搜索',kView:'切换视图',kStar:'收藏',kShow:'展示模式',
  eNone:'还没有数据',eNoneD:'部署后等一两分钟，第一批快讯就会出现。',eFilter:'没有符合条件的快讯',eFilterD:'当前的来源筛选或搜索把结果都过滤掉了。',eScore:'暂时没有达到这个分数的快讯',eScoreD:'可以切到“全部”看所有快讯。',eConn:'连接失败',eConnD:'暂时读不到数据，页面会自动重试。',
  newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',loadMore:'加载更早的快讯',loading:'加载中…',noMore:'没有更早的快讯了（数据库保留最近 7 天）',loaded:'已载入 {0} 条 · 每分钟抓取',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
-en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
+en:{sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
  search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
- lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiAi:'Judged per headline by AI',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',hAgo:'{0}h ago',nowL:'now',
+ lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiAi:'Judged per headline by AI',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',
  topic:'TOPIC',topicCnt:'{0} flashes · {1} important',timeline:'Timeline →',more:'MORE IMPORTANT',wire:'LIVE WIRE',viewAll:'View all →',
  nSrc:'{0} sources confirm',merged:'Merged with same story',pts:'{0}',today:'Today',yesterday:'Yesterday',items:'{0} items',seenHere:'YOU LEFT OFF HERE',
  lvHot:'Important',lvNone:'Not scored yet',lvHigh:'High score',lvMid:'Worth a look',lvLow:'Routine',byAi:'AI score',byRule:'Rule score',byWait:'Awaiting score',boost:'base {0}, raised by multi-source confirmation',
@@ -365,10 +388,10 @@ en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Conn
  look:'APPEARANCE',theme:'Theme',tAuto:'System',tDark:'Dark',tLight:'Light',keys:'SHORTCUTS',kMove:'Next / previous',kOpen:'Open original',kSearch:'Search',kView:'Switch view',kStar:'Save',kShow:'Presentation',
  eNone:'No data yet',eNoneD:'The first flashes appear a minute or two after deployment.',eFilter:'Nothing matches',eFilterD:'The current source filter or search hides every flash.',eScore:'Nothing at this score yet',eScoreD:'Switch to "All" to see every flash.',eConn:'Connection failed',eConnD:'Data is unavailable right now. The page retries automatically.',
  newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',loadMore:'Load earlier flashes',loading:'Loading…',noMore:'No earlier flashes (the database keeps the last 7 days)',loaded:'{0} loaded · fetched every minute',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
-ar:{tag:'أخبار عاجلة للسوقين الأمريكي والسعودي',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
+ar:{sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'أخبار عاجلة للسوقين الأمريكي والسعودي',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
  search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
- lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiAi:'تقييم الذكاء الاصطناعي لكل عنوان',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',hAgo:'قبل {0} س',nowL:'الآن',
+ lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiAi:'تقييم الذكاء الاصطناعي لكل عنوان',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',
  topic:'موضوع',topicCnt:'{0} خبر · {1} مهم',timeline:'التسلسل الزمني ←',more:'أخبار مهمة أخرى',wire:'الأخبار العاجلة',viewAll:'عرض الكل ←',
  nSrc:'أكدته {0} مصادر',merged:'مدمج مع الخبر نفسه',pts:'{0}',today:'اليوم',yesterday:'أمس',items:'{0} خبر',seenHere:'توقفت هنا في آخر زيارة',
  lvHot:'خبر مهم',lvNone:'لم يُقيَّم بعد',lvHigh:'تقييم مرتفع',lvMid:'جدير بالمتابعة',lvLow:'خبر اعتيادي',byAi:'تقييم الذكاء الاصطناعي',byRule:'تقييم القواعد',byWait:'بانتظار التقييم',boost:'الأساس {0}، ورُفع لتأكيد عدة مصادر',
@@ -383,13 +406,13 @@ var MONTHS={en:['January','February','March','April','May','June','July','August
 function api(p){return p+(p.indexOf('?')>=0?'&':'?')+(KEY?'key='+encodeURIComponent(KEY):'');}
 var $=function(id){return document.getElementById(id)};
 var nav=(navigator.language||'zh').toLowerCase();
-var state={view:'brief',lang:nav.indexOf('ar')===0?'ar':nav.indexOf('zh')===0?'zh':'en',off:{},q:'',sound:true,notify:true,theme:'auto',items:[],pending:[],lastSeen:0,first:true,loaded:false,newIds:{},sel:null,health:{},prevSeen:0,topSeen:0,watch:[],stars:{},shown:400,noMore:false,older:false};
+var state={mkt:'all',view:'brief',lang:nav.indexOf('ar')===0?'ar':nav.indexOf('zh')===0?'zh':'en',off:{},q:'',sound:true,notify:true,theme:'auto',items:[],pending:[],lastSeen:0,first:true,loaded:false,newIds:{},sel:null,health:{},prevSeen:0,topSeen:0,watch:[],stars:{},shown:400,noMore:false,older:false};
 try{var saved=JSON.parse(localStorage.getItem('hw')||'{}');
-  if(/^(brief|hot|mid|all|watch|star)$/.test(saved.view))state.view=saved.view;if(/^(zh|en|ar)$/.test(saved.lang))state.lang=saved.lang;
+  if(/^(brief|hot|mid|all|watch|star)$/.test(saved.view))state.view=saved.view;if(/^(zh|en|ar)$/.test(saved.lang))state.lang=saved.lang;if(/^(us|sa)$/.test(saved.mkt))state.mkt=saved.mkt;
   if(saved.off)state.off=saved.off;if(saved.sound===false)state.sound=false;if(saved.notify===false)state.notify=false;
   if(saved.theme==='dark'||saved.theme==='light')state.theme=saved.theme;if(saved.seen)state.prevSeen=state.topSeen=+saved.seen||0;if(Array.isArray(saved.watch))state.watch=saved.watch.filter(function(w){return typeof w==='string'&&w}).slice(0,40);}catch(e){}
 try{state.stars=JSON.parse(localStorage.getItem('hw-stars')||'{}')||{}}catch(e){state.stars={}}
-function save(){try{localStorage.setItem('hw',JSON.stringify({view:state.view,lang:state.lang,off:state.off,sound:state.sound,notify:state.notify,theme:state.theme,seen:state.topSeen,watch:state.watch}))}catch(e){}}
+function save(){try{localStorage.setItem('hw',JSON.stringify({mkt:state.mkt,view:state.view,lang:state.lang,off:state.off,sound:state.sound,notify:state.notify,theme:state.theme,seen:state.topSeen,watch:state.watch}))}catch(e){}}
 function saveStars(){try{localStorage.setItem('hw-stars',JSON.stringify(state.stars))}catch(e){}}
 function T(k){var s=(I18N[state.lang]||I18N.zh)[k];if(s==null)s=I18N.zh[k];if(typeof s!=='string')return s;var a=arguments;return s.replace(/\{(\d)\}/g,function(_,n){return a[+n+1]});}
 
@@ -495,7 +518,7 @@ function softRender(){clearTimeout(trTimer);trTimer=setTimeout(function(){render
 
 /* ---------- 筛选 ---------- */
 function base(){var k=state.q.toLowerCase(),sym=/^\$[A-Za-z0-9.]{1,6}$/.test(state.q)?state.q.slice(1).toUpperCase():'',tk=sym?tkRe(sym):null,tpc=k.charAt(0)==='#'?k.slice(1):'';if(tpc)k=tpc;
-  return state.items.filter(function(i){if(state.off[i.source])return false;
+  return state.items.filter(function(i){if(state.off[i.source])return false;if(state.mkt!=='all'&&!inMkt(i,state.mkt))return false;
     if(tk){if(!(i.tickers!=null&&i.dir!=null?(','+i.tickers+',').indexOf(','+sym+',')>=0:tk.test(i.title+' '+(i.title_tr||''))))return false;}else if(tpc&&i.topic&&i.topic.toLowerCase()===tpc){}else if(k){var c=TR[i.id];if((i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase().indexOf(k)<0)return false;}return true;});}
 function watchHit(i){if(!state.watch.length)return '';var c=TR[i.id],t=(i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase();
   for(var k=0;k<state.watch.length;k++){var w=state.watch[k].toLowerCase();if(/^[a-z0-9.]{1,5}$/.test(w)){if(new RegExp('(^|[^a-z0-9])'+w.replace(/\./g,'\\.')+'($|[^a-z0-9])').test(t))return state.watch[k];}else if(t.indexOf(w)>=0)return state.watch[k];}return '';}
@@ -582,7 +605,7 @@ function briefHtml(b){
     '<div class="rank"><h3>'+T('topToday')+'</h3>'+rest.slice(0,4).map(function(i,k){var o=tx(i);return '<article class="rk" data-id="'+esc(i.id)+'"><em class="num">'+(k+2)+'</em><div><h4 dir="auto">'+hl(o.t)+'</h4>'+byline(i,o)+'</div></article>'}).join('')+'</div></div>';
   // 12 小时统计：重要条数、和平常比、多空情绪、热门股票
   var win=dedupe(b.filter(function(i){return i.ts>now-12*36e5&&!i.dup_of})),tot=win.length,imp=win.filter(isHot).length,srcs={};win.forEach(function(i){srcs[i.source]=1});
-  var st=state.stats,vs='<div class="vs"><strong>'+T('vsNone')+'</strong><div class="gauge"></div></div>';
+  var st=state.mkt==='all'?state.stats:null,vs=state.mkt==='all'?'<div class="vs"><strong>'+T('vsNone')+'</strong><div class="gauge"></div></div>':'<div class="vs"><small>'+T('vsAll')+'</small></div>';
   if(st&&st.windows){var w0=null,past=[];st.windows.forEach(function(w){if(w.k===0)w0=w;else if(st.now-w.k*864e5-432e5>=st.oldest&&(w.n||0)>=50)past.push(w.imp||0);});
     if(w0){imp=w0.imp||0;tot=Math.max(tot,w0.n||0);}
     if(past.length){var avg=past.reduce(function(x,y){return x+y},0)/past.length,r=avg>0?imp/avg:(imp?2:1),pc=Math.round(Math.abs(r-1)*100),up=r>=1.1,dn=r<=.9;
@@ -709,22 +732,60 @@ function applyI18n(){
   [].forEach.call(document.querySelectorAll('[data-ia]'),function(e){e.setAttribute('aria-label',T(e.dataset.ia));if(e.tagName==='INPUT')e.placeholder=T(e.dataset.ia);});
   $('winp').placeholder=T('wPh');
   [].forEach.call($('lang').children,function(b){b.classList.toggle('on',b.dataset.l===state.lang)});
-  $('dateline').textContent=dateText(Date.now())+' · '+T('tag');renderClocks();
+  $('dateline').textContent=new Date().getFullYear()+' · '+dateText(Date.now());[].forEach.call($('mseg').children,function(b){b.classList.toggle('on',b.dataset.m===state.mkt)});renderClocks();
 }
 
-/* ---------- 市场时钟（常规交易时段，不含节假日） ---------- */
-function mkt(tz,days,segs){
-  var p={};try{new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).forEach(function(x){p[x.type]=x.value});}catch(e){return null;}
-  var m=(+p.hour)*60+(+p.minute),st='mClosed';
-  if(days.indexOf(p.weekday)>=0)segs.forEach(function(s){if(m>=s[0]&&m<s[1])st=s[2];});
-  return {t:p.hour+':'+p.minute,st:st};
-}
-function renderClocks(){
-  var a=mkt('America/New_York',['Mon','Tue','Wed','Thu','Fri'],[[240,570,'mPre'],[570,960,'mOpen'],[960,1200,'mPost']]);
-  var b=mkt('Asia/Riyadh',['Sun','Mon','Tue','Wed','Thu'],[[600,900,'mOpen']]);
-  function one(n,c){return c?'<span class="clk'+(c.st==='mOpen'?' open':'')+'" title="'+esc(T('mNote'))+'">'+T(n)+' <b class="num">'+c.t+'</b><em>'+T(c.st)+'</em></span>':'';}
-  var h=one('ny',a)+one('ry',b);$('clocks').innerHTML=h;$('mclk').innerHTML=h;
-}
+/* ---------- 市场时段：盘前、常规、盘后，含夏令时和交易所假日 ---------- */
+// 时区用 IANA 名称，夏令时由浏览器处理。假日是交易所公布的全天休市日；沙特两个开斋/宰牲节假期按天文推算，以交易所公告为准。
+var HOLN={zh:{ny:'元旦',mlk:'马丁·路德·金日',pres:'总统日',gf:'耶稣受难日',mem:'阵亡将士纪念日',jun:'六月节',ind:'独立日',lab:'劳动节',thx:'感恩节',xmas:'圣诞节',found:'建国日',natl:'国庆日',fitr:'开斋节假期',adha:'宰牲节假期'},
+ en:{ny:"New Year's Day",mlk:'MLK Day',pres:"Presidents' Day",gf:'Good Friday',mem:'Memorial Day',jun:'Juneteenth',ind:'Independence Day',lab:'Labor Day',thx:'Thanksgiving',xmas:'Christmas',found:'Founding Day',natl:'National Day',fitr:'Eid al-Fitr holiday',adha:'Eid al-Adha holiday'},
+ ar:{ny:'رأس السنة',mlk:'يوم مارتن لوثر كينغ',pres:'يوم الرؤساء',gf:'الجمعة العظيمة',mem:'يوم الذكرى',jun:'جونتينث',ind:'عيد الاستقلال',lab:'عيد العمال',thx:'عيد الشكر',xmas:'عيد الميلاد',found:'يوم التأسيس',natl:'اليوم الوطني',fitr:'إجازة عيد الفطر',adha:'إجازة عيد الأضحى'}};
+var MK={
+ us:{tz:'America/New_York',days:[1,2,3,4,5],segs:[[240,570,'pre'],[570,960,'open'],[960,1200,'post']],short:[[240,570,'pre'],[570,780,'open'],[780,1020,'post']],
+  hol:{'2026-11-26':'thx','2026-12-25':'xmas','2027-01-01':'ny','2027-01-18':'mlk','2027-02-15':'pres','2027-03-26':'gf','2027-05-31':'mem','2027-06-18':'jun','2027-07-05':'ind','2027-09-06':'lab','2027-11-25':'thx','2027-12-24':'xmas'},
+  early:{'2026-11-27':1,'2026-12-24':1,'2027-11-26':1}},
+ sa:{tz:'Asia/Riyadh',days:[0,1,2,3,4],segs:[[600,900,'open']],
+  hol:{'2027-02-22':'found','2027-03-08':'fitr','2027-03-09':'fitr','2027-03-10':'fitr','2027-03-11':'fitr','2027-05-16':'adha','2027-05-17':'adha','2027-05-18':'adha','2027-05-19':'adha','2027-05-20':'adha','2027-09-23':'natl'},early:{}}};
+var WD={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+function zparts(ts,tz){var p={};new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZoneName:'short'}).formatToParts(new Date(ts)).forEach(function(x){p[x.type]=x.value});
+  return {y:+p.year,m:+p.month,d:+p.day,wd:WD[p.weekday],min:(+p.hour%24)*60+(+p.minute),hm:('0'+(+p.hour%24)).slice(-2)+':'+p.minute,abbr:p.timeZoneName||''};}
+function tzOff(ts,tz){var z=zparts(ts,tz);return Date.UTC(z.y,z.m-1,z.d,0,z.min)-Math.floor(ts/6e4)*6e4;}
+function zToUtc(y,m,d,min,tz){var g=Date.UTC(y,m-1,d,0,min),r=g-tzOff(g,tz);return g-tzOff(r,tz);}
+function ymd(dt){return dt.getUTCFullYear()+'-'+('0'+(dt.getUTCMonth()+1)).slice(-2)+'-'+('0'+dt.getUTCDate()).slice(-2);}
+// 从今天（交易所当地日期）起往后 n 天的全部交易时段，换算成绝对时间
+function sessions(mk,now,n){var z=zparts(now,mk.tz),out=[];
+  for(var k=-1;k<n;k++){var dt=new Date(Date.UTC(z.y,z.m-1,z.d+k)),key=ymd(dt);
+    if(mk.days.indexOf(dt.getUTCDay())<0||mk.hol[key])continue;
+    (mk.early[key]?mk.short:mk.segs).forEach(function(g){out.push({a:zToUtc(dt.getUTCFullYear(),dt.getUTCMonth()+1,dt.getUTCDate(),g[0],mk.tz),b:zToUtc(dt.getUTCFullYear(),dt.getUTCMonth()+1,dt.getUTCDate(),g[1],mk.tz),k:g[2]});});}
+  return out;}
+function dur(ms){var m=Math.max(1,Math.round(ms/6e4)),h=Math.floor(m/60);if(h>=24)return T('dD',Math.floor(h/24),h%24);if(h)return T('dH',h,m%60);return T('dM',m);}
+function earHtml(name,mk,now){
+  var z,ss;try{z=zparts(now,mk.tz);ss=sessions(mk,now,12);}catch(e){return '';}
+  var cur=null,nextOpen=null;ss.forEach(function(x){if(now>=x.a&&now<x.b)cur=x;if(!nextOpen&&x.k==='open'&&x.a>now)nextOpen=x;});
+  var st=cur?cur.k:'closed',label=T(st==='open'?'sOpen':st==='pre'?'sPre':st==='post'?'sPost':'sClosed'),next='';
+  var key=z.y+'-'+('0'+z.m).slice(-2)+'-'+('0'+z.d).slice(-2),hol=mk.hol[key];
+  if(st==='open')next=T('nClose',dur(cur.b-now));else if(st==='post')next=T('nEnd',dur(cur.b-now));else if(nextOpen)next=T('nOpen',dur(nextOpen.a-now));
+  if(st==='closed'&&hol)label+=' · '+((HOLN[state.lang]||HOLN.en)[hol]||'');
+  if(mk.early[key]&&st!=='closed')next+=' · '+T('early');
+  var w0=now-4*36e5,w1=now+20*36e5,span=w1-w0,segs='',ax='<span class="n" style="inset-inline-start:16.67%">'+T('nowL')+'</span>';
+  ss.forEach(function(x){var a=Math.max(x.a,w0),b=Math.min(x.b,w1);if(b<=a)return;
+    segs+='<s class="'+x.k+(x===cur?' cur':'')+'" style="inset-inline-start:'+((a-w0)/span*100).toFixed(2)+'%;width:'+((b-a)/span*100).toFixed(2)+'%" title="'+esc(T(x.k==='open'?'sOpen':x.k==='pre'?'sPre':'sPost')+' '+hm(x.a)+' – '+hm(x.b))+'"></s>';});
+  // 刻度：看的人自己的本地时间，每 6 小时一格
+  var t=new Date(w0);t.setMinutes(0,0,0);t.setHours(t.getHours()+1);
+  for(var k=0;k<24;k++){var tt=t.getTime()+k*36e5,h=new Date(tt).getHours(),pos=(tt-w0)/span*100;if(h%6===0&&Math.abs(pos-16.67)>9&&pos>4&&pos<96)ax+='<span class="num" style="inset-inline-start:'+pos.toFixed(2)+'%">'+('0'+h).slice(-2)+':00</span>';}
+  return '<div class="eh"><span>'+T(name)+'</span><b class="num">'+z.hm+'</b><small>'+esc(z.abbr)+'</small></div>'+
+    '<div class="es"><u class="'+st+'"></u><strong>'+esc(label)+'</strong><span>'+esc(next)+'</span></div>'+
+    '<div class="rail'+(st==='open'?' on':'')+'" title="'+esc(T('yourTime'))+'">'+segs+'<em style="inset-inline-start:16.67%"></em></div><div class="rax">'+ax+'</div>';}
+function renderClocks(){var now=Date.now();$('earUS').innerHTML=earHtml('ny',MK.us,now);$('earSA').innerHTML=earHtml('ry',MK.sa,now);}
+
+/* ---------- 市场筛选：全部 / 美股 / 沙特 ---------- */
+var SASRC=/^(Argaam|Arab News|Arabian Business|Saudi Gazette|Asharq)/i,
+  SAW=/saudi|aramco|tadawul|riyadh|sabic|\bpif\b|opec|crude|\boil\b|brent|\bgulf\b|middle east|\biran|hormuz|qatar|\buae\b|沙特|阿美|利雅得|欧佩克|原油|油价|中东|海湾|伊朗|霍尔木兹|\p{Script=Arabic}/iu,
+  USW=/\bU\.?S\.?\b|\bFed\b|Wall Street|Nasdaq|S&P|Dow\b|Treasur|Trump|White House|dollar|美股|美国|美联储|美元|华尔街|纳指|标普|道指/;
+function inMkt(i,m){if(m==='all')return true;var tk=i.tickers||'',t=i.title+' '+(i.topic||''),saSrc=SASRC.test(i.source);
+  if(m==='sa')return saSrc||/(^|,)\d{4}(,|$)/.test(tk)||SAW.test(t);
+  return !saSrc||/[A-Z]/.test(tk)||USW.test(t);}
+function setMkt(m){state.mkt=m;state.shown=400;save();applyI18n();render();}
 
 /* ---------- 声音、通知、提示 ---------- */
 function beep(){try{var a=new (window.AudioContext||window.webkitAudioContext)(),t=a.currentTime;[880,1320].forEach(function(f,k){var o=a.createOscillator(),g=a.createGain();o.type='sine';o.frequency.value=f;o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(0,t+k*.14);g.gain.linearRampToValueAtTime(.16,t+k*.14+.02);g.gain.exponentialRampToValueAtTime(.001,t+k*.14+.22);o.start(t+k*.14);o.stop(t+k*.14+.25);});}catch(e){}}
@@ -821,6 +882,7 @@ function copyClick(e){var st=e.target.closest('[data-star]');if(st){toggleStar(s
   (navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(function(){tip(T('shared'))},function(){tip(T('copyFail'))});return true;}
 
 $('tabs').addEventListener('click',function(e){var t=e.target.closest('.tab');if(t)return setView(t.dataset.v);if(e.target.id==='clr')clearFilters();});
+$('mseg').addEventListener('click',function(e){var b=e.target.closest('[data-m]');if(b)setMkt(b.dataset.m);});
 $('main').addEventListener('click',function(e){
   if(e.target.id==='clr2')return clearFilters();
   if(e.target.id==='moreBtn')return loadOlder();
@@ -906,7 +968,6 @@ const BODY = `
 <div class="bg"></div>
 <header class="util" id="util"><div class="wrap">
   <div class="live" id="live" role="status"><b></b><strong data-i="live"></strong><span id="liveTxt"></span></div>
-  <div class="clocks" id="clocks"></div>
   <div class="sp"></div>
   <span class="trs" id="trs"></span><button class="trs" id="trOn"></button>
   <label class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" autocomplete="off" data-ia="search"></label>
@@ -916,7 +977,7 @@ const BODY = `
   <button class="ib" id="pbtn" data-ia="present"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
   <button class="ib" id="fbtn" data-ia="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
 </div></header>
-<div class="mast wrap"><h1>Headline Watch</h1><p id="dateline"></p></div>
+<div class="mast wrap"><div class="ear" id="earUS"></div><div class="mc"><div class="mkick" data-i="tag"></div><h1>Headline Watch<i></i></h1><p><span id="dateline"></span></p><div><div class="mseg" id="mseg" role="group"><button data-m="all" data-i="mAll"></button><button data-m="us" data-i="mUS"></button><button data-m="sa" data-i="mSA"></button></div></div></div><div class="ear e2" id="earSA"></div></div>
 <nav class="tabs" id="tabs"><div class="wrap"><div role="tablist">
   <button class="tab" data-v="brief" role="tab"><span data-i="brief"></span></button>
   <button class="tab" data-v="hot" role="tab"><span data-i="hot"></span><i class="num" id="nHot">0</i></button>
@@ -931,7 +992,6 @@ const BODY = `
 <div class="scrim" id="scrim"></div>
 <section class="panel glass" id="reader" aria-live="polite"><div class="px"><span data-i="detail"></span><button id="rclose" aria-label="Close">${X}</button></div><div id="rbody"></div></section>
 <aside class="panel glass" id="side"><div class="px"><span data-i="settings"></span><button id="sclose" aria-label="Close">${X}</button></div>
-  <div class="mclk" id="mclk"></div>
   <div class="sh"><span data-i="wTitle"></span></div>
   <form class="wform" id="wform"><input id="winp" autocomplete="off" maxlength="80"><button class="btn" data-i="add"></button></form>
   <div class="wchips" id="wchips"></div><p class="whint" data-i="wHint"></p>
