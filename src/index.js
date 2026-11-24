@@ -12,6 +12,7 @@ import { notifyAll, enabledChannels } from './notify.js';
 import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
 import { renderPage, BUILD } from './page.js';
 import { translatePending } from './translate.js';
+import { runBriefs, listBriefs } from './brief.js';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -622,6 +623,17 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
   }
 
+  // 事件简报：重要事件有新报道时滚动重写（每天有花费上限，出错不影响抓取）
+  // 为省数据库读取量，平时每 5 分钟看一次；本轮有新的重要快讯时立刻看
+  if (!inputs && (report.matched > 0 || new Date(now).getUTCMinutes() % 5 === 0)) {
+    try {
+      const b = await runBriefs(env, { now, articles: cfg.articles });
+      if (b.written.length) report.briefs = b.written;
+    } catch (e) {
+      report.errors.push(`brief: ${e?.message || e}`);
+    }
+  }
+
   // 每小时清理一次过期数据
   if (!inputs && new Date(now).getUTCMinutes() === 0) {
     await db.prepare('DELETE FROM items WHERE seen_at < ?').bind(now - cfg.keepDays * 86_400_000).run();
@@ -721,7 +733,7 @@ export default {
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
     // 这样看板公开分享给别人也不会被人乱触发推送。
-    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore' || url.pathname === '/api/xlang' || url.pathname === '/api/relink') {
+    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore' || url.pathname === '/api/xlang' || url.pathname === '/api/relink' || url.pathname === '/api/brief-run') {
       if (env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY) {
         return new Response('需要 ?admin=管理密码', { status: 403 });
       }
@@ -747,6 +759,15 @@ export default {
           before: Number(url.searchParams.get('before') || 0),
         });
         return json({ now: Date.now(), build: BUILD, items });
+      }
+
+      case '/api/briefs':
+        return json({ now: Date.now(), briefs: await listBriefs(env) });
+
+      case '/api/brief-run': {
+        // 管理用：立刻（重）写一件事的简报，如 /api/brief-run?admin=…&key=$NVDA；不带 key 就按平常的规则跑一轮
+        const cfg = config(env);
+        return json(await runBriefs(env, { articles: cfg.articles, force: url.searchParams.get('key') || null }));
       }
 
       case '/api/stats':

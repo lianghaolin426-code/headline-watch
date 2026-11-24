@@ -46,3 +46,4 @@ CREATE TABLE IF NOT EXISTS claude_usage (day TEXT NOT NULL, kind TEXT NOT NULL, 
 -- 深度文章和快讯的对应关系
 CREATE TABLE IF NOT EXISTS related (flash_id TEXT NOT NULL, article_id TEXT NOT NULL, ts INTEGER NOT NULL, PRIMARY KEY (flash_id, article_id));
 CREATE INDEX IF NOT EXISTS related_article ON related (article_id);
+CREATE TABLE IF NOT EXISTS briefs (key TEXT PRIMARY KEY, title TEXT, body TEXT, srcs TEXT, ids TEXT, n INTEGER, created INTEGER, updated INTEGER, writes INTEGER NOT NULL DEFAULT 0, day TEXT, day_writes INTEGER NOT NULL DEFAULT 0);
