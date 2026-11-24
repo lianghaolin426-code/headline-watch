@@ -83,6 +83,8 @@ async function scoreItems(env, cfg, list, report) {
   candidates.forEach((it, k) => {
     if (scores && scores[k] != null) {
       it.score = Math.max(0, Math.min(10, scores[k] + it.weight + routinePenalty(it.title)));
+      // 命中用户自己列的关键词（破产、做空等）时，AI 给得再低也保底 6 分，能在“6 分以上”里看到
+      if (it.kwHit) it.score = Math.max(it.score, 6);
       it.scoreBy = 'ai';
       it.tags = scores.tags?.[k] || null;
     }
