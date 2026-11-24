@@ -716,6 +716,13 @@ async function statsData(env) {
   return { now, oldest, windows };
 }
 
+// 写进网页的首屏数据用“轻量版”：重要快讯保留全文，其余只留标题和标签（正文、链接等网页打开后再补齐），网页能小四成
+function liteItem(it) {
+  if (it.important && !it.dup_of) return it;
+  const { body, body_tr, url, hits, ...rest } = it;
+  return { ...rest, lite: 1 };
+}
+
 export default {
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(runOnce(env));
@@ -736,7 +743,7 @@ export default {
       case '/': {
         // 首屏数据直接写进网页，省掉一次往返；数据库慢的时候不等它，网页照常先出来
         const boot = await Promise.race([
-          Promise.all([listItems(env, { limit: 400 }), statsData(env)]).then(([items, stats]) => ({ now: Date.now(), items, stats })).catch(() => null),
+          Promise.all([listItems(env, { limit: 400 }), statsData(env)]).then(([items, stats]) => ({ now: Date.now(), items: items.map(liteItem), stats })).catch(() => null),
           new Promise((r) => setTimeout(() => r(null), 900)),
         ]);
         return new Response(renderPage({ key: url.searchParams.get('key') || '', boot }), {
