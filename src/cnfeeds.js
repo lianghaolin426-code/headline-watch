@@ -44,6 +44,7 @@ function toMs(v) {
 const URLS = {
   cls: (o) => o.shareurl || `https://www.cls.cn/detail/${o.id}`,
   wscn: (o) => o.uri || `https://wallstreetcn.com/livenews/${o.id}`,
+  wscnArticle: (o) => o.uri || `https://wallstreetcn.com/articles/${o.id}`,
   gelonghui: (o) => (o.route ? new URL(o.route, 'https://www.gelonghui.com').href : `https://www.gelonghui.com/live/${o.id}`),
   jin10: (o) => `https://flash.jin10.com/detail/${o.id}`,
 };
@@ -58,7 +59,12 @@ export function parseCnJson(text, sourceName, format) {
   const list = findList(j);
   if (!list) throw new Error('没找到快讯列表');
   const out = [];
-  for (const o of list) {
+  for (let o of list) {
+    // 华尔街见闻“信息流”接口：每条包在 resource 里，还夹着广告；只要文章（快讯另有 7x24 源）
+    if (o && o.resource && typeof o.resource === 'object') {
+      if (o.resource_type !== 'article') continue;
+      o = o.resource;
+    }
     if (!o || o.id == null) continue;
     const content = strip(o.content_text || o.content || o.brief || o.summary || (o.data && (o.data.content || o.data.title)) || '');
     // 很多快讯是“【标题】正文”的格式，取方括号里的做标题
