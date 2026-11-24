@@ -23,6 +23,7 @@ export const targetLang = (title) => (isZh(title) ? 'en' : 'zh');
 function tidy(s, max) {
   return String(s || '')
     .replace(/https?:\/\/\S+/g, '')
+    .replace(/(?:^|\s|(?<=[^\x00-\x7f]))(?:[a-z0-9-]+\.)+[a-z]{2,6}\/[\w\-\/.?=&%#]+/gi, ' ') // reut.rs/xxxx 这类不带 http 的短链接
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, max);
