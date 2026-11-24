@@ -5,6 +5,7 @@ import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
 import { parseCnJson } from './cnfeeds.js';
+import { fetchJin10 } from './jin10.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
@@ -20,6 +21,8 @@ function config(env) {
   } catch (e) {
     console.error('SOURCES 不是合法 JSON', e);
   }
+  // 设置了金十 MCP Token 就自动加上金十快讯（只留美股/沙特/全球宏观相关的）
+  if (env.JIN10_TOKEN && !sources.some((s) => s.type === 'jin10')) sources.push({ type: 'jin10', name: '金十数据', focus: true });
   return {
     sources,
     rules: { keywords: parseKeywords(env.KEYWORDS), bigNumbers: env.BIG_NUMBERS !== 'false' },
@@ -163,7 +166,8 @@ async function crossLanguage(env, cfg, fresh, now) {
   }
 }
 
-async function fetchSource(src) {
+async function fetchSource(src, env = {}) {
+  if (src.type === 'jin10') return focusFilter(src, await fetchJin10(env.JIN10_TOKEN, src.name));
   const url = src.type === 'telegram' ? `${src.base || 'https://t.me/s/'}${src.channel}` : src.url;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 10_000);
@@ -179,12 +183,7 @@ async function fetchSource(src) {
           ? parseCnJson(text, src.name, src.format)
           : parseFeed(text, src.name || url);
     if (src.name && src.type === 'telegram') items.forEach((i) => (i.source = src.name));
-    // 只关注美股、沙特股：中文快讯里 A 股、港股、国内政策等本地新闻直接丢掉，只留和美国/沙特/全球宏观相关的
-    if (src.focus) {
-      const re = new RegExp(src.focus === true ? FOCUS_ZH : src.focus, 'i');
-      return items.filter((i) => re.test(i.title));
-    }
-    return items;
+    return focusFilter(src, items);
   } finally {
     clearTimeout(timer);
   }
@@ -196,6 +195,13 @@ const FOCUS_ZH =
   '英伟达|苹果|微软|谷歌|亚马逊|Meta|特斯拉|马斯克|OpenAI|Anthropic|博通|台积电|伯克希尔|巴菲特|摩根|高盛|贝莱德|' +
   '沙特|阿美|利雅得|中东|海湾|OPEC|欧佩克|原油|油价|布伦特|WTI|伊朗|以色列|霍尔木兹|' +
   '黄金|比特币|关税|制裁|收购|并购|破产|暴跌|暴涨|熔断|[A-Z]{2,5}\\.(?:O|N)\\b|美股盘前|美股盘后|美股收盘|美股开盘';
+
+// 只关注美股、沙特股：中文快讯里 A 股、港股、国内政策等本地新闻直接丢掉，只留和美国/沙特/全球宏观相关的
+function focusFilter(src, items) {
+  if (!src.focus) return items;
+  const re = new RegExp(src.focus === true ? FOCUS_ZH : src.focus, 'i');
+  return items.filter((i) => re.test(i.title));
+}
 
 function sourceKey(src) {
   return src.type === 'telegram' ? `tg:${src.channel}` : `rss:${src.name || src.url}`;
@@ -216,7 +222,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   const sources = inputs ? inputs.map((x) => x.src) : cfg.sources.filter((src) => !src.every || minute % src.every === 0);
   const settled = inputs
     ? inputs.map((x) => (x.error ? { status: 'rejected', reason: new Error(x.error) } : { status: 'fulfilled', value: x.items }))
-    : await Promise.allSettled(sources.map(fetchSource));
+    : await Promise.allSettled(sources.map((src) => fetchSource(src, env)));
   const toNotify = [];
   const fresh = [];
 
