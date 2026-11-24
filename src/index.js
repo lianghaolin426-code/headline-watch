@@ -115,7 +115,9 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     (await db.prepare('SELECT key, runs FROM source_state').all()).results.map((r) => [r.key, r.runs])
   );
 
-  const sources = inputs ? inputs.map((x) => x.src) : cfg.sources;
+  // 有的源限制频率（every: 每隔几分钟抓一次），没到时间的这轮跳过
+  const minute = Math.floor(now / 60_000);
+  const sources = inputs ? inputs.map((x) => x.src) : cfg.sources.filter((src) => !src.every || minute % src.every === 0);
   const settled = inputs
     ? inputs.map((x) => (x.error ? { status: 'rejected', reason: new Error(x.error) } : { status: 'fulfilled', value: x.items }))
     : await Promise.allSettled(sources.map(fetchSource));

@@ -86,7 +86,10 @@ export function parseFeed(xml, sourceName) {
   let m;
   while ((m = re.exec(xml))) {
     const x = m[0];
-    const title = htmlToText(decodeEntitiesIfEscaped(tag(x, 'title')));
+    const descRaw = tag(x, 'description') || tag(x, 'summary') || '';
+    // Bluesky 等社交平台的 RSS 没有 <title>，用正文开头当标题
+    let title = htmlToText(decodeEntitiesIfEscaped(tag(x, 'title')));
+    if (!title) title = htmlToText(decodeEntitiesIfEscaped(descRaw)).split('\n')[0].slice(0, 280);
     if (!title) continue;
     let link = tag(x, 'link');
     if (!link) {
@@ -96,7 +99,7 @@ export function parseFeed(xml, sourceName) {
     link = decodeEntities(link);
     const guid = tag(x, 'guid') || tag(x, 'id') || link || title;
     const ts = parseDate(tag(x, 'pubDate') || tag(x, 'published') || tag(x, 'updated') || tag(x, 'dc:date'));
-    const desc = tag(x, 'description') || tag(x, 'summary') || '';
+    const desc = descRaw;
     items.push({
       id: `rss:${sourceName}:${decodeEntities(guid)}`.slice(0, 500),
       source: sourceName,

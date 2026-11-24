@@ -21,7 +21,13 @@ database_id = "eb5967b8-b07e-4a1f-977b-825f928fe7ea"
 SOURCES = '''
 [
   {"type": "rss", "name": "CNBC", "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"},
-  {"type": "rss", "name": "Investing.com", "url": "https://www.investing.com/rss/news_25.rss"}
+  {"type": "rss", "name": "Investing.com", "url": "https://www.investing.com/rss/news_25.rss"},
+  {"type": "rss", "name": "investingLive", "url": "https://investinglive.com/feed"},
+  {"type": "rss", "name": "WSJ Markets", "url": "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain"},
+  {"type": "rss", "name": "Seeking Alpha Currents", "url": "https://seekingalpha.com/market_currents.xml"},
+  {"type": "rss", "name": "FinancialJuice", "url": "https://www.financialjuice.com/feed.ashx?xy=rss", "every": 5},
+  {"type": "rss", "name": "Unusual Whales (Bluesky)", "url": "https://bsky.app/profile/unusualwhales.bsky.social/rss"},
+  {"type": "rss", "name": "WSJ (Bluesky)", "url": "https://bsky.app/profile/wsj.com/rss"}
 ]
 '''
 
@@ -36,7 +42,7 @@ AI_SCORING = "true"
 BIG_NUMBER_MIN_BILLION = "10"
 
 # 来源加权：加到 AI 分上。快讯类频道更可信、更快，加分
-SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "CNBC": 0, "Investing.com": 0}'
+SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5}'
 
 # 是否把“含大数字”的快讯也算粗筛命中（如 $24 billion、2万亿美元）
 BIG_NUMBERS = "true"

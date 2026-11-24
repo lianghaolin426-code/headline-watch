@@ -71,3 +71,9 @@ test('AI positional score array', () => {
   assert.deepEqual(parseScores('[7, 2, 9]', 3), [7, 2, 9]);
   assert.deepEqual(parseScores('Scores: [8,3]', 3), [8, 3, null]);
 });
+
+test('rss without title uses description (Bluesky)', () => {
+  const xml = '<rss><channel><item><link>https://bsky.app/x/1</link><description>BREAKING: Something big happened\nmore text</description><pubDate>Mon, 23 Nov 2026 10:00:00 +0000</pubDate><guid>at://1</guid></item></channel></rss>';
+  const [it] = parseFeed(xml, 'bsky');
+  assert.equal(it.title, 'BREAKING: Something big happened');
+});
