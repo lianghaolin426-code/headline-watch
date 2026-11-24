@@ -148,3 +148,19 @@ test('mymemory helpers', async () => {
   assert.equal(seen.searchParams.get('langpair'), 'zh-CN|en');
   assert.equal(seen.searchParams.get('de'), 'a@b.c');
 });
+
+test('tagged score replies', async () => {
+  const { parseTagged } = await import('../src/score.js');
+  const r = parseTagged('[[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,6,1,"","Fed","macro"],[3,8,1,"$tsla, 2222.SR, not a ticker","Aramco","Energy"]]', 5);
+  assert.deepEqual(r.scores, [9, 2, 6, 8, null]);
+  assert.deepEqual(r.tags[0], { dir: -1, tickers: 'NVDA', topic: 'Nvidia', sector: 'tech' });
+  assert.equal(r.tags[1], null);
+  assert.deepEqual(r.tags[2], { dir: 1, tickers: '', topic: 'Fed', sector: 'macro' });
+  assert.equal(r.tags[3].tickers, 'TSLA,2222');
+  assert.equal(r.tags[3].sector, 'energy');
+  // 旧格式仍然能用
+  assert.deepEqual(parseTagged('[{"i":0,"s":9},{"i":1,"s":3}]', 2).scores, [9, 3]);
+  assert.deepEqual(parseTagged('[{"i":0,"s":9,"d":1,"k":["AAPL"],"t":"Apple","c":"tech"}]', 1).tags[0], { dir: 1, tickers: 'AAPL', topic: 'Apple', sector: 'tech' });
+  assert.deepEqual(parseTagged('[7, 2]', 2).scores, [7, 2]);
+  assert.equal(parseTagged('nope', 2), null);
+});

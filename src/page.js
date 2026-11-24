@@ -342,7 +342,7 @@ var I18N={
 zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
  search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
- lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',hAgo:'{0} 小时前',nowL:'现在',
+ lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',hAgo:'{0} 小时前',nowL:'现在',
  topic:'话题',topicCnt:'{0} 条快讯 · {1} 条重要',timeline:'时间线 →',more:'更多重要快讯',wire:'实时快讯',viewAll:'查看全部 →',
  nSrc:'{0} 个来源证实',merged:'同一事件已合并',pts:'{0} 分',today:'今天',yesterday:'昨天',items:'{0} 条',seenHere:'上次看到这里',
  lvHot:'重要快讯',lvNone:'尚未评分',lvHigh:'高分',lvMid:'一般关注',lvLow:'常规消息',byAi:'AI 评分',byRule:'规则评分',byWait:'等待评分',boost:'原始 {0}，多源证实加分',
@@ -355,7 +355,7 @@ zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',f
 en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
  search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
- lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',hAgo:'{0}h ago',nowL:'now',
+ lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiAi:'Judged per headline by AI',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',hAgo:'{0}h ago',nowL:'now',
  topic:'TOPIC',topicCnt:'{0} flashes · {1} important',timeline:'Timeline →',more:'MORE IMPORTANT',wire:'LIVE WIRE',viewAll:'View all →',
  nSrc:'{0} sources confirm',merged:'Merged with same story',pts:'{0}',today:'Today',yesterday:'Yesterday',items:'{0} items',seenHere:'YOU LEFT OFF HERE',
  lvHot:'Important',lvNone:'Not scored yet',lvHigh:'High score',lvMid:'Worth a look',lvLow:'Routine',byAi:'AI score',byRule:'Rule score',byWait:'Awaiting score',boost:'base {0}, raised by multi-source confirmation',
@@ -368,7 +368,7 @@ en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Conn
 ar:{tag:'أخبار عاجلة للسوقين الأمريكي والسعودي',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
  search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
- lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',hAgo:'قبل {0} س',nowL:'الآن',
+ lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiAi:'تقييم الذكاء الاصطناعي لكل عنوان',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',hAgo:'قبل {0} س',nowL:'الآن',
  topic:'موضوع',topicCnt:'{0} خبر · {1} مهم',timeline:'التسلسل الزمني ←',more:'أخبار مهمة أخرى',wire:'الأخبار العاجلة',viewAll:'عرض الكل ←',
  nSrc:'أكدته {0} مصادر',merged:'مدمج مع الخبر نفسه',pts:'{0}',today:'اليوم',yesterday:'أمس',items:'{0} خبر',seenHere:'توقفت هنا في آخر زيارة',
  lvHot:'خبر مهم',lvNone:'لم يُقيَّم بعد',lvHigh:'تقييم مرتفع',lvMid:'جدير بالمتابعة',lvLow:'خبر اعتيادي',byAi:'تقييم الذكاء الاصطناعي',byRule:'تقييم القواعد',byWait:'بانتظار التقييم',boost:'الأساس {0}، ورُفع لتأكيد عدة مصادر',
@@ -494,9 +494,9 @@ async function pump(gesture){
 function softRender(){clearTimeout(trTimer);trTimer=setTimeout(function(){render(true);if(show.on){var k=show.k;showRender();show.k=k;}},120);}
 
 /* ---------- 筛选 ---------- */
-function base(){var k=state.q.toLowerCase(),tk=/^\$[A-Za-z0-9.]{1,6}$/.test(state.q)?tkRe(state.q.slice(1).toUpperCase()):null;
+function base(){var k=state.q.toLowerCase(),sym=/^\$[A-Za-z0-9.]{1,6}$/.test(state.q)?state.q.slice(1).toUpperCase():'',tk=sym?tkRe(sym):null,tpc=k.charAt(0)==='#'?k.slice(1):'';if(tpc)k=tpc;
   return state.items.filter(function(i){if(state.off[i.source])return false;
-    if(tk){if(!tk.test(i.title+' '+(i.title_tr||'')))return false;}else if(k){var c=TR[i.id];if((i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase().indexOf(k)<0)return false;}return true;});}
+    if(tk){if(!(i.tickers!=null&&i.dir!=null?(','+i.tickers+',').indexOf(','+sym+',')>=0:tk.test(i.title+' '+(i.title_tr||''))))return false;}else if(tpc&&i.topic&&i.topic.toLowerCase()===tpc){}else if(k){var c=TR[i.id];if((i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase().indexOf(k)<0)return false;}return true;});}
 function watchHit(i){if(!state.watch.length)return '';var c=TR[i.id],t=(i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase();
   for(var k=0;k<state.watch.length;k++){var w=state.watch[k].toLowerCase();if(/^[a-z0-9.]{1,5}$/.test(w)){if(new RegExp('(^|[^a-z0-9])'+w.replace(/\./g,'\\.')+'($|[^a-z0-9])').test(t))return state.watch[k];}else if(t.indexOf(w)>=0)return state.watch[k];}return '';}
 function inView(i,v){if(v==='watch')return !!watchHit(i);if(v==='hot')return isHot(i);if(v==='mid')return (i.score||0)>=6&&!i.dup_of;return true;}
@@ -521,13 +521,14 @@ var CASH=/\$([A-Z]{2,5})\b|\((?:NASDAQ|NYSE|Nasdaq|NYSE American|TADAWUL)\s*:\s*
 function tkRe(sym){return TKX[sym]?TKX[sym].re:new RegExp('\\$'+sym.replace(/\./g,'\\.')+'\\b|[(:]\\s*'+sym.replace(/\./g,'\\.')+'\\)');}
 function tickers(list){var m={};
   list.forEach(function(i){var t=cleanTitle(i.title),u={};
+    if(i.tickers!=null&&i.dir!=null){i.tickers.split(',').forEach(function(s){if(s)u[s]=TKX[s]?TKX[s][1]:''});Object.keys(u).forEach(function(s){var o=m[s]=m[s]||{sym:s,name:u[s],n:0,hot:0};o.n++;if(isHot(i))o.hot++;});return;}
     TK.forEach(function(k){if(k.re.test(t))u[k[0]]=k[1];});
     var x;CASH.lastIndex=0;while((x=CASH.exec(t))){var s=x[1]||x[2];if(!u[s]&&!TKX[s]&&!/^(USD|EUR|GBP|JPY|CNY|SAR|BTC|ETH|GDP|CPI|ETF|IPO|CEO)$/.test(s))u[s]='';}
     Object.keys(u).forEach(function(s){var o=m[s]=m[s]||{sym:s,name:u[s],n:0,hot:0};o.n++;if(isHot(i))o.hot++;});});
   return Object.keys(m).map(function(s){return m[s]}).filter(function(o){return o.n>=2}).sort(function(a,b){return b.n-a.n||b.hot-a.hot||(a.sym<b.sym?-1:1)}).slice(0,6);}
 var BULL=/\b(surg\w+|soar\w*|jump\w*|rall(?:y|ies|ied)|gains?|rises?|rose|climb\w*|record high|beats?|upgrade[sd]?|boost\w*|rebound\w*|skyrocket\w*|buyback|tops|approv\w+|wins?|raises? (?:guidance|forecast|outlook|dividend))\b|大涨|上涨|飙升|暴涨|走高|新高|反弹|超预期|上调|回购|获批|利好|拉升|涨超|涨逾|涨近/gi;
 var BEAR=/\b(plung\w+|slump\w*|tumbl\w+|falls?|fell|drops?|dropped|slid\w*|sinks?|sank|crash\w*|sell-?off|miss(?:es|ed)?|downgrade[sd]?|warn\w*|loss(?:es)?|layoffs?|bankrupt\w*|defaults?|probe|investigat\w+|lawsuit|sanction\w*|tariffs?|blacklist\w*|halt\w*|recall\w*|fraud|short sellers?|lows?|weak\w*|fears?|slash\w*|cuts? (?:guidance|forecast|outlook|jobs))\b|大跌|下跌|暴跌|跳水|走低|新低|下调|不及预期|裁员|破产|违约|调查|制裁|关税|黑名单|利空|跌超|跌逾|跌近|亏损|警告|做空/gi;
-function mood(i){var t=cleanTitle(i.title),a=(t.match(BULL)||[]).length,b=(t.match(BEAR)||[]).length;return a>b?1:b>a?-1:0;}
+function mood(i){if(i.dir!=null)return i.dir;var t=cleanTitle(i.title),a=(t.match(BULL)||[]).length,b=(t.match(BEAR)||[]).length;return a>b?1:b>a?-1:0;}
 
 /* ---------- 话题：统计标题里反复出现的专有名词 ---------- */
 var STOP={};('the this that after with from will says new its and for not how why what but are has can could may over more here amid into than who was were his her their our your you they them just still also when where while about against between during before under near per via ' +
@@ -535,6 +536,9 @@ var STOP={};('the this that after with from will says new its and for not how wh
  'monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november december breaking update live watch exclusive factbox explainer opinion analysis ' +
  'reuters bloomberg cnbc wsj ft bbc ap nasdaq barron investing seeking alpha financialjuice newswire actual forecast previous flash rate rates interest probabilities president chief executive north south east west').split(' ').forEach(function(w){STOP[w]=1});
 function topics(list){
+  // AI 给了话题标签的快讯够多时，直接按标签归拢（中英文自动对上）；否则退回到数专有名词
+  var tg={},nt=0;list.forEach(function(i){if(i.dup_of||!i.topic)return;nt++;var k=i.topic.toLowerCase();(tg[k]=tg[k]||{name:i.topic,tag:true,items:[]}).items.push(i)});
+  if(nt>=12){var at=Object.keys(tg).map(function(k){return tg[k]}).filter(function(x){return x.items.length>=3}).sort(function(a,b){return b.items.length-a.items.length||b.items.filter(isHot).length-a.items.filter(isHot).length});if(at.length)return at.slice(0,3);}
   var cap={},low={},docs={};
   list.forEach(function(i){if(itemLang(i)!=='en')return;var ws=cleanTitle(i.title).split(/[^A-Za-z0-9&'’-]+/),u={};
     ws.forEach(function(w,n){w=w.replace(/['’]s$/,'');if(w.length<3||/\d/.test(w))return;var k=w.toLowerCase();if(STOP[k])return;
@@ -584,14 +588,14 @@ function briefHtml(b){
     if(past.length){var avg=past.reduce(function(x,y){return x+y},0)/past.length,r=avg>0?imp/avg:(imp?2:1),pc=Math.round(Math.abs(r-1)*100),up=r>=1.1,dn=r<=.9;
       vs='<div class="vs"><strong'+(up?' class="up"':'')+'>'+(up?T('vsUp',pc):dn?T('vsDown',pc):T('vsFlat'))+'</strong><div class="gauge"><i'+(up?' class="up"':'')+' style="inset-inline-start:'+Math.round(Math.max(0,Math.min(1,r/2))*100)+'%"></i></div><small>'+T('vsNote',past.length,Math.round(avg*10)/10)+'</small></div>';}}
   var ms=win.filter(function(i){return (i.score||0)>=5}).map(mood),bu=ms.filter(function(x){return x>0}).length,be=ms.filter(function(x){return x<0}).length,ne=ms.length-bu-be;
-  var sen='<div class="sen"><div class="lbl" style="margin-bottom:8px">'+T('senti')+'</div>'+(bu+be?'<div class="hd"><span class="sbu">'+T('bull',bu)+'</span><span class="sbe">'+T('bear',be)+'</span></div><div class="split"><i class="sbu" style="flex-grow:'+bu+'"></i><i class="sne" style="flex-grow:'+Math.round(ne/4)+'"></i><i class="sbe" style="flex-grow:'+be+'"></i></div><small>'+T('sentiNote')+'</small>':'<small>'+T('sentiNone')+'</small>')+'</div>';
+  var sen='<div class="sen"><div class="lbl" style="margin-bottom:8px">'+T('senti')+'</div>'+(bu+be?'<div class="hd"><span class="sbu">'+T('bull',bu)+'</span><span class="sbe">'+T('bear',be)+'</span></div><div class="split"><i class="sbu" style="flex-grow:'+bu+'"></i><i class="sne" style="flex-grow:'+Math.round(ne/4)+'"></i><i class="sbe" style="flex-grow:'+be+'"></i></div><small>'+T(win.filter(function(i){return (i.score||0)>=5&&i.dir!=null}).length*2>=ms.length?'sentiAi':'sentiNote')+'</small>':'<small>'+T('sentiNone')+'</small>')+'</div>';
   h+='<div class="now"><div class="glass tile stat"><div class="lbl">'+T('last12')+'</div><b>'+imp+'</b><p>'+T('statLine',tot,Object.keys(srcs).length)+'</p>'+vs+sen+'</div>';
   var tks=tickers(win),tmx=tks.length?tks[0].n:1;
   h+='<div class="glass tile tk"><div class="lbl">'+T('tkTitle')+'</div>'+(tks.length?'<div class="sub">'+T('tkSub')+'</div>'+tks.map(function(o){
     return '<button class="tkr'+(o.hot?' h':'')+'" data-tk="'+esc(o.sym)+'"><b dir="ltr">'+esc(o.sym)+'</b><span dir="ltr">'+esc(o.name)+'</span><em class="num">'+o.n+'</em><u style="width:'+Math.max(8,Math.round(o.n/tmx*100))+'%"></u></button>'}).join(''):'<div class="sub" style="margin:0">'+T('tkNone')+'</div>')+'</div>';
   topics(b.filter(function(i){return i.ts>now-18*36e5})).slice(0,2).forEach(function(tp){
     var L=dedupe(tp.items.slice().sort(function(x,y){return (y.score||0)-(x.score||0)||y.ts-x.ts}));
-    h+='<div class="glass tile topic"><div class="lbl">'+T('topic')+'</div><h3 data-topic="'+esc(tp.name)+'" role="button" tabindex="0" style="cursor:pointer"><bdi>'+esc(tp.name)+'</bdi><span>'+T('timeline')+'</span></h3><div class="cnt">'+T('topicCnt',tp.items.length,tp.items.filter(isHot).length)+'</div>'+
+    h+='<div class="glass tile topic"><div class="lbl">'+T('topic')+'</div><h3 data-topic="'+esc((tp.tag?'#':'')+tp.name)+'" role="button" tabindex="0" style="cursor:pointer"><bdi>'+esc(tp.name)+'</bdi><span>'+T('timeline')+'</span></h3><div class="cnt">'+T('topicCnt',tp.items.length,tp.items.filter(isHot).length)+'</div>'+
       L.slice(0,3).map(function(i){var o=tx(i);return '<div class="li" data-id="'+esc(i.id)+'"><span class="sc s'+lvl(i)+'">'+fmtScore(i.score)+'</span><div><span class="lt" dir="auto">'+esc(o.t)+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';});
   h+='</div>';
   var more=rest.slice(4).sort(function(x,y){return y.ts-x.ts||(x.id<y.id?-1:1)}).slice(0,9),latest=b.slice(0,more.length>3?16:12);

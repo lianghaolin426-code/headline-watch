@@ -31,6 +31,7 @@ function config(env) {
     threshold: Number(env.AI_THRESHOLD || 8),
     bigMin: Number(env.BIG_NUMBER_MIN_BILLION || 10),
     aiOn: env.AI_SCORING !== 'false',
+    aiTags: env.AI_TAGS !== 'false',
     maxAi: Number(env.MAX_AI_PER_RUN || 15),
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
     xlangOn: env.CROSS_LANGUAGE !== 'false',
@@ -72,12 +73,14 @@ async function scoreItems(env, cfg, list, report) {
   const candidates = [...list]
     .sort((a, b) => (b.hits.length > 0) + (b.weight >= 1) - ((a.hits.length > 0) + (a.weight >= 1)) || b.ts - a.ts)
     .slice(0, cfg.maxAi);
-  const scores = cfg.aiOn ? await aiScores(env, candidates) : null;
+  const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags }) : null;
+  if (scores?.usage) await addUsage(env, report, scores.usage);
   if (cfg.aiOn && candidates.length && !scores) report.errors.push('AI 打分失败，本轮用规则判断');
   candidates.forEach((it, k) => {
     if (scores && scores[k] != null) {
       it.score = Math.max(0, Math.min(10, scores[k] + it.weight + routinePenalty(it.title)));
       it.scoreBy = 'ai';
+      it.tags = scores.tags?.[k] || null;
     }
   });
   const updates = [];
@@ -95,6 +98,39 @@ async function scoreItems(env, cfg, list, report) {
     );
   }
   if (updates.length) await env.DB.batch(updates);
+  // AI 给的标签（方向、股票代码、话题、板块）单独写：数据库还没跑 migrate-v6.sql 时不影响打分
+  const tagged = list.filter((it) => it.tags);
+  if (tagged.length) {
+    try {
+      await env.DB.batch(
+        tagged.map((it) =>
+          env.DB.prepare('UPDATE items SET dir = ?, tickers = ?, topic = ?, sector = ? WHERE id = ?').bind(it.tags.dir, it.tags.tickers, it.tags.topic, it.tags.sector, it.id)
+        )
+      );
+    } catch (e) {
+      console.warn('saving tags failed (run migrate-v6.sql?)', e?.message || e);
+    }
+  }
+}
+
+/** 记下今天 AI 打分用了多少 token（看板和 /api/status 用来估算免费额度用了多少） */
+async function addUsage(env, report, u) {
+  if (report) {
+    report.aiUsage = report.aiUsage || { calls: 0, prompt: 0, completion: 0 };
+    report.aiUsage.calls++;
+    report.aiUsage.prompt += u.prompt;
+    report.aiUsage.completion += u.completion;
+  }
+  try {
+    await env.DB.prepare(
+      `INSERT INTO ai_usage (day, calls, prompt_tokens, completion_tokens) VALUES (?, 1, ?, ?)
+       ON CONFLICT(day) DO UPDATE SET calls = calls + 1, prompt_tokens = prompt_tokens + excluded.prompt_tokens, completion_tokens = completion_tokens + excluded.completion_tokens`
+    )
+      .bind(new Date().toISOString().slice(0, 10), u.prompt, u.completion)
+      .run();
+  } catch {
+    // 还没有 ai_usage 表（没跑 migrate-v6.sql）时忽略
+  }
 }
 
 /**
@@ -376,17 +412,28 @@ function escapeXml(s) {
 }
 
 async function listItems(env, { limit = 200, matched = false, since = 0, before = 0 }) {
-  const sql = (tr) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${tr ? ', title_tr, body_tr, tr_lang' : ''} FROM items
+  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''} FROM items
                WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ORDER BY ts DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
   const args = before > 0 ? [since, before, Math.min(limit, 500)] : [since, Math.min(limit, 500)];
-  const run = (tr) => env.DB.prepare(sql(tr)).bind(...args).all();
+  // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
+  for (const level of [2, 1]) {
+    try {
+      return (await env.DB.prepare(sql(level)).bind(...args).all()).results;
+    } catch {}
+  }
+  return (await env.DB.prepare(sql(0)).bind(...args).all()).results;
+}
+
+// llama-3.3-70b-instruct-fp8-fast 的官方折算：每百万输入 token 约 26668 neurons，每百万输出 token 约 204805 neurons
+const neurons = (r) => Math.round((r.prompt_tokens * 26668 + r.completion_tokens * 204805) / 1e6);
+async function usageRows(env) {
   try {
-    return (await run(true)).results;
+    const rows = (await env.DB.prepare('SELECT day, calls, prompt_tokens, completion_tokens FROM ai_usage ORDER BY day DESC LIMIT 7').all()).results;
+    return rows.map((r) => ({ ...r, neurons_est: neurons(r) }));
   } catch {
-    // 数据库还没跑 migrate-v5.sql（没有译文列）时照常返回原文
-    return (await run(false)).results;
+    return [];
   }
 }
 
@@ -449,7 +496,7 @@ export default {
           channels: enabledChannels(env),
           keywords: cfg.rules.keywords,
           bigNumbers: cfg.rules.bigNumbers,
-          ai: { enabled: cfg.aiOn && !!env.AI, threshold: cfg.threshold, weights: cfg.weights },
+          ai: { enabled: cfg.aiOn && !!env.AI, tags: cfg.aiTags, threshold: cfg.threshold, weights: cfg.weights, usage: await usageRows(env) },
           notifyMode: cfg.notifyMode,
           sources,
         });
@@ -495,6 +542,7 @@ export default {
       case '/api/rescore': {
         // 按当前规则/AI 重新给最近 N 小时的快讯打分（改了阈值或权重后用）
         const cfg = config(env);
+        if (url.searchParams.has('tags')) cfg.aiTags = url.searchParams.get('tags') !== '0'; // 对比带标签和不带标签的开销
         const hours = Math.min(Number(url.searchParams.get('hours') || 6), 72);
         const rows = (
           await env.DB.prepare('SELECT id, source, title, body, ts, confirms FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 200')
@@ -512,6 +560,9 @@ export default {
           rescored: out.length,
           important: out.filter((r) => r.important).length,
           errors: report.errors,
+          usage: report.aiUsage && { ...report.aiUsage, neurons_est: neurons({ prompt_tokens: report.aiUsage.prompt, completion_tokens: report.aiUsage.completion }) },
+          tagged: out.filter((r) => r.tags).length,
+          sample: out.filter((r) => r.tags).slice(0, 12).map((r) => ({ title: r.title.slice(0, 80), ...r.tags })),
           top: out.sort((a, b) => b.score - a.score).slice(0, 15).map((r) => ({ score: r.score, by: r.scoreBy, title: r.title })),
         });
       }

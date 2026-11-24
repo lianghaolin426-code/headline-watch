@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS items (
   base_score REAL,            -- 互证加分前的分数
   confirms INTEGER NOT NULL DEFAULT 0, -- 被几个其他来源报道
   dup_of TEXT, -- 同一件事已有更早的重要快讯时，指向那一条（看板合并显示、不重复推送）
+  dir INTEGER,    -- AI 标签：1 利好，-1 利空，0 中性
+  tickers TEXT,   -- AI 标签：逗号分隔的股票代码
+  topic TEXT,     -- AI 标签：话题
+  sector TEXT,    -- AI 标签：板块
   title_tr TEXT,  -- 标题译文（NULL = 还没翻，空串 = 翻过但没结果）
   body_tr TEXT,   -- 摘要译文
   tr_lang TEXT    -- 译文语言：zh 或 en
@@ -35,3 +39,5 @@ CREATE TABLE IF NOT EXISTS source_state (
 -- 标题向量（跨语言判断同一件事用），只保留几个小时
 CREATE TABLE IF NOT EXISTS vecs (id TEXT PRIMARY KEY, ts INTEGER NOT NULL, zh INTEGER NOT NULL, v BLOB NOT NULL);
 CREATE INDEX IF NOT EXISTS vecs_ts ON vecs (ts);
+
+CREATE TABLE IF NOT EXISTS ai_usage (day TEXT PRIMARY KEY, calls INTEGER NOT NULL DEFAULT 0, prompt_tokens INTEGER NOT NULL DEFAULT 0, completion_tokens INTEGER NOT NULL DEFAULT 0);

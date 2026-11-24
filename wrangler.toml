@@ -50,6 +50,9 @@ KEYWORDS = "short sellers, bankruptcy, halts trading, ousted, 破产"
 
 # 重要性评分（0-10）达到多少分才算重要、才推送
 AI_THRESHOLD = "8"
+# AI 打分时顺便给 5 分以上的快讯贴标签：利好/利空方向、股票代码、话题、板块（看板的热门股票、话题、多空情绪用）。
+# 需要先跑 migrate-v6.sql。设为 "false" 就回到只打分。
+AI_TAGS = "true"
 
 # AI 打分开关；关掉则只用规则（关键词或 >= BIG_NUMBER_MIN_BILLION 十亿美元的金额 = 8 分）
 AI_SCORING = "true"
