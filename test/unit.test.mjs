@@ -121,3 +121,16 @@ test('int8 vector packing keeps cosine', async () => {
   assert.ok(cos(a, c) < 0.1);
   assert.ok(Math.abs(cos(unpack(Array.from(new Uint8Array(a.buffer))), b) - cos(a, b)) < 1e-9);
 });
+
+test('translation helpers', async () => {
+  const { targetLang, buildList, parseTranslations } = await import('../src/translate.js');
+  assert.equal(targetLang('Fed cuts rates'), 'zh');
+  assert.equal(targetLang('美联储降息'), 'en');
+  const list = buildList([{ title: 'Fed cuts rates reut.rs/abc https://x.co/1', body: 'Fed cuts rates' }, { title: 'A buys B', body: 'The deal values B at $5 billion.' }]);
+  assert.ok(!list.includes('https://'));
+  assert.equal(list.split('B: ').length, 2); // 重复标题的摘要不翻
+  const out = parseTranslations('here: [{"i":1,"t":"A 收购 B","b":"交易对 B 估值 50 亿美元。"},{"i":7,"t":"x"}]', 2);
+  assert.equal(out[0], null);
+  assert.deepEqual(out[1], { t: 'A 收购 B', b: '交易对 B 估值 50 亿美元。' });
+  assert.equal(parseTranslations('sorry', 2), null);
+});

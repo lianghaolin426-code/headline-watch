@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS items (
   score_by TEXT,              -- ai 或 rule
   base_score REAL,            -- 互证加分前的分数
   confirms INTEGER NOT NULL DEFAULT 0, -- 被几个其他来源报道
-  dup_of TEXT -- 同一件事已有更早的重要快讯时，指向那一条（看板合并显示、不重复推送）
+  dup_of TEXT, -- 同一件事已有更早的重要快讯时，指向那一条（看板合并显示、不重复推送）
+  title_tr TEXT,  -- 标题译文（NULL = 还没翻，空串 = 翻过但没结果）
+  body_tr TEXT,   -- 摘要译文
+  tr_lang TEXT    -- 译文语言：zh 或 en
 );
 CREATE INDEX IF NOT EXISTS idx_items_ts ON items(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_items_seen ON items(seen_at);

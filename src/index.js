@@ -9,6 +9,7 @@ import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { renderPage } from './page.js';
+import { translatePending } from './translate.js';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -34,6 +35,9 @@ function config(env) {
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
     xlangOn: env.CROSS_LANGUAGE !== 'false',
     xlangMin: Number(env.CROSS_LANGUAGE_MIN || 0.65),
+    trOn: env.TRANSLATE !== 'false',
+    trMin: Number(env.TRANSLATE_MIN_SCORE || 6),
+    trMax: Number(env.MAX_TRANSLATE_PER_RUN || 8),
   };
 }
 
@@ -331,6 +335,15 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
   }
 
+  // 中英互译：每轮翻一小批分数够高的快讯（旧库还没加译文列时跳过，不影响抓取）
+  if (cfg.trOn && !inputs) {
+    try {
+      report.translated = await translatePending(env, { now, minScore: cfg.trMin, max: cfg.trMax });
+    } catch (e) {
+      console.warn('translate skipped', e?.message || e);
+    }
+  }
+
   // 每小时清理一次过期数据
   if (!inputs && new Date(now).getUTCMinutes() === 0) {
     await db.prepare('DELETE FROM items WHERE seen_at < ?').bind(now - cfg.keepDays * 86_400_000).run();
@@ -361,10 +374,16 @@ function escapeXml(s) {
 }
 
 async function listItems(env, { limit = 200, matched = false, since = 0 }) {
-  const sql = `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, confirms, dup_of FROM items
+  const sql = (tr) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${tr ? ', title_tr, body_tr, tr_lang' : ''} FROM items
                WHERE seen_at > ? ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ORDER BY ts DESC LIMIT ?`;
-  return (await env.DB.prepare(sql).bind(since, Math.min(limit, 500)).all()).results;
+  const run = (tr) => env.DB.prepare(sql(tr)).bind(since, Math.min(limit, 500)).all();
+  try {
+    return (await run(true)).results;
+  } catch {
+    // 数据库还没跑 migrate-v5.sql（没有译文列）时照常返回原文
+    return (await run(false)).results;
+  }
 }
 
 export default {
