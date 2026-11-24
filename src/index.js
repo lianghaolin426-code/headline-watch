@@ -112,7 +112,8 @@ async function scoreItems(env, cfg, list, report) {
     it.important = it.score >= cfg.threshold;
     updates.push(
       env.DB.prepare('UPDATE items SET score = ?, base_score = ?, confirms = ?, important = ?, score_by = ?, hits = ? WHERE id = ?').bind(
-        it.score || null, it.base, it.confirms || 0, it.important ? 1 : 0, it.score ? it.scoreBy : null, it.hits.join(' | '), it.id)
+        // AI 打出的 0 分照实存（不然会被当成“尚未评分”，补分时又被反复重打）；规则没命中的仍记为空
+        it.scoreBy === 'ai' ? it.score : it.score || null, it.base, it.confirms || 0, it.important ? 1 : 0, it.scoreBy === 'ai' || it.score ? it.scoreBy : null, it.hits.join(' | '), it.id)
     );
   }
   if (updates.length) await env.DB.batch(updates);
