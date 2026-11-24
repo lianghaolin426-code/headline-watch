@@ -739,14 +739,14 @@ function merge(){if(!state.pending.length)return;state.newIds={};if(!state.first
 var unread=0;
 async function load(){
   try{
-    var r=await fetch(api('/api/items?limit=400&since='+(state.first?0:state.lastSeen)),{cache:'no-store'});
+    var r=await fetch(api('/api/items?limit=400&since='+(state.first?0:Math.max(0,state.lastSeen-18e5))),{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     var d=await r.json(),known={},changed=!state.loaded;
     state.items.forEach(function(x){known[x.id]=1});state.pending.forEach(function(x){known[x.id]=1});
     var fresh=d.items.filter(function(i){return !known[i.id]});
     // 已有条目可能后来被打分：用新数据覆盖
     var upd={};d.items.forEach(function(i){upd[i.id]=i});
-    state.items=state.items.map(function(x){var u=upd[x.id];if(u&&(u.score!==x.score||u.important!==x.important||u.confirms!==x.confirms||u.dup_of!==x.dup_of||u.title_tr!==x.title_tr)){changed=true;return u;}return x;});
+    state.items=state.items.map(function(x){var u=upd[x.id];if(u&&(u.score!==x.score||u.important!==x.important||u.confirms!==x.confirms||u.dup_of!==x.dup_of||u.title_tr!==x.title_tr||u.topic!==x.topic)){changed=true;if(isHot(u)&&!isHot(x)&&!state.first&&state.sound)beep();return u;}return x;});
     state.pending=state.pending.map(function(x){return upd[x.id]||x});
     if(fresh.length){
       fresh.forEach(function(i){state.lastSeen=Math.max(state.lastSeen,i.seen_at)});

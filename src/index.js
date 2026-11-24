@@ -32,6 +32,8 @@ function config(env) {
     bigMin: Number(env.BIG_NUMBER_MIN_BILLION || 10),
     aiOn: env.AI_SCORING !== 'false',
     aiTags: env.AI_TAGS !== 'false',
+    aiWaitMin: Number(env.AI_BATCH_WAIT_MIN ?? 5),
+    aiBatchSize: Number(env.AI_BATCH_SIZE || 8),
     maxAi: Number(env.MAX_AI_PER_RUN || 15),
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
     xlangOn: env.CROSS_LANGUAGE !== 'false',
@@ -315,6 +317,31 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       )
       .bind(key, now, items.length)
       .run();
+  }
+
+  // ---- 攒批：每次调用 AI 都要带上一大段固定提示词，一两条就调一次很浪费额度。
+  // 规则命中的、高权重来源的快讯照旧马上打分；其余的先记为 wait，攒够 aiBatchSize 条或等满 aiWaitMin 分钟再一起打分。
+  if (cfg.aiOn && env.AI && cfg.aiWaitMin > 0 && !inputs) {
+    try {
+      const urgent = (it) => it.hits.length > 0 || it.weight >= 1 || it.firstRun;
+      const freshIds = new Set(fresh.map((f) => f.id));
+      const pend = (
+        await db.prepare("SELECT id, source, title, body, url, ts, seen_at FROM items WHERE score_by = 'wait' AND seen_at > ? ORDER BY seen_at LIMIT 60").bind(now - 30 * 60_000).all()
+      ).results.filter((r) => !freshIds.has(r.id));
+      const waiting = fresh.filter((it) => !urgent(it)).length + pend.length;
+      const go = fresh.some(urgent) || waiting >= cfg.aiBatchSize || (pend.length > 0 && now - pend[0].seen_at >= cfg.aiWaitMin * 60_000);
+      if (go) {
+        // 等得最久的先打分；一轮装不下的留到下一轮
+        const room = Math.max(0, cfg.maxAi - fresh.length);
+        for (const r of pend.slice(0, room)) fresh.push(Object.assign(enrich(r, cfg), { firstRun: false }));
+      } else if (fresh.length) {
+        await db.batch(fresh.map((it) => db.prepare("UPDATE items SET score_by = 'wait' WHERE id = ?").bind(it.id)));
+        report.waiting = waiting;
+        fresh.length = 0;
+      }
+    } catch (e) {
+      report.errors.push(`攒批打分出错，本轮照常打分: ${e?.message || e}`);
+    }
   }
 
   // ---- 打分：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分 ----
