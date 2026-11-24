@@ -16,6 +16,9 @@ database_name = "headline-watch"
 database_id = "eb5967b8-b07e-4a1f-977b-825f928fe7ea"
 
 [vars]
+# 深度文章（华尔街见闻文章）：AI 打分（只用来排序，不推送、不算多源确认）；Claude 判断文章对应哪几条快讯
+ARTICLE_AI_SCORING = "true"
+RELATED_CLAUDE = "true"
 # Cloudflare 自己抓的 RSS 源。
 # Telegram 频道和 Google 新闻会拒绝 Cloudflare 的访问，所以 Telegram 改由 GitHub 定时任务抓取后推送到 /api/ingest（见 .github/workflows/telegram.yml）。
 SOURCES = '''

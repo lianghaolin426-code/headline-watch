@@ -304,3 +304,17 @@ test('embed code is stripped from summaries', async () => {
   const { buildList } = await import('../src/translate.js');
   assert.equal(buildList([{ title: 'FinancialJuice: US prepares tariffs', body: 'new TradingView.chart({a:1});' }]), '0.\nT: US prepares tariffs');
 });
+
+test('claudeRelate maps the numbers Claude returns back to candidate flashes', async () => {
+  const { claudeRelate } = await import('../src/index.js');
+  const { claudeReset } = await import('../src/claude.js');
+  claudeReset();
+  let prompt = '';
+  const env = {
+    CLAUDE_CLIENT: { messages: { create: async (req) => { prompt = req.messages[0].content; return { stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 3 }, content: [{ type: 'text', text: '[2, 9, 2]' }] }; } } },
+  };
+  const cands = [{ id: 'a', title: 'Fed holds rates' }, { id: 'b', title: 'Nvidia reinstates Jensen Huang as CEO' }];
+  const hit = await claudeRelate(env, { title: '黄仁勋回归引爆美股', body: '' }, cands);
+  assert.deepEqual(hit.map((f) => f.id), ['b']);
+  assert.match(prompt, /2\. Nvidia reinstates/);
+});

@@ -4,7 +4,7 @@
 import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
-import { CLAUDE_MODEL, claudeOn, claudeUp, claudeState, claudeUsage, claudeUsd } from './claude.js';
+import { CLAUDE_MODEL, claudeText, claudeOn, claudeUp, claudeState, claudeUsage, claudeUsd } from './claude.js';
 import { parseCnJson } from './cnfeeds.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
@@ -53,6 +53,7 @@ function config(env) {
     relHours: Number(env.RELATED_HOURS || 12), // 文章和多久以内的快讯比对
     relSameVec: env.RELATED_SAME_LANG_VEC === 'true', // 额度宽裕时可开：同语言之间也用向量模型匹配（默认只用词重合）
     relSameMin: Number(env.RELATED_SAME_LANG_MIN || 0.8),
+    relClaude: env.RELATED_CLAUDE !== 'false', // 有 Claude 时，让 Claude 判断文章讲的是哪几条快讯（标题评论化时规则很难对上）
   };
 }
 
@@ -109,7 +110,7 @@ async function scoreItems(env, cfg, list, report) {
     }
     it.base = it.score;
     it.score = Math.min(10, it.base + confirmBoost(it.confirms || 0));
-    it.important = it.score >= cfg.threshold;
+    it.important = it.score >= cfg.threshold && !cfg.articles?.has(it.source); // 深度文章即使打了分也不算重要、不推送
     updates.push(
       env.DB.prepare('UPDATE items SET score = ?, base_score = ?, confirms = ?, important = ?, score_by = ?, hits = ? WHERE id = ?').bind(
         // AI 打出的 0 分照实存（不然会被当成“尚未评分”，补分时又被反复重打）；规则没命中的仍记为空
@@ -255,7 +256,7 @@ async function safeRelate(env, cfg, opts, report) {
 export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now() }) {
   if (!arts.length && !flashes.length) return 0;
   const rows = (
-    await env.DB.prepare('SELECT id, source, title, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()
+    await env.DB.prepare('SELECT id, source, title, body, score, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()
   ).results;
   const newIds = new Set([...arts, ...flashes].map((x) => x.id));
   const oldArts = rows.filter((r) => cfg.articles.has(r.source) && !newIds.has(r.id));
@@ -297,9 +298,52 @@ export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now
     for (const f of [...flashes, ...oldFlashes]) if (n < 12 && same(a, f)) (add(f, a), n++);
   }
   for (const f of flashes) for (const a of oldArts) if (same(a, f)) add(f, a);
+  // Claude：给每篇新文章挑候选快讯（同一件事只留最早那条），让它判断文章主要讲的是哪几条
+  if (cfg.relClaude && arts.length && claudeUp(env)) {
+    const heads = [...flashes.filter((f) => !f.dupOf), ...oldFlashes.filter((f) => !f.dup_of)];
+    for (const a of arts) {
+      const hit = await claudeRelate(env, a, candidatesFor(a, heads, W));
+      for (const f of hit) add(f, a);
+    }
+  }
   if (!pairs.size) return 0;
   await env.DB.batch([...pairs.values()].map(([h, a]) => env.DB.prepare('INSERT OR IGNORE INTO related (flash_id, article_id, ts) VALUES (?, ?, ?)').bind(h, a, now)));
   return pairs.size;
+}
+
+/** 候选快讯：和文章用词有重合的、分数高的排前面，最多 60 条（英文快讯靠分数进候选） */
+function candidatesFor(a, heads, W) {
+  const rank = (f) => {
+    let wi = 0;
+    for (const w of a.tok) if (f.tok.has(w)) wi += W(w);
+    return wi + (f.score || 0) * 0.6;
+  };
+  return heads
+    .filter((f) => (f.score || 0) >= 5 || [...a.tok].some((w) => f.tok.has(w)))
+    .map((f) => [rank(f), f])
+    .sort((x, y) => y[0] - x[0])
+    .slice(0, 60)
+    .map((x) => x[1]);
+}
+
+const RELATE_SYSTEM = `You link an in-depth financial article to short news flashes about the same specific event.
+You get the article title and summary, then numbered flash headlines (Chinese or English).
+Reply with a JSON array of the numbers of flashes that report the specific event or development the article is mainly about, e.g. [3,17]. At most 6.
+Do not include flashes that only share a company, person or broad theme with the article. Reply [] if none fit. Output only the array.`;
+
+/** 让 Claude 挑出和文章说同一件事的快讯；失败或没有就返回 [] */
+export async function claudeRelate(env, a, cands) {
+  if (!cands.length) return [];
+  const list = cands.map((f, i) => `${i + 1}. ${String(f.title).slice(0, 160)}`).join('\n');
+  const user = `Article: ${a.title}\nSummary: ${String(a.body || '').slice(0, 400)}\n\nFlashes:\n${list}`;
+  const r = await claudeText(env, { system: RELATE_SYSTEM, user, maxTokens: 60, kind: 'relate' });
+  const m = r?.text.match(/\[[\d,\s]*\]/);
+  if (!m) return [];
+  try {
+    return [...new Set(JSON.parse(m[0]))].filter((n) => Number.isInteger(n) && n >= 1 && n <= cands.length).slice(0, 6).map((n) => cands[n - 1]);
+  } catch {
+    return [];
+  }
 }
 
 async function fetchSource(src, env = {}) {
@@ -703,9 +747,13 @@ export default {
         const cfg = config(env);
         const hours = Math.min(Number(url.searchParams.get('hours') || 12), 48);
         const now = Date.now();
-        const arts = (await env.DB.prepare('SELECT id, source, title FROM items WHERE ts > ?').bind(now - hours * 3_600_000).all()).results.filter((r) => cfg.articles.has(r.source));
+        const arts = (await env.DB.prepare('SELECT id, source, title, body, ts, score_by FROM items WHERE ts > ?').bind(now - hours * 3_600_000).all()).results.filter((r) => cfg.articles.has(r.source));
+        // 开了 ARTICLE_AI_SCORING 时，顺便把还没 AI 打过分的文章补打
+        const report = { errors: [] };
+        const unscored = arts.filter((a) => a.score_by !== 'ai').map((a) => enrich({ ...a }, cfg));
+        if (url.searchParams.get('score') !== '0' && cfg.artAi && unscored.length) await scoreArticles(env, cfg, unscored, report);
         const n = await relate(env, { ...cfg, relHours: hours + cfg.relHours }, { arts, now });
-        return json({ articles: arts.length, links: n });
+        return json({ articles: arts.length, scored: cfg.artAi ? unscored.length : 0, links: n, errors: report.errors });
       }
 
       case '/api/xlang': {
