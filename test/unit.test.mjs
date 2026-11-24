@@ -202,3 +202,79 @@ test('relate links in-depth articles to the earliest flash of the same story', a
   assert.ok(!heads.includes('gl:2'), 'duplicates are stored under their story head');
   assert.ok(!heads.includes('wscn:3'));
 });
+
+test('Claude is the first choice for scoring, Workers AI the fallback', async () => {
+  const { aiScores } = await import('../src/score.js');
+  const { claudeReset, claudeUp, claudeUsd } = await import('../src/claude.js');
+  claudeReset();
+  const sent = [];
+  const reply = (text, stop = 'end_turn') => ({ stop_reason: stop, content: [{ type: 'text', text }], usage: { input_tokens: 700, output_tokens: 40 } });
+  const client = (fn) => ({ messages: { create: async (req) => (sent.push(req), fn(req)) } });
+  const items = [{ source: 'Reuters', title: 'Fed unexpectedly cuts rates by 50bp' }, { source: 'X', title: 'Analyst raises price target' }];
+  const workers = { run: async () => ({ response: '[[0,7],[1,3]]', usage: { prompt_tokens: 5, completion_tokens: 6 } }) };
+
+  let out = await aiScores({ CLAUDE_CLIENT: client(() => reply('[[0,10,1,"","Fed","macro"],[1,2]]')), AI: workers }, items, { tags: true });
+  assert.deepEqual([...out], [10, 2]);
+  assert.equal(out.provider, 'claude');
+  assert.equal(out.tags[0].topic, 'Fed');
+  assert.deepEqual(out.usage, { prompt: 700, completion: 40 });
+  assert.equal(sent[0].model, 'claude-haiku-5-5');
+  assert.equal(sent[0].temperature, undefined);
+  assert.match(sent[0].messages[0].content, /^0\. \[Reuters\]/);
+
+  // 拒答、回复不合法、接口报错：都退回 Workers AI
+  for (const fn of [() => reply('', 'refusal'), () => reply('sorry'), () => { throw Object.assign(new Error('boom'), { status: 500 }); }]) {
+    out = await aiScores({ CLAUDE_CLIENT: client(fn), AI: workers }, items, { tags: true });
+    assert.deepEqual([...out], [7, 3]);
+    assert.equal(out.provider, 'workers');
+  }
+  // 没有 Workers AI 时返回 null（调用方用规则）
+  assert.equal(await aiScores({ CLAUDE_CLIENT: client(() => reply('nope')) }, items), null);
+  // AI_PROVIDER="workers" 可以关掉 Claude
+  let called = 0;
+  out = await aiScores({ CLAUDE_CLIENT: client(() => (called++, reply('[[0,9],[1,1]]'))), AI: workers, AI_PROVIDER: 'workers' }, items);
+  assert.equal(called, 0);
+  assert.equal(out.provider, 'workers');
+
+  // 密钥失效：停用一段时间，期间不再请求
+  const bad = { CLAUDE_CLIENT: client(() => { called++; throw Object.assign(new Error('invalid x-api-key'), { status: 401 }); }), AI: workers };
+  called = 0;
+  await aiScores(bad, items);
+  await aiScores(bad, items);
+  assert.equal(called, 1);
+  assert.equal(claudeUp(bad), false);
+  claudeReset();
+  assert.equal(claudeUsd(1_000_000, 1_000_000), 0.6);
+});
+
+test('Claude translation saves what it can and hands the rest to the fallback', async () => {
+  const { translatePending } = await import('../src/translate.js');
+  const { claudeReset } = await import('../src/claude.js');
+  claudeReset();
+  const rows = [
+    { id: 'a', title: 'Fed unexpectedly cuts rates', body: '', score: 9 },
+    { id: 'b', title: 'Nvidia shares plunge 8%', body: '', score: 8 },
+    { id: 'c', title: '美联储意外降息', body: '', score: 8 },
+  ];
+  const saved = [];
+  const usage = [];
+  const stmt = (sql) => ({
+    args: [],
+    bind(...a) { this.args = a; return this; },
+    async all() { return { results: rows }; },
+    async run() { if (/claude_usage/.test(sql)) usage.push(this.args); else saved.push(this.args); },
+  });
+  const DB = { prepare: stmt, async batch(list) { saved.push(...list.map((s) => s.args)); } };
+  const client = { messages: { create: async (req) => ({
+    stop_reason: 'end_turn',
+    usage: { input_tokens: 300, output_tokens: 50 },
+    // 英译中那批漏掉第二条；中译英那批正常
+    content: [{ type: 'text', text: /Simplified Chinese/.test(req.system) ? '[{"i":0,"t":"美联储意外降息","b":""}]' : '[{"i":0,"t":"Fed unexpectedly cuts rates","b":""}]' }],
+  }) } };
+  const fetcher = async () => ({ status: 200, json: async () => ({ responseStatus: 200, responseData: { translatedText: '英伟达股价暴跌8%' } }) });
+  const n = await translatePending({ DB, CLAUDE_CLIENT: client }, { provider: 'claude', fallback: 'mymemory', fetcher });
+  assert.equal(n, 3);
+  assert.deepEqual(saved.map((a) => [a[3], a[0], a[2]]).sort(), [['a', '美联储意外降息', 'zh'], ['b', '英伟达股价暴跌8%', 'zh'], ['c', 'Fed unexpectedly cuts rates', 'en']]);
+  assert.equal(usage.length, 2);
+  assert.equal(usage[0][1], 'translate');
+});

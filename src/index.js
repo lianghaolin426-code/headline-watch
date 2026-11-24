@@ -4,6 +4,7 @@
 import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
+import { CLAUDE_MODEL, claudeOn, claudeUp, claudeState, claudeUsage, claudeUsd } from './claude.js';
 import { parseCnJson } from './cnfeeds.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
@@ -44,6 +45,7 @@ function config(env) {
     trMin: Number(env.TRANSLATE_MIN_SCORE || 6),
     trMax: Number(env.MAX_TRANSLATE_PER_RUN || 8),
     trProvider: env.TRANSLATE_PROVIDER || 'ai',
+    trFallback: env.TRANSLATE_FALLBACK || 'mymemory', // TRANSLATE_PROVIDER="claude" 翻不出来时交给谁
     trAiMin: Number(env.TRANSLATE_AI_FALLBACK_MIN || 0),
     // 深度文章（来源配置里 "kind": "article"）：不算多源确认、不推送，只挂到同一件事的快讯下面
     articles: new Set(sources.filter((s) => s.kind === 'article').map((s) => s.name)),
@@ -84,7 +86,7 @@ async function scoreItems(env, cfg, list, report) {
     .sort((a, b) => (b.hits.length > 0) + (b.weight >= 1) - ((a.hits.length > 0) + (a.weight >= 1)) || b.ts - a.ts)
     .slice(0, cfg.maxAi);
   const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags }) : null;
-  if (scores?.usage) await addUsage(env, report, scores.usage);
+  if (scores?.usage) await addUsage(env, report, scores.usage, scores.provider);
   if (cfg.aiOn && candidates.length && !scores) report.errors.push('AI 打分失败，本轮用规则判断');
   candidates.forEach((it, k) => {
     if (scores && scores[k] != null) {
@@ -126,13 +128,15 @@ async function scoreItems(env, cfg, list, report) {
 }
 
 /** 记下今天 AI 打分用了多少 token（看板和 /api/status 用来估算免费额度用了多少） */
-async function addUsage(env, report, u) {
+async function addUsage(env, report, u, provider = 'workers') {
   if (report) {
     report.aiUsage = report.aiUsage || { calls: 0, prompt: 0, completion: 0 };
     report.aiUsage.calls++;
     report.aiUsage.prompt += u.prompt;
     report.aiUsage.completion += u.completion;
+    report.aiUsage.provider = provider;
   }
+  if (provider === 'claude') return; // Claude 的用量在 claude.js 里单独记（claude_usage 表）
   try {
     await env.DB.prepare(
       `INSERT INTO ai_usage (day, calls, prompt_tokens, completion_tokens) VALUES (?, 1, ?, ?)
@@ -411,12 +415,14 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
 
   // ---- 攒批：每次调用 AI 都要带上一大段固定提示词，一两条就调一次很浪费额度。
   // 规则命中的、高权重来源的快讯照旧马上打分；其余的先记为 wait，攒够 aiBatchSize 条或等满 aiWaitMin 分钟再一起打分。
-  if (cfg.aiOn && env.AI && cfg.aiWaitMin > 0 && !inputs) {
+  // 用 Claude 时不用省额度：新快讯当轮就打分，之前在等的也一并放行（Claude 出错停用期间，仍按下面的规则攒批）。
+  if (cfg.aiOn && (env.AI || claudeOn(env)) && cfg.aiWaitMin > 0 && !inputs) {
     try {
       // 三档：规则命中的（关键词、大金额）马上打分；快讯源最多等 aiUrgentWaitMin 分钟；其余最多等 aiWaitMin 分钟。
       // 每次调用的固定开销远大于每条快讯的开销，所以尽量让一次调用多带几条。
       const now0 = (it) => it.hits.length > 0 || it.weight >= 1 || it.firstRun;
-      const limit = (src) => (cfg.aiUrgent.has(src) ? cfg.aiUrgentWaitMin : cfg.aiWaitMin) * 60_000;
+      const fast = claudeUp(env, now);
+      const limit = (src) => (fast ? 0 : cfg.aiUrgent.has(src) ? cfg.aiUrgentWaitMin : cfg.aiWaitMin) * 60_000;
       const freshIds = new Set(fresh.map((f) => f.id));
       const pend = (
         await db.prepare("SELECT id, source, title, body, url, ts, seen_at FROM items WHERE score_by = 'wait' AND seen_at > ? ORDER BY seen_at LIMIT 60").bind(now - 30 * 60_000).all()
@@ -512,7 +518,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // 中英互译：每轮翻一小批分数够高的快讯（旧库还没加译文列时跳过，不影响抓取）
   if (cfg.trOn && !inputs) {
     try {
-      report.translated = await translatePending(env, { now, minScore: cfg.trMin, max: cfg.trMax, provider: cfg.trProvider, aiMin: cfg.trAiMin });
+      report.translated = await translatePending(env, { now, minScore: cfg.trMin, max: cfg.trMax, provider: cfg.trProvider, fallback: cfg.trFallback, aiMin: cfg.trAiMin });
     } catch (e) {
       console.warn('translate skipped', e?.message || e);
     }
@@ -642,7 +648,8 @@ export default {
           channels: enabledChannels(env),
           keywords: cfg.rules.keywords,
           bigNumbers: cfg.rules.bigNumbers,
-          ai: { enabled: cfg.aiOn && !!env.AI, tags: cfg.aiTags, threshold: cfg.threshold, weights: cfg.weights, usage: await usageRows(env) },
+          ai: { enabled: cfg.aiOn && (!!env.AI || claudeOn(env)), provider: claudeOn(env) ? 'claude' : 'workers', tags: cfg.aiTags, threshold: cfg.threshold, weights: cfg.weights, usage: await usageRows(env) },
+          claude: { enabled: claudeOn(env), model: env.CLAUDE_MODEL || CLAUDE_MODEL, translate: cfg.trProvider === 'claude', ...claudeState(), ...(await claudeUsage(env)) },
           notifyMode: cfg.notifyMode,
           sources,
         });
@@ -739,7 +746,11 @@ export default {
           rescored: out.length,
           important: out.filter((r) => r.important).length,
           errors: report.errors,
-          usage: report.aiUsage && { ...report.aiUsage, neurons_est: neurons({ prompt_tokens: report.aiUsage.prompt, completion_tokens: report.aiUsage.completion }) },
+          usage:
+            report.aiUsage &&
+            (report.aiUsage.provider === 'claude'
+              ? { ...report.aiUsage, usd: claudeUsd(report.aiUsage.prompt, report.aiUsage.completion) }
+              : { ...report.aiUsage, neurons_est: neurons({ prompt_tokens: report.aiUsage.prompt, completion_tokens: report.aiUsage.completion }) }),
           tagged: out.filter((r) => r.tags).length,
           sample: out.filter((r) => r.tags).slice(0, 12).map((r) => ({ title: r.title.slice(0, 80), ...r.tags })),
           top: out.sort((a, b) => b.score - a.score).slice(0, 15).map((r) => ({ score: r.score, by: r.scoreBy, title: r.title })),

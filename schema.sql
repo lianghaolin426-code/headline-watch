@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS vecs (id TEXT PRIMARY KEY, ts INTEGER NOT NULL, zh IN
 CREATE INDEX IF NOT EXISTS vecs_ts ON vecs (ts);
 
 CREATE TABLE IF NOT EXISTS ai_usage (day TEXT PRIMARY KEY, calls INTEGER NOT NULL DEFAULT 0, prompt_tokens INTEGER NOT NULL DEFAULT 0, completion_tokens INTEGER NOT NULL DEFAULT 0);
+-- Claude API 每天的用量：kind = score（打分和标签）或 translate（翻译）
+CREATE TABLE IF NOT EXISTS claude_usage (day TEXT NOT NULL, kind TEXT NOT NULL, calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, kind));
 -- 深度文章和快讯的对应关系
 CREATE TABLE IF NOT EXISTS related (flash_id TEXT NOT NULL, article_id TEXT NOT NULL, ts INTEGER NOT NULL, PRIMARY KEY (flash_id, article_id));
 CREATE INDEX IF NOT EXISTS related_article ON related (article_id);

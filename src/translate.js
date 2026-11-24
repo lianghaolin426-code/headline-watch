@@ -3,6 +3,7 @@
 // AI 出错或额度用完时返回 null，下一轮再试；看板这时显示原文。
 
 import { isZh } from './embed.js';
+import { claudeText, claudeUp } from './claude.js';
 
 const PROMPTS = {
   zh: `You translate financial news flashes into Simplified Chinese for professional investors.
@@ -87,6 +88,16 @@ export async function translateBatch(env, items, lang) {
   }
 }
 
+/** 同 translateBatch，但用 Claude：译文质量更好，标题和摘要都翻 */
+export async function claudeTranslateBatch(env, items, lang) {
+  if (!items.length) return null;
+  const res = await claudeText(env, { system: PROMPTS[lang] + '\n' + FORMAT, user: buildList(items), maxTokens: 300 + items.length * 500, kind: 'translate' });
+  if (!res) return null;
+  const out = parseTranslations(res.text, items.length);
+  if (!out) console.warn('claude translation reply not parseable', res.text.slice(0, 300));
+  return out;
+}
+
 // ---------- MyMemory（免费公共翻译接口，不占 Workers AI 额度） ----------
 // 不带邮箱每天约 5000 字符，带邮箱（机密变量 MYMEMORY_EMAIL）每天约 5 万字符。一次请求翻一条标题，最长 500 字节。
 
@@ -138,11 +149,11 @@ export async function myMemoryTranslate(env, title, lang, fetcher = fetch) {
 /**
  * 每轮抓取后调用：挑最近 24 小时里分数够高、还没翻过的快讯，翻一小批。
  * tr_lang 记录译文语言；翻不出来的条目记为空串，避免每分钟重试同一条。
- * provider: 'ai' 用 Workers AI（标题和摘要），'mymemory' 用 MyMemory（只翻标题）。
+ * provider: 'claude' 用 Claude（标题和摘要，失败的交给 fallback），'ai' 用 Workers AI（标题和摘要），'mymemory' 用 MyMemory（只翻标题）。
  */
-export async function translatePending(env, { now = Date.now(), minScore = 6, max = 8, provider = 'ai', aiMin = 0, fetcher } = {}) {
+export async function translatePending(env, { now = Date.now(), minScore = 6, max = 8, provider = 'ai', fallback = 'mymemory', aiMin = 0, fetcher } = {}) {
   if (max <= 0 || (provider === 'ai' && !env.AI)) return 0;
-  const rows = (
+  let rows = (
     await env.DB.prepare(
       'SELECT id, title, body, score FROM items WHERE title_tr IS NULL AND score >= ? AND ts > ? ORDER BY important DESC, score DESC, ts DESC LIMIT ?'
     )
@@ -150,6 +161,26 @@ export async function translatePending(env, { now = Date.now(), minScore = 6, ma
       .all()
   ).results;
   let done = 0;
+  const save = (r, lang, t, b) => env.DB.prepare('UPDATE items SET title_tr = ?, body_tr = ?, tr_lang = ? WHERE id = ?').bind(t || '', b || '', lang, r.id);
+  if (provider === 'claude') {
+    // Claude 翻得出来的直接存；这一批没成功的（出错、停用中、个别条目漏翻）留给后面的 fallback
+    if (claudeUp(env)) {
+      const left = [];
+      for (const lang of ['zh', 'en']) {
+        const batch = rows.filter((r) => targetLang(r.title) === lang);
+        if (!batch.length) continue;
+        const out = await claudeTranslateBatch(env, batch, lang);
+        const ok = batch.filter((r, i) => out?.[i]);
+        left.push(...batch.filter((r, i) => !out?.[i]));
+        if (ok.length) await env.DB.batch(batch.map((r, i) => out?.[i] && save(r, lang, out[i].t, out[i].b)).filter(Boolean));
+        done += ok.length;
+      }
+      rows = left;
+    }
+    if (!rows.length) return done;
+    provider = fallback;
+    if (provider === 'ai' && !env.AI) return done;
+  }
   if (provider === 'mymemory') {
     let left = rows.slice();
     for (const r of rows) {

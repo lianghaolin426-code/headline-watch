@@ -1,5 +1,8 @@
-// 用 Cloudflare Workers AI（免费额度）给候选快讯打 1-10 分，再按来源加权、对例行新闻减分。
-// AI 出错或额度用完时，返回 null，调用方自动退回规则判断。
+// 给候选快讯打 1-10 分，再按来源加权、对例行新闻减分。
+// 首选 Claude Haiku（配了 ANTHROPIC_API_KEY 时），出错时退回 Cloudflare Workers AI（免费额度）；
+// 两家都不行就返回 null，调用方自动退回规则判断。
+
+import { claudeText, claudeUp } from './claude.js';
 
 // 每次调用都要带上这段固定提示词，它占了大部分额度，所以写得尽量短（约 400 token）。
 const SYSTEM_PROMPT = `Rate financial headlines 1-10 for a trader of US and Saudi (Tadawul) stocks who wants only eye-catching, market-moving breaking news. Headlines may be English, Chinese or Arabic; judge them alike.
@@ -110,33 +113,46 @@ export function parseTagged(raw, n) {
 }
 
 /**
- * @param env 含 AI 绑定
+ * @param env 含 ANTHROPIC_API_KEY（Claude，首选）和/或 AI 绑定（Workers AI，后备）
  * @param items [{title, source}]
  * @param opts.tags 是否让 AI 顺便给出方向、股票代码、话题、板块
- * @returns 每条的 AI 原始分（1-10 或 null）的数组；数组上另带 .tags（每条的标签或 null）和 .usage（本次用的 token 数）。整批失败返回 null
+ * @returns 每条的 AI 原始分（1-10 或 null）的数组；数组上另带 .tags（每条的标签或 null）、.usage（本次用的 token 数）
+ *          和 .provider（'claude' 或 'workers'）。两家都失败返回 null
  */
 export async function aiScores(env, items, { tags = false } = {}) {
-  if (!env.AI || !items.length) return null;
+  if (!items.length) return null;
+  const system = SYSTEM_PROMPT + '\n' + (tags ? TAG_FORMAT : PLAIN_FORMAT);
   const list = items.map((it, i) => `${i}. [${it.source}] ${it.title}`).join('\n');
+  const finish = (raw, usage, provider) => {
+    const parsed = parseTagged(raw, items.length);
+    if (!parsed) {
+      console.warn(provider + ' reply not parseable', String(typeof raw === 'string' ? raw : JSON.stringify(raw)).slice(0, 300));
+      return null;
+    }
+    const out = parsed.scores;
+    out.tags = parsed.tags;
+    out.usage = usage;
+    out.provider = provider;
+    return out;
+  };
+
+  if (claudeUp(env)) {
+    const res = await claudeText(env, { system, user: list, maxTokens: 100 + items.length * (tags ? 50 : 24), kind: 'score' });
+    const out = res && finish(res.text, { prompt: res.usage.input, completion: res.usage.output }, 'claude');
+    if (out) return out;
+  }
+
+  if (!env.AI) return null;
   try {
     const res = await env.AI.run(env.AI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT + '\n' + (tags ? TAG_FORMAT : PLAIN_FORMAT) },
+        { role: 'system', content: system },
         { role: 'user', content: list },
       ],
       max_tokens: 20 + items.length * (tags ? 30 : 14),
       temperature: 0,
     });
-    const raw = res?.response ?? res;
-    const parsed = parseTagged(raw, items.length);
-    if (!parsed) {
-      console.warn('AI reply not parseable', String(typeof raw === 'string' ? raw : JSON.stringify(raw)).slice(0, 300));
-      return null;
-    }
-    const out = parsed.scores;
-    out.tags = parsed.tags;
-    out.usage = { prompt: Number(res?.usage?.prompt_tokens) || 0, completion: Number(res?.usage?.completion_tokens) || 0 };
-    return out;
+    return finish(res?.response ?? res, { prompt: Number(res?.usage?.prompt_tokens) || 0, completion: Number(res?.usage?.completion_tokens) || 0 }, 'workers');
   } catch (e) {
     console.warn('AI scoring failed', e?.message || e);
     return null;
