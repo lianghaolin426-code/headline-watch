@@ -5,7 +5,6 @@ import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
 import { parseCnJson } from './cnfeeds.js';
-import { fetchJin10 } from './jin10.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
@@ -21,8 +20,6 @@ function config(env) {
   } catch (e) {
     console.error('SOURCES 不是合法 JSON', e);
   }
-  // 设置了金十 MCP Token 就自动加上金十快讯（只留美股/沙特/全球宏观相关的）
-  if (env.JIN10_TOKEN && !sources.some((s) => s.type === 'jin10')) sources.push({ type: 'jin10', name: '金十数据', focus: true });
   return {
     sources,
     rules: { keywords: parseKeywords(env.KEYWORDS), bigNumbers: env.BIG_NUMBERS !== 'false' },
@@ -167,7 +164,6 @@ async function crossLanguage(env, cfg, fresh, now) {
 }
 
 async function fetchSource(src, env = {}) {
-  if (src.type === 'jin10') return focusFilter(src, await fetchJin10(env.JIN10_TOKEN, src.name));
   const url = src.type === 'telegram' ? `${src.base || 'https://t.me/s/'}${src.channel}` : src.url;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 10_000);
