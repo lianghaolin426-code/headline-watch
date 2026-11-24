@@ -1,0 +1,45 @@
+# 每 5 分钟抓一次 Telegram 频道的公开网页，推送给 Cloudflare 上的 Headline Watch。
+# （Telegram 拒绝 Cloudflare 服务器直接访问，所以由 GitHub 来抓。）
+# 需要的仓库 Secret：HW_ADMIN_KEY（Worker 的管理密码）
+# 注意：GitHub 的定时任务经常会晚几分钟。仓库 60 天没有提交会被暂停，keepalive.yml 每月自动提交一次来防止。
+name: Telegram 快讯
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      HW_URL: https://headline-watch.lianghaolin426.workers.dev
+      # 格式：频道名|显示名，一行一个
+      CHANNELS: |
+        WalterBloomberg|Walter Bloomberg
+        firstsquaw|First Squawk
+    steps:
+      - name: 抓取并推送
+        env:
+          HW_ADMIN_KEY: ${{ secrets.HW_ADMIN_KEY }}
+        run: |
+          fail=0
+          while IFS='|' read -r ch name; do
+            [ -z "$ch" ] && continue
+            if ! curl -fsSL --max-time 20 -A "Mozilla/5.0" "https://t.me/s/${ch}" -o page.html; then
+              echo "::warning::抓取 ${ch} 失败"; fail=1; continue
+            fi
+            enc_name=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$name")
+            curl -fsS --max-time 30 -X POST \
+              -H "Authorization: Bearer ${HW_ADMIN_KEY}" \
+              -H "Content-Type: text/html" \
+              --data-binary @page.html \
+              "${HW_URL}/api/ingest?channel=${ch}&name=${enc_name}" || { echo "::warning::推送 ${ch} 失败"; fail=1; }
+            echo
+          done <<< "$CHANNELS"
+          exit $fail

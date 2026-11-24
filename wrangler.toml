@@ -1,0 +1,59 @@
+name = "headline-watch"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+# 每分钟跑一次（Cloudflare 免费版支持的最短间隔）
+[triggers]
+crons = ["* * * * *"]
+
+# Cloudflare Workers AI（免费版每天 1 万 neurons，用完当天自动退回规则判断，不会收费）
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "headline-watch"
+database_id = "eb5967b8-b07e-4a1f-977b-825f928fe7ea"
+
+[vars]
+# Cloudflare 自己抓的 RSS 源。
+# Telegram 频道和 Google 新闻会拒绝 Cloudflare 的访问，所以 Telegram 改由 GitHub 定时任务抓取后推送到 /api/ingest（见 .github/workflows/telegram.yml）。
+SOURCES = '''
+[
+  {"type": "rss", "name": "CNBC", "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"},
+  {"type": "rss", "name": "Investing.com", "url": "https://www.investing.com/rss/news_25.rss"}
+]
+'''
+
+# 关键词（逗号分隔，不区分大小写）。命中任意一个就推送。
+KEYWORDS = "short sellers, bankruptcy, halts trading, ousted, 破产"
+
+# 重要性评分（0-10）达到多少分才算重要、才推送
+AI_THRESHOLD = "8"
+
+# AI 打分开关；关掉则只用规则（关键词或 >= BIG_NUMBER_MIN_BILLION 十亿美元的金额 = 8 分）
+AI_SCORING = "true"
+BIG_NUMBER_MIN_BILLION = "10"
+
+# 来源加权：加到 AI 分上。快讯类频道更可信、更快，加分
+SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "CNBC": 0, "Investing.com": 0}'
+
+# 是否把“含大数字”的快讯也算粗筛命中（如 $24 billion、2万亿美元）
+BIG_NUMBERS = "true"
+
+# matched = 只推送命中的；all = 全部推送；off = 不推送只入库
+NOTIFY_MODE = "matched"
+
+# 只推送发布时间在多少分钟以内的
+MAX_AGE_MINUTES = "30"
+
+# 推送渠道的密钥请用 `npx wrangler secret put 名字` 设置，不要写在这里：
+#   BARK_URL         iPhone Bark，形如 https://api.day.app/你的key
+#   NTFY_TOPIC       ntfy 主题名（可选 NTFY_SERVER、NTFY_TOKEN）
+#   WECOM_WEBHOOK    企业微信群机器人地址
+#   PUSHPLUS_TOKEN   PushPlus 微信推送
+#   TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+#   DISCORD_WEBHOOK
+#   RESEND_API_KEY + EMAIL_TO + EMAIL_FROM   邮件
+#   WEBHOOK_URL      任意 webhook
+#   ACCESS_KEY       设了之后，网页需要 ?key=这个密码 才能打开

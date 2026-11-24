@@ -1,0 +1,4 @@
+ALTER TABLE items ADD COLUMN score REAL;
+ALTER TABLE items ADD COLUMN important INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE items ADD COLUMN score_by TEXT;
+CREATE INDEX IF NOT EXISTS idx_items_important ON items(important, ts DESC);

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Stock Market News</title>
+<item><enclosure url="https://i.example/a.jpg" length="1" type="image/jpeg"/><title>Fed&apos;s Waller says &quot;no rush&quot; on cuts</title><pubDate>2026-11-15 13:05:31</pubDate><author>Reuters</author><link>https://www.investing.com/news/a-123</link></item>
+<item><title><![CDATA[Apple to buy back $110 billion of stock]]></title><link>https://example.com/b</link><guid>b-1</guid><pubDate>Sun, 22 Nov 2026 21:00:00 GMT</pubDate><description>&lt;p&gt;Record buyback&lt;/p&gt;</description></item>
+</channel></rss>
