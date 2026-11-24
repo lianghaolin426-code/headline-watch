@@ -168,11 +168,38 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 .crumb{position:sticky;top:var(--top,92px);z-index:15;display:flex;align-items:center;gap:14px;margin:14px 0 4px;padding-block:8px;padding-inline:8px 14px;border:1px solid var(--rule);border-radius:999px;background:var(--bar);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);font-size:13px;color:var(--ink3);width:fit-content;max-width:100%;box-shadow:0 6px 20px -12px rgba(0,0,0,.35)}
 .crumb button{display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--bg);background:var(--ink);border-radius:999px;padding:6px 14px 6px 8px;white-space:nowrap}.crumb button svg{width:15px;height:15px}[dir=rtl] .crumb button svg{transform:scaleX(-1)}
 .crumb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.also{margin-top:26px;max-width:40em;border-inline-start:2px solid var(--blue);padding-inline-start:16px}
-.also .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3);padding-bottom:8px}
-.also .hd button{font-size:12px;font-weight:600;letter-spacing:0;color:var(--blue)}.also .hd button:hover{text-decoration:underline;text-underline-offset:3px}
-.also .li .lt{font-family:var(--serif);font-size:15.5px;-webkit-line-clamp:2}
-[dir=rtl] .also .hd{letter-spacing:0}
+.figs{display:flex;flex-wrap:wrap;gap:22px 0;margin-top:30px;padding-top:22px;border-top:1px solid var(--rule)}
+.fig{flex:1 1 0;min-width:130px;padding-inline:22px;border-inline-start:1px solid var(--rule)}
+.fig:first-child{padding-inline-start:0;border:0}
+.fig b{display:flex;align-items:baseline;gap:8px;font:700 46px/1 var(--serif);letter-spacing:-.03em;white-space:nowrap}
+.fig b u{text-decoration:none;font:600 15px/1 var(--sans);letter-spacing:0;color:var(--ink2)}
+.fig b i{font-style:normal;font-size:17px;align-self:center}.fig b i.up{color:var(--ok)}.fig b i.dn{color:var(--red)}
+.fig>span{display:block;margin-top:9px;font-size:12.5px;line-height:1.4;color:var(--ink3);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.also{margin-top:28px;max-width:44em}
+.also .hd,.d-sec{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3);padding-bottom:10px}
+.also .hd button,.d-sec button{font-size:12px;font-weight:600;letter-spacing:0;color:var(--blue)}.also .hd button:hover,.d-sec button:hover{text-decoration:underline;text-underline-offset:3px}
+[dir=rtl] .also .hd,[dir=rtl] .d-sec{letter-spacing:0}
+/* 事件脉络：左边时间，中间一条竖线和圆点，右边评分 + 标题 + 来源 */
+.tl{position:relative;display:grid;grid-template-columns:44px 15px minmax(0,1fr);column-gap:12px;padding-bottom:16px;font-size:14px;line-height:1.4}
+.tl:last-child{padding-bottom:0}
+.tl time{font-size:12.5px;color:var(--ink3);padding-top:2px;text-align:end}
+.tl .dot{position:relative}
+.tl .dot::before{content:"";position:absolute;inset-inline-start:7px;top:0;bottom:-16px;width:1px;background:var(--rule2)}
+.tl:first-of-type .dot::before{top:8px}.tl:last-child .dot::before{bottom:auto;height:8px}
+.tl:only-of-type .dot::before{display:none}
+.tl .dot::after{content:"";position:absolute;inset-inline-start:3px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--bg);box-shadow:inset 0 0 0 2px var(--blue)}
+.tl.cur .dot::after{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.tl .lt{font-family:var(--serif);font-size:15.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tl.cur .lt{font-weight:700}
+.tl small{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;color:var(--ink3);font-size:11.5px;margin-top:4px}
+.tl small em{font-style:normal;font-weight:600;color:var(--blue)}.tl.cur small em{color:var(--red)}
+@media (hover:hover){.tl:hover .lt{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}}
+.d-ev{margin-top:20px;border-top:1px solid var(--rule2);padding-top:14px}
+.d-ev .tl:not(.cur) .dot::after{background:color-mix(in srgb,var(--bg) 86%,transparent)}
+.chipb{display:inline-flex;align-items:center;gap:4px;font:600 11.5px/1 var(--mono);letter-spacing:-.02em;color:var(--ink);padding:5px 8px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--rule2);white-space:nowrap}
+.chipb:hover{box-shadow:inset 0 0 0 1px var(--ink3);background:var(--glass2)}
+.chipb.tp{font-family:var(--sans);letter-spacing:0;color:color-mix(in srgb,var(--blue) 60%,var(--ink));box-shadow:none;background:color-mix(in srgb,var(--blue) 11%,transparent)}
+.mood{font-size:12px;font-weight:700}.mood.up{color:var(--ok)}.mood.dn{color:var(--red)}
 .tkr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:8px 0;border:0;border-top:1px solid var(--rule);background:none;color:inherit;font:inherit;text-align:start;cursor:pointer}
 .tkr b{font:700 13px/1 var(--sans);letter-spacing:.02em;min-width:46px}.tkr span{font-size:12.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tkr em{font-style:normal;font-size:12.5px;font-weight:700}.tkr u{grid-column:1/-1;display:block;height:3px;border-radius:2px;background:var(--ink);opacity:.75;text-decoration:none;margin-top:-2px}.tkr.h u{background:var(--red);opacity:1}
@@ -284,7 +311,7 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 /* ---------- 阅读面板 ---------- */
 .scrim{position:fixed;inset:0;z-index:30;background:rgba(20,14,8,.36);opacity:0;pointer-events:none;transition:opacity .2s}
 .open-reader .scrim,.open-side .scrim{opacity:1;pointer-events:auto}
-.panel{position:fixed;z-index:31;top:12px;bottom:12px;inset-inline-end:12px;width:min(460px,calc(100vw - 24px));overflow-y:auto;border-radius:22px;background:color-mix(in srgb,var(--bg) 86%,transparent);box-shadow:var(--shadow2),0 0 0 1px var(--glass-edge);transform:translateX(calc(100% + 30px));transition:transform .28s cubic-bezier(.2,.8,.2,1);visibility:hidden;scrollbar-width:thin}
+.panel{position:fixed;z-index:31;top:12px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);inset-inline-end:12px;width:min(460px,calc(100vw - 24px));overflow-y:auto;border-radius:22px;background:color-mix(in srgb,var(--bg) 86%,transparent);box-shadow:var(--shadow2),0 0 0 1px var(--glass-edge);transform:translateX(calc(100% + 30px));transition:transform .28s cubic-bezier(.2,.8,.2,1);visibility:hidden;scrollbar-width:thin}
 [dir=rtl] .panel{transform:translateX(calc(-100% - 30px))}
 .open-reader #reader,.open-side #side{transform:none;visibility:visible}
 .px{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:16px 22px 8px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3)}
@@ -304,7 +331,7 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 .d-facts{margin:0 0 16px;border-top:1px solid var(--rule);font-size:12.5px}
 .d-facts div{display:grid;grid-template-columns:84px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);align-items:baseline}
 .d-facts dt,.d-facts div>span:first-child{color:var(--ink3)}
-.d-facts div>span:last-child{color:var(--ink);display:flex;flex-wrap:wrap;gap:4px 6px;min-width:0}
+.d-facts div>span:last-child{color:var(--ink);display:flex;flex-wrap:wrap;gap:6px;min-width:0;align-items:center}
 .legend{display:grid;gap:9px;font-size:12.5px;color:var(--ink2);padding:4px 26px 8px}
 .legend>div{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center}
 .legend>div>span:first-child{display:flex;gap:4px;align-items:center}
@@ -400,6 +427,7 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
   .hero h2{font-size:32px;line-height:1.14}.hero h2.zh{font-size:28px;line-height:1.28}
   .hero p{font-size:17px}
   .ring{width:56px;height:56px}.ring span{font-size:19px}
+  .figs{margin-top:24px;padding-top:18px}.fig{padding-inline:14px;min-width:96px}.fig b{font-size:34px}.fig b u{font-size:13px}
   .rk{grid-template-columns:36px 1fr}.rk em{font-size:28px}.rk h4{font-size:18px}
   .now{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin-inline:-18px;padding:4px 18px 30px;scrollbar-width:none}
   .now::-webkit-scrollbar{display:none}
@@ -422,7 +450,7 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 
 const JS = String.raw`
 var I18N={
-zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',nextDay:'下一交易日 {0}',yourT:'你的时间 {0}',backTo:'返回{0}',crumbQ:'正在看：{0}',crumbN:'{0} 条',related:'同一事件还有 {0} 条',alsoH:'同一事件',alsoAll:'查看全部 {0} 条 →',topSub:'按评分排序，同一事件只列一条',moreSub:'8 分以上，最新在前',wireSub:'全部来源，最新在前',cfBy:'证实来源',hitL:'命中规则',noBodyArt:'这篇文章只抓到了标题，点「打开原文」读全文。',lgT:'标记说明',lg3:'8 分以上，重要',lg2:'6 到 8 分，值得关注',lg1:'6 分以下，常规消息',lgDeep:'解读文章，不是快讯',lgCf:'多家来源报了同一条',lgEv:'同一件事的其他快讯',lgDp:'有相关的深度文章',lgMine:'命中你的自选词 / 已收藏',staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
+zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',nextDay:'下一交易日 {0}',yourT:'你的时间 {0}',backTo:'返回{0}',crumbQ:'正在看：{0}',crumbN:'{0} 条',related:'同一事件还有 {0} 条',alsoH:'事件脉络',alsoAll:'查看全部 {0} 条 →',tlFirst:'首次报道',tlLead:'头条',tlNow:'当前这条',fSrc:'家来源证实',fEv:'条相关快讯',fAge:'首次报道至今',fH:'小时',fM:'分钟',dEv:'同一事件',dTk:'相关股票',dTp:'话题',dDir:'方向',dUp:'利好',dDn:'利空',topSub:'按评分排序，同一事件只列一条',moreSub:'8 分以上，最新在前',wireSub:'全部来源，最新在前',cfBy:'证实来源',hitL:'命中规则',noBodyArt:'这篇文章只抓到了标题，点「打开原文」读全文。',lgT:'标记说明',lg3:'8 分以上，重要',lg2:'6 到 8 分，值得关注',lg1:'6 分以下，常规消息',lgDeep:'解读文章，不是快讯',lgCf:'多家来源报了同一条',lgEv:'同一件事的其他快讯',lgDp:'有相关的深度文章',lgMine:'命中你的自选词 / 已收藏',staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
  search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',deep:'深度',deepB:'深度',flashB:'快讯',nDeep:'深度解读 {0} 篇',nFlash:'关联快讯 {0} 条',lvDeep:'深度文章',byDeep:'解读和评论，不打分、不推送',relArts:'深度解读',relFlash:'关联快讯',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
  lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',
@@ -435,7 +463,7 @@ zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',n
  look:'外观',theme:'主题',tAuto:'跟随系统',tDark:'深色',tLight:'浅色',keys:'快捷键',kMove:'上下条',kOpen:'打开原文',kSearch:'搜索',kView:'切换视图',kStar:'收藏',kShow:'展示模式',
  eNone:'还没有数据',eNoneD:'部署后等一两分钟，第一批快讯就会出现。',eFilter:'没有符合条件的快讯',eFilterD:'当前的来源筛选或搜索把结果都过滤掉了。',eScore:'暂时没有达到这个分数的快讯',eScoreD:'可以切到“全部”看所有快讯。',eConn:'连接失败',eConnD:'暂时读不到数据，页面会自动重试。',
  newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',loadMore:'加载更早的快讯',loading:'加载中…',noMore:'没有更早的快讯了（数据库保留最近 7 天）',loaded:'已载入 {0} 条 · 每分钟抓取',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
-en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextDay:'Next session {0}',yourT:'{0} your time',backTo:'Back to {0}',crumbQ:'Showing: {0}',crumbN:'{0} items',related:'{0} more on this story',alsoH:'SAME STORY',alsoAll:'View all {0} →',topSub:'Ranked by score, one per story',moreSub:'Score 8+, newest first',wireSub:'All sources, newest first',cfBy:'Confirmed by',hitL:'Rule hits',noBodyArt:'Only the headline was captured. Use Open original to read the article.',lgT:'Legend',lg3:'8 and above: important',lg2:'6 to 8: worth a look',lg1:'Below 6: routine',lgDeep:'Analysis article, not a flash',lgCf:'Several sources ran the same item',lgEv:'More flashes on the same story',lgDp:'Has related in-depth articles',lgMine:'Matches your watchlist / saved',staleAt:'Connection lost, last update {0}',refreshTip:'Click to refresh now',refreshed:'Up to date',sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKETS · LIVE WIRE',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
+en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextDay:'Next session {0}',yourT:'{0} your time',backTo:'Back to {0}',crumbQ:'Showing: {0}',crumbN:'{0} items',related:'{0} more on this story',alsoH:'HOW IT UNFOLDED',alsoAll:'View all {0} →',tlFirst:'First report',tlLead:'Lead story',tlNow:'This one',fSrc:'sources confirm',fEv:'related flashes',fAge:'since first report',fH:'h',fM:'min',dEv:'SAME STORY',dTk:'Stocks',dTp:'Topic',dDir:'Direction',dUp:'Bullish',dDn:'Bearish',topSub:'Ranked by score, one per story',moreSub:'Score 8+, newest first',wireSub:'All sources, newest first',cfBy:'Confirmed by',hitL:'Rule hits',noBodyArt:'Only the headline was captured. Use Open original to read the article.',lgT:'Legend',lg3:'8 and above: important',lg2:'6 to 8: worth a look',lg1:'Below 6: routine',lgDeep:'Analysis article, not a flash',lgCf:'Several sources ran the same item',lgEv:'More flashes on the same story',lgDp:'Has related in-depth articles',lgMine:'Matches your watchlist / saved',staleAt:'Connection lost, last update {0}',refreshTip:'Click to refresh now',refreshed:'Up to date',sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKETS · LIVE WIRE',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
  search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',deep:'In depth',deepB:'IN DEPTH',flashB:'FLASH',nDeep:'{0} in-depth',nFlash:'{0} linked flashes',lvDeep:'In-depth article',byDeep:'Analysis and commentary, not scored or pushed',relArts:'In-depth coverage',relFlash:'Linked flashes',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
  lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiAi:'Judged per headline by AI',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',
@@ -448,7 +476,7 @@ en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextD
  look:'APPEARANCE',theme:'Theme',tAuto:'System',tDark:'Dark',tLight:'Light',keys:'SHORTCUTS',kMove:'Next / previous',kOpen:'Open original',kSearch:'Search',kView:'Switch view',kStar:'Save',kShow:'Presentation',
  eNone:'No data yet',eNoneD:'The first flashes appear a minute or two after deployment.',eFilter:'Nothing matches',eFilterD:'The current source filter or search hides every flash.',eScore:'Nothing at this score yet',eScoreD:'Switch to "All" to see every flash.',eConn:'Connection failed',eConnD:'Data is unavailable right now. The page retries automatically.',
  newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',loadMore:'Load earlier flashes',loading:'Loading…',noMore:'No earlier flashes (the database keeps the last 7 days)',loaded:'{0} loaded · fetched every minute',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
-ar:{thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'الافتتاح',lClose:'الإغلاق',nextDay:'الجلسة التالية {0}',yourT:'{0} بتوقيتك',backTo:'العودة إلى {0}',crumbQ:'المعروض: {0}',crumbN:'{0} خبر',related:'{0} أخبار ذات صلة',alsoH:'الخبر نفسه',alsoAll:'عرض الكل ({0}) ←',topSub:'مرتبة حسب التقييم، خبر واحد لكل حدث',moreSub:'تقييم 8 فأكثر، الأحدث أولًا',wireSub:'كل المصادر، الأحدث أولًا',cfBy:'أكدته',hitL:'القواعد المطابقة',noBodyArt:'لم يُلتقط سوى العنوان. استخدم «فتح المصدر» لقراءة المقال.',lgT:'دليل العلامات',lg3:'8 فأكثر: مهم',lg2:'من 6 إلى 8: جدير بالمتابعة',lg1:'أقل من 6: اعتيادي',lgDeep:'مقال تحليلي وليس خبرًا عاجلًا',lgCf:'نشرته عدة مصادر',lgEv:'أخبار أخرى عن الحدث نفسه',lgDp:'له مقالات تحليلية مرتبطة',lgMine:'يطابق قائمة متابعتك / محفوظ',staleAt:'انقطع الاتصال، آخر تحديث {0}',refreshTip:'انقر للتحديث الآن',refreshed:'محدَّث',sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'السوقان الأمريكي والسعودي · أخبار لحظية',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
+ar:{thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'الافتتاح',lClose:'الإغلاق',nextDay:'الجلسة التالية {0}',yourT:'{0} بتوقيتك',backTo:'العودة إلى {0}',crumbQ:'المعروض: {0}',crumbN:'{0} خبر',related:'{0} أخبار ذات صلة',alsoH:'تسلسل الحدث',alsoAll:'عرض الكل ({0}) ←',tlFirst:'أول خبر',tlLead:'الخبر الرئيسي',tlNow:'هذا الخبر',fSrc:'مصادر أكدته',fEv:'أخبار ذات صلة',fAge:'منذ أول خبر',fH:'س',fM:'د',dEv:'الخبر نفسه',dTk:'الأسهم',dTp:'الموضوع',dDir:'الاتجاه',dUp:'إيجابي',dDn:'سلبي',topSub:'مرتبة حسب التقييم، خبر واحد لكل حدث',moreSub:'تقييم 8 فأكثر، الأحدث أولًا',wireSub:'كل المصادر، الأحدث أولًا',cfBy:'أكدته',hitL:'القواعد المطابقة',noBodyArt:'لم يُلتقط سوى العنوان. استخدم «فتح المصدر» لقراءة المقال.',lgT:'دليل العلامات',lg3:'8 فأكثر: مهم',lg2:'من 6 إلى 8: جدير بالمتابعة',lg1:'أقل من 6: اعتيادي',lgDeep:'مقال تحليلي وليس خبرًا عاجلًا',lgCf:'نشرته عدة مصادر',lgEv:'أخبار أخرى عن الحدث نفسه',lgDp:'له مقالات تحليلية مرتبطة',lgMine:'يطابق قائمة متابعتك / محفوظ',staleAt:'انقطع الاتصال، آخر تحديث {0}',refreshTip:'انقر للتحديث الآن',refreshed:'محدَّث',sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'السوقان الأمريكي والسعودي · أخبار لحظية',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
  search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',deep:'تحليلات',deepB:'تحليل',flashB:'خبر',nDeep:'{0} تحليل',nFlash:'{0} أخبار مرتبطة',lvDeep:'مقال تحليلي',byDeep:'تحليل وتعليق، بلا تقييم ولا إشعار',relArts:'مقالات تحليلية ذات صلة',relFlash:'الأخبار التي يتناولها المقال',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
  lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiAi:'تقييم الذكاء الاصطناعي لكل عنوان',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',
@@ -687,11 +715,38 @@ function groupHot(hot){var gs=[],by={};
 // 有些来源（如 Bluesky 帖子）把整段话当标题：大标题位置只取第一句，太长就截断
 function headOf(t){if(t.length<=110)return t;var m=t.match(/^(.{24,110}?[.!?。！？])(\s|$)/);if(m)return m[1].replace(/[.。]$/,'');
   var c=t.slice(0,104),k=c.lastIndexOf(' ');return (k>60?c.slice(0,k):c).replace(/[,，;；:：\s]+$/,'')+'…';}
-// 头条下面：同一件事的其他重要快讯（最多 3 条），让“同一事件”的关系直接看得见
-function alsoHtml(g,hero){var L=g.items.filter(function(i){return i.id!==hero.id});if(!L.length||!g.key)return '';
-  var q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;
-  return '<div class="also"><div class="hd"><span>'+T('alsoH')+'</span><button data-rel="'+esc(q)+'">'+T('alsoAll',g.items.length)+'</button></div>'+L.slice(0,3).map(function(i){var o=tx(i);
-    return '<div class="li" data-id="'+esc(i.id)+'">'+sc(i)+'<div><span class="lt" dir="auto">'+esc(headOf(o.t))+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';}
+// 关键数字：从标题里自动取百分比、金额、数量（最多 3 个），不够就用事件本身的数字补齐（几家来源证实、多少条相关、首报至今多久）
+var FIG_DN=/跌|降|挫|缩|亏|减|低|失守|蒸发|fall|fell|drop|down|slid|slump|plung|tumbl|sink|sank|lose|loss|cut|decline|lower/i,FIG_UP=/涨|升|增|高|扩|飙|赚|rise|rose|gain|jump|surg|soar|climb|rall|up\b|higher|grow|beat/i;
+var FIG_RE=/([+\-]?\d[\d,]*(?:\.\d+)?)\s?(%)|((?:US)?\$\s?\d[\d,]*(?:\.\d+)?)\s?(trillion|billion|million|bn|mn|tn|[BMK]\b)?|(\d[\d,]*(?:\.\d+)?)\s?(万亿美元|亿美元|万美元|美元|万亿|亿元|亿里亚尔|里亚尔)|(\d{1,4})\s?(国|个国家|家公司|架|countries|nations|jets|jobs|states)/gi;
+function figClause(t,at,len){var cut=/[，,;；。:：|｜—–]|\s-\s/g,a=0,a0=0,b=t.length,m;while((m=cut.exec(t))){if(m.index<at){a0=a;a=m.index+m[0].length;}else if(m.index>=at+len){b=m.index;break;}}
+  var trim=/^[\s的了约大超逾过达至为]+|[\s的了约大超逾过达至为]+$/g,L=t.slice(a,at).replace(trim,'').trim(),R=t.slice(at+len,b).replace(/^\s+|[\s的了]+$/g,''),c=(L&&R.replace(/^的/,'')?L+'…'+R:L||R.replace(/^的/,'')).replace(/\s+/g,' ');
+  if(c.length<4&&a>a0)c=(t.slice(a0,a).replace(/[，,;；。:：|｜—–\s]+$/,'')+' '+c).trim();
+  return c.length>44?c.slice(0,42)+'…':c;}
+function keyFigs(t){var out=[],seen={},m;FIG_RE.lastIndex=0;
+  while((m=FIG_RE.exec(t))&&out.length<3){var v,u='',d=0,pre=t.slice(Math.max(0,m.index-14),m.index),post=t.slice(m.index+m[0].length,m.index+m[0].length+10);
+    if(m[2]){v=m[1].replace(/^[+\-]/,'')+'%';d=/^-/.test(m[1])||FIG_DN.test(pre)?-1:/^\+/.test(m[1])||FIG_UP.test(pre)?1:FIG_DN.test(post)?-1:FIG_UP.test(post)?1:0;}
+    else if(m[3]){v=m[3].replace(/\s/g,'');u=m[4]||'';}
+    else if(m[5]){v=m[5];u=m[6];}
+    else{if(+m[7]<2||(+m[7]>=1900&&+m[7]<2100))continue;v=m[7];u=m[8];}
+    if(seen[v+u])continue;seen[v+u]=1;out.push({v:v,u:u,d:d,c:figClause(t,m.index,m[0].length)});}
+  return out;}
+function evItems(b,g){if(!g||!g.key)return [];var now=Date.now(),have={};g.items.forEach(function(i){have[i.id]=1});
+  return b.filter(function(i){return have[i.id]||(!i.dup_of&&!isArt(i)&&i.ts>now-36*36e5&&(i.score||0)>=5&&evKeys(i).indexOf(g.key)>=0)});}
+function figsHtml(hero,title,ev){var fs=keyFigs(title),h='';
+  function add(v,u,c){if(fs.length<3)fs.push({v:String(v),u:u,d:0,c:c,plain:1});}
+  if(hero.confirms>0)add(hero.confirms+1,'',T('fSrc'));
+  if(ev.length>1){add(ev.length,'',T('fEv'));var first=ev.reduce(function(a,i){return Math.min(a,i.ts)},Date.now()),mins=Math.max(1,Math.round((Date.now()-first)/6e4));
+    if(mins>=60)add(Math.round(mins/6)/10,T('fH'),T('fAge'));else add(mins,T('fM'),T('fAge'));}
+  if(!fs.length)return '';
+  fs.forEach(function(f){h+='<div class="fig"><b dir="ltr">'+(f.d?'<i class="'+(f.d>0?'up':'dn')+'">'+(f.d>0?'▲':'▼')+'</i>':'')+esc(f.v)+(f.u?'<u>'+esc(f.u)+'</u>':'')+'</b><span dir="auto">'+esc(f.c)+'</span></div>'});
+  return '<div class="figs">'+h+'</div>';}
+// 事件脉络：同一件事从首次报道到现在（最多 5 条：首报 + 分数最高的几条，按时间先后排）
+function tlHtml(ev,cur,g,curKey,cls){if(ev.length<2)return '';
+  var by=ev.slice().sort(function(x,y){return x.ts-y.ts}),first=by[0],keep={};keep[first.id]=1;keep[cur.id]=1;
+  ev.slice().sort(function(x,y){return (y.score||0)-(x.score||0)||y.ts-x.ts}).forEach(function(i){if(Object.keys(keep).length<5)keep[i.id]=1});
+  var L=by.filter(function(i){return keep[i.id]}),q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;
+  return '<div class="'+(cls||'also')+'"><div class="'+(cls?'d-sec':'hd')+'"><span>'+T(cls?'dEv':'alsoH')+' · <span class="num">'+ev.length+'</span></span><button data-rel="'+esc(q)+'">'+T('alsoAll',ev.length)+'</button></div>'+L.map(function(i){var o=tx(i),c=i.id===cur.id;
+    return '<div class="tl'+(c?' cur':'')+'"'+(c&&cls?'':' data-id="'+esc(i.id)+'"')+'><time class="num">'+hm(i.ts)+'</time><span class="dot"></span><div><span class="lt" dir="auto">'+esc(headOf(o.t))+'</span><small>'+sc(i)+'<span>'+esc(shortSrc(i.source))+'</span>'+(c?'<em>'+T(curKey)+'</em>':i.id===first.id?'<em>'+T('tlFirst')+'</em>':'')+'</small></div></div>'}).join('')+'</div>';}
 function briefHtml(b){
   var now=Date.now(),hot=hotList(b);
   if(!hot.length)return '';
@@ -699,10 +754,10 @@ function briefHtml(b){
   var ranks=gs.slice(1,5),used={};used[hero.id]=1;ranks.forEach(function(g){used[g.rep.id]=1});
   // 事件不够 4 组时，用剩下分数最高的补满
   var fill=hot.filter(function(i){return !used[i.id]});while(ranks.length<4&&fill.length){var f=fill.shift();used[f.id]=1;ranks.push({rep:f,items:[f],key:''});}
-  var rest=hot.filter(function(i){return !used[i.id]}),ho=tx(hero,true),hb=ho.b!=null?ho.b:cleanBody(hero);
+  var rest=hot.filter(function(i){return !used[i.id]}),ev0=evItems(b,g0),ho=tx(hero,true),hb=ho.b!=null?ho.b:cleanBody(hero);
   var h='<div class="top"><article class="hero" data-id="'+esc(hero.id)+'"><div class="kick">'+T('lead')+'</div>'+
     '<h2 dir="auto"'+(isZhText(ho.t)?' class="zh"':'')+'>'+hl(headOf(ho.t))+'</h2>'+(hb?'<p dir="auto">'+hl(hb.split('\n\n')[0])+'</p>':'')+
-    '<div class="foot">'+ring(hero)+byline(hero,ho,true)+'</div>'+alsoHtml(g0,hero)+'</article>'+
+    '<div class="foot">'+ring(hero)+byline(hero,ho,true)+'</div>'+figsHtml(hero,ho.t,ev0)+tlHtml(ev0,hero,g0,'tlLead')+'</article>'+
     '<div class="rank"><h3>'+T('topToday')+'<small>'+T('topSub')+'</small></h3>'+ranks.map(function(g,k){var i=g.rep,o=tx(i);return '<article class="rk" data-id="'+esc(i.id)+'"><em class="num">'+(k+2)+'</em><div><h4 dir="auto">'+hl(headOf(o.t))+'</h4>'+byline(i,o,false,g)+'</div></article>'}).join('')+'</div></div>';
   // 12 小时统计：重要条数、和平常比、多空情绪、热门股票
   var win=dedupe(b.filter(function(i){return i.ts>now-12*36e5&&!i.dup_of})),tot=win.length,imp=win.filter(isHot).length,srcs={};win.forEach(function(i){srcs[i.source]=1});
@@ -753,10 +808,14 @@ function detailHtml(i){
   var by=art?T('byDeep'):i.score==null?T('byWait'):(i.score_by==='ai'?T('byAi'):T('byRule'))+(i.base_score!=null&&i.confirms>0&&i.base_score!==i.score?' · '+T('boost',fmtScore(i.base_score)):'');
   var body=b?'<div class="d-body" dir="auto">'+b.split('\n\n').map(function(p){return '<p>'+hl(p).replace(/\n/g,'<br>')+'</p>'}).join('')+'</div>':'<div class="d-none">'+T(isArt(i)?'noBodyArt':'noBody')+'</div>';
   var r=rels(i),hh=hits(i),cs={},cn=[];state.items.forEach(function(x){if(x.dup_of===i.id&&x.source!==i.source&&!cs[x.source]){cs[x.source]=1;cn.push(shortSrc(x.source))}});
-  var facts=(cn.length?'<div><span>'+T('cfBy')+'</span><span>'+esc(shortSrc(i.source)+' · '+cn.join(' · '))+'</span></div>':'')+(hh?'<div><span>'+T('hitL')+'</span><span>'+hh+'</span></div>':'');
+  var tkc='';(i.tickers||'').split(',').forEach(function(x){if(x)tkc+='<button class="chipb" data-tk="'+esc(x)+'" dir="ltr">$'+esc(x)+'</button>'});
+  if(!tkc){var ct=cleanTitle(i.title),nk=0;TK.forEach(function(k){if(nk<3&&k.re.test(ct)){nk++;tkc+='<button class="chipb" data-tk="'+esc(k[0])+'" dir="ltr">$'+esc(k[0])+'</button>'}});}
+  var tpc=i.topic?'<button class="chipb tp" data-rel="#'+esc(i.topic)+'"><bdi>'+esc(i.topic)+'</bdi></button>':'';
+  var ks=evKeys(i),gk=ks[0]||'',evd=gk?evItems(base(),{key:gk,items:[i],rep:i}):[];
+  var facts=(tkc?'<div><span>'+T('dTk')+'</span><span>'+tkc+'</span></div>':'')+(tpc?'<div><span>'+T('dTp')+'</span><span>'+tpc+'</span></div>':'')+(i.dir?'<div><span>'+T('dDir')+'</span><span><span class="mood '+(i.dir>0?'up':'dn')+'">'+(i.dir>0?'▲ '+T('dUp'):'▼ '+T('dDn'))+'</span></span></div>':'')+(cn.length?'<div><span>'+T('cfBy')+'</span><span>'+esc(shortSrc(i.source)+' · '+cn.join(' · '))+'</span></div>':'')+(hh?'<div><span>'+T('hitL')+'</span><span>'+hh+'</span></div>':'');
   return '<div class="d"><div class="d-top">'+ring(i)+'<div><div class="d-lv'+(hot?' hot':'')+'">'+lv+'</div><div class="d-by">'+by+'</div></div></div>'+
     '<h2 dir="auto">'+hl(o.t)+'</h2><div class="by"><b>'+esc(i.source)+'</b><span class="num" title="'+esc(new Date(i.ts).toLocaleString())+'">'+hm(i.ts)+'</span>'+tags(i,o)+'</div>'+(r?'<div class="rels">'+r+'</div>':'')+(facts?'<div class="d-facts">'+facts+'</div>':'')+body+
-    (o.tr?'<div class="orig" dir="auto"><b>'+T('original')+'</b>'+esc(cleanTitle(i.title))+'</div>':'')+relHtml(i)+
+    (o.tr?'<div class="orig" dir="auto"><b>'+T('original')+'</b>'+esc(cleanTitle(i.title))+'</div>':'')+/* 以后的行情小图模块插在这里 */(gk?tlHtml(evd,i,{key:gk,rep:i},'tlNow','d-ev'):'')+relHtml(i)+
     '<div class="d-act">'+(u?'<a class="btn pri" href="'+esc(u)+'" target="_blank" rel="noopener">'+T('open')+EXT+'</a>':'')+'<button class="btn'+(state.stars[i.id]?' on':'')+'" data-star="'+esc(i.id)+'">'+(state.stars[i.id]?'★ '+T('saved'):'☆ '+T('save'))+'</button><button class="btn" data-copy="'+esc(i.id)+'">'+T('share')+'</button></div></div>';
 }
 function renderSide(){
@@ -1036,7 +1095,10 @@ $('main').addEventListener('click',function(e){
   if(window.getSelection&&String(window.getSelection()))return;
   var r=e.target.closest('[data-id]');if(r)openReader(r.dataset.id);});
 $('main').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.topic)e.target.click();});
-$('reader').addEventListener('click',copyClick);
+$('reader').addEventListener('click',function(e){if(copyClick(e))return;
+  var rl=e.target.closest('[data-rel]'),tkb=e.target.closest('[data-tk]');
+  if(rl||tkb){panel('',false);return drill(rl?rl.dataset.rel:'$'+tkb.dataset.tk);}
+  var r=e.target.closest('[data-id]');if(r&&byId(r.dataset.id)){openReader(r.dataset.id);$('reader').scrollTop=0;}});
 $('rclose').onclick=$('sclose').onclick=$('scrim').onclick=function(){panel('',false)};
 $('srcs').addEventListener('click',function(e){
   var o=e.target.closest('[data-only]');
