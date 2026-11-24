@@ -648,7 +648,7 @@ async function listItems(env, opts) {
 }
 
 async function listRows(env, { limit = 200, matched = false, since = 0, before = 0 }) {
-  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id) AS rel' : ''} FROM items
+  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''} FROM items
                WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ORDER BY ts DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
