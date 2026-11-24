@@ -889,7 +889,7 @@ function emptyHtml(){
    · 进场（换视图、换市场、钻取、返回、首次出现）：各区块依次浮现
    · 更新（15 秒一次的新数据）：原有条目平滑让位，新条目滑入，分数和数字变了才动
    · 系统设置了“减少动态效果”时全部关闭 */
-var lastQ='',EO='cubic-bezier(.22,1,.36,1)',ESP='cubic-bezier(.34,1.42,.64,1)',lastKey='',lastRows=0,forceEnter=false,enterDir=0,BARS={};
+var instant=false,lastQ='',EO='cubic-bezier(.22,1,.36,1)',ESP='cubic-bezier(.34,1.42,.64,1)',lastKey='',lastRows=0,forceEnter=false,enterDir=0,BARS={};
 function calm(){return !!window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;}
 function anim(el,frames,o){if(!el||!el.animate||calm())return null;try{return el.animate(frames,o)}catch(e){return null}}
 function near(el){var r=el.getBoundingClientRect();return r.bottom>-200&&r.top<window.innerHeight+200?r:null;}
@@ -953,7 +953,9 @@ function render(soft,gesture){
   if(trail.length){var tp0=trail[trail.length-1];html='<div class="crumb"><button id="goBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'+esc(T('backTo',T(tp0.view)))+'</button><span>'+esc(T('crumbQ',state.only?state.only.label:state.q.replace(/^[$#]/,'')))+' · '+T('crumbN',visible().length)+'</span></div>'+html;}
   $('main').innerHTML=html;var nowT=Date.now();Object.keys(state.newIds).forEach(function(id){if(nowT-state.newIds[id]>7000)delete state.newIds[id]});
   var rowsN=$('main').querySelectorAll('.row').length;
-  if(kind==='enter'){enter();enterDir=0;}else if(kind==='update')play(prev);
+  // 打开网页时数据已经在手（秒开）：内容直接就位，不做浮现，只让圆环和条形图画出来；速度本身就是最好的动效
+  if(kind==='enter'&&instant){instant=false;sweep($('main'));bars(true);}
+  else if(kind==='enter'){enter();enterDir=0;}else if(kind==='update')play(prev);
   else if(kind==='more'&&rowsN>lastRows&&lastRows){[].slice.call($('main').querySelectorAll('.row'),lastRows,lastRows+14).forEach(function(el,k){rise(el,k)});}
   if(kind!=='enter'&&kind!=='update')bars(false);
   lastRows=rowsN;
@@ -1351,7 +1353,7 @@ async function newBuild(b){if(!b||b===BUILD||b===buildSeen)return;buildSeen=b;
   if(!touched&&!document.body.classList.contains('open-reader')&&!document.body.classList.contains('open-side')&&!show.on&&window.scrollY<200)location.reload();
   else{var el=$('tip');el.textContent=T('newVer');el.classList.add('show','act');el.onclick=function(){location.reload()};}}
 if('serviceWorker' in navigator)navigator.serviceWorker.register(api('/sw.js')).catch(function(){});
-var freshBoot=bootData();
+var freshBoot=bootData();instant=state.loaded;
 trLoad();applyTheme();applyI18n();render();
 if(freshBoot){state.first=false;state.okAt=Date.now();$('liveTxt').textContent=T('updated',hm(Date.now()));if(state.lastSeen>state.topSeen)state.topSeen=state.lastSeen;save();snapSoon();if(hashId)openFromPush(hashId);fillLite().then(backfill);}
 else{load().then(function(){if(hashId)openFromPush(hashId);}).then(fillLite).then(backfill);}
