@@ -401,7 +401,7 @@ zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',n
  lvHot:'重要快讯',lvNone:'尚未评分',lvHigh:'高分',lvMid:'一般关注',lvLow:'常规消息',byAi:'AI 评分',byRule:'规则评分',byWait:'等待评分',boost:'原始 {0}，多源证实加分',
  noBody:'这条快讯只有标题，没有摘要。',original:'原文',translated:'译',open:'打开原文',copy:'复制标题',copied:'已复制标题',copyFail:'复制失败，请手动选择文字',detail:'快讯详情',
  sources:'来源',selAll:'全选',only:'只看',fetchFail:'最近一次抓取失败：{0}',gFlash:'快讯',gWire:'通讯社与媒体',gCn:'中文快讯',gGulf:'沙特与海湾',gOff:'官方与公告',gOther:'其他',
- alerts:'提醒',sound:'提示音',soundD:'有重要快讯时响一声',notif:'桌面通知',notifD:'有重要快讯时弹出系统通知',notifNo:'这个浏览器不支持',notifDenied:'已被浏览器拒绝，需在浏览器设置里放行',push:'后台推送',pushD:'关掉网页也能收到系统通知',pushDC:'关掉网页也能收到；Chrome 要在后台运行（别按 ⌘Q 退出）',pushOn:'已开启，这台设备会收到推送',pushNo:'这个浏览器不支持后台推送',pushMin:'推送门槛',pushConf:'8 分+多源',perDay:'{0}/天',pushCnt:'按过去 24 小时算，这个门槛大约每天推 {0} 条',pushQuiet:'免打扰',qOff:'不设',pushTest:'发一条测试推送',pushSent:'已发送，留意屏幕角落的通知',pushFail:'发送失败：{0}',pushOnTip:'后台推送已开启',pushOffTip:'后台推送已关闭',pushErr:'开启失败：{0}',
+ alerts:'提醒',sound:'提示音',soundD:'有重要快讯时响一声',notif:'桌面通知',notifD:'有重要快讯时弹出系统通知',notifNo:'这个浏览器不支持',notifDenied:'已被浏览器拒绝，需在浏览器设置里放行',push:'后台推送',pushD:'关掉网页也能收到系统通知',pushDC:'关掉网页也能收到；Chrome 要在后台运行（别按 ⌘Q 退出）',pushOn:'已开启，这台设备会收到推送',pushNo:'这个浏览器不支持后台推送',pushMin:'推送门槛',pushConf:'8 分+多源',perDay:'{0}/天',pushCnt:'按过去 24 小时算，这个门槛大约每天推 {0} 条',pushQuiet:'免打扰',sticky:'通知停在屏幕上',stickyD:'直到你手动关掉；Mac 上会用“提醒”样式，更不容易错过',qOff:'不设',pushTest:'发一条测试推送',pushSent:'已发送，留意屏幕角落的通知',pushFail:'发送失败：{0}',pushOnTip:'后台推送已开启',pushOffTip:'后台推送已关闭',pushErr:'开启失败：{0}',
  look:'外观',theme:'主题',tAuto:'跟随系统',tDark:'深色',tLight:'浅色',keys:'快捷键',kMove:'上下条',kOpen:'打开原文',kSearch:'搜索',kView:'切换视图',kStar:'收藏',kShow:'展示模式',
  eNone:'还没有数据',eNoneD:'部署后等一两分钟，第一批快讯就会出现。',eFilter:'没有符合条件的快讯',eFilterD:'当前的来源筛选或搜索把结果都过滤掉了。',eScore:'暂时没有达到这个分数的快讯',eScoreD:'可以切到“全部”看所有快讯。',eConn:'连接失败',eConnD:'暂时读不到数据，页面会自动重试。',
  newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',loadMore:'加载更早的快讯',loading:'加载中…',noMore:'没有更早的快讯了（数据库保留最近 7 天）',loaded:'已载入 {0} 条 · 每分钟抓取',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
@@ -414,7 +414,7 @@ en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextD
  lvHot:'Important',lvNone:'Not scored yet',lvHigh:'High score',lvMid:'Worth a look',lvLow:'Routine',byAi:'AI score',byRule:'Rule score',byWait:'Awaiting score',boost:'base {0}, raised by multi-source confirmation',
  noBody:'This flash has a headline only, no summary.',original:'ORIGINAL',translated:'TR',open:'Open original',copy:'Copy headline',copied:'Headline copied',copyFail:'Copy failed, select the text manually',detail:'FLASH DETAIL',
  sources:'SOURCES',selAll:'Select all',only:'Only',fetchFail:'Last fetch failed: {0}',gFlash:'Flash feeds',gWire:'Wires & media',gCn:'Chinese flashes',gGulf:'Saudi & Gulf',gOff:'Official & filings',gOther:'Other',
- alerts:'ALERTS',sound:'Sound',soundD:'Chime on important flashes',notif:'Desktop notifications',notifD:'System notification on important flashes',notifNo:'Not supported in this browser',notifDenied:'Blocked by the browser; allow it in browser settings',push:'Background push',pushD:'System notifications even with the page closed',pushDC:'Works with the page closed; Chrome must keep running in the background (do not quit with Cmd+Q)',pushOn:'On: this device receives pushes',pushNo:'This browser does not support background push',pushMin:'PUSH THRESHOLD',pushConf:'8 + confirmed',perDay:'{0}/day',pushCnt:'Based on the last 24 hours, about {0} pushes a day at this threshold',pushQuiet:'Quiet hours',qOff:'Off',pushTest:'Send a test push',pushSent:'Sent. Watch for the notification',pushFail:'Send failed: {0}',pushOnTip:'Background push is on',pushOffTip:'Background push is off',pushErr:'Could not turn on: {0}',
+ alerts:'ALERTS',sound:'Sound',soundD:'Chime on important flashes',notif:'Desktop notifications',notifD:'System notification on important flashes',notifNo:'Not supported in this browser',notifDenied:'Blocked by the browser; allow it in browser settings',push:'Background push',pushD:'System notifications even with the page closed',pushDC:'Works with the page closed; Chrome must keep running in the background (do not quit with Cmd+Q)',pushOn:'On: this device receives pushes',pushNo:'This browser does not support background push',pushMin:'PUSH THRESHOLD',pushConf:'8 + confirmed',perDay:'{0}/day',pushCnt:'Based on the last 24 hours, about {0} pushes a day at this threshold',pushQuiet:'Quiet hours',sticky:'Keep on screen',stickyD:'Stays until you dismiss it (Alert style on Mac), harder to miss',qOff:'Off',pushTest:'Send a test push',pushSent:'Sent. Watch for the notification',pushFail:'Send failed: {0}',pushOnTip:'Background push is on',pushOffTip:'Background push is off',pushErr:'Could not turn on: {0}',
  look:'APPEARANCE',theme:'Theme',tAuto:'System',tDark:'Dark',tLight:'Light',keys:'SHORTCUTS',kMove:'Next / previous',kOpen:'Open original',kSearch:'Search',kView:'Switch view',kStar:'Save',kShow:'Presentation',
  eNone:'No data yet',eNoneD:'The first flashes appear a minute or two after deployment.',eFilter:'Nothing matches',eFilterD:'The current source filter or search hides every flash.',eScore:'Nothing at this score yet',eScoreD:'Switch to "All" to see every flash.',eConn:'Connection failed',eConnD:'Data is unavailable right now. The page retries automatically.',
  newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',loadMore:'Load earlier flashes',loading:'Loading…',noMore:'No earlier flashes (the database keeps the last 7 days)',loaded:'{0} loaded · fetched every minute',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
@@ -427,7 +427,7 @@ ar:{thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'ال
  lvHot:'خبر مهم',lvNone:'لم يُقيَّم بعد',lvHigh:'تقييم مرتفع',lvMid:'جدير بالمتابعة',lvLow:'خبر اعتيادي',byAi:'تقييم الذكاء الاصطناعي',byRule:'تقييم القواعد',byWait:'بانتظار التقييم',boost:'الأساس {0}، ورُفع لتأكيد عدة مصادر',
  noBody:'هذا الخبر عنوان فقط دون ملخص.',original:'النص الأصلي',translated:'مترجم',open:'فتح المصدر',copy:'نسخ العنوان',copied:'تم نسخ العنوان',copyFail:'تعذّر النسخ، حدّد النص يدويًا',detail:'تفاصيل الخبر',
  sources:'المصادر',selAll:'تحديد الكل',only:'فقط',fetchFail:'فشل آخر جلب: {0}',gFlash:'خدمات عاجلة',gWire:'وكالات وإعلام',gCn:'عاجل بالصينية',gGulf:'السعودية والخليج',gOff:'جهات رسمية وإفصاحات',gOther:'أخرى',
- alerts:'التنبيهات',sound:'صوت التنبيه',soundD:'نغمة عند ورود خبر مهم',notif:'إشعارات سطح المكتب',notifD:'إشعار من النظام عند ورود خبر مهم',notifNo:'غير مدعوم في هذا المتصفح',notifDenied:'حظرها المتصفح؛ اسمح بها من إعداداته',push:'إشعارات في الخلفية',pushD:'إشعارات النظام حتى مع إغلاق الصفحة',pushDC:'تعمل مع إغلاق الصفحة؛ يجب أن يبقى Chrome يعمل في الخلفية',pushOn:'مفعّلة على هذا الجهاز',pushNo:'هذا المتصفح لا يدعم الإشعارات في الخلفية',pushMin:'حد الإشعار',pushConf:'8 + تأكيد',perDay:'{0}/يوم',pushCnt:'حسب آخر 24 ساعة: نحو {0} إشعار يوميًا',pushQuiet:'عدم الإزعاج',qOff:'إيقاف',pushTest:'إرسال إشعار تجريبي',pushSent:'تم الإرسال',pushFail:'فشل الإرسال: {0}',pushOnTip:'تم تفعيل الإشعارات',pushOffTip:'تم إيقاف الإشعارات',pushErr:'تعذر التفعيل: {0}',
+ alerts:'التنبيهات',sound:'صوت التنبيه',soundD:'نغمة عند ورود خبر مهم',notif:'إشعارات سطح المكتب',notifD:'إشعار من النظام عند ورود خبر مهم',notifNo:'غير مدعوم في هذا المتصفح',notifDenied:'حظرها المتصفح؛ اسمح بها من إعداداته',push:'إشعارات في الخلفية',pushD:'إشعارات النظام حتى مع إغلاق الصفحة',pushDC:'تعمل مع إغلاق الصفحة؛ يجب أن يبقى Chrome يعمل في الخلفية',pushOn:'مفعّلة على هذا الجهاز',pushNo:'هذا المتصفح لا يدعم الإشعارات في الخلفية',pushMin:'حد الإشعار',pushConf:'8 + تأكيد',perDay:'{0}/يوم',pushCnt:'حسب آخر 24 ساعة: نحو {0} إشعار يوميًا',pushQuiet:'عدم الإزعاج',sticky:'إبقاء الإشعار على الشاشة',stickyD:'يبقى حتى تغلقه بنفسك',qOff:'إيقاف',pushTest:'إرسال إشعار تجريبي',pushSent:'تم الإرسال',pushFail:'فشل الإرسال: {0}',pushOnTip:'تم تفعيل الإشعارات',pushOffTip:'تم إيقاف الإشعارات',pushErr:'تعذر التفعيل: {0}',
  look:'المظهر',theme:'السمة',tAuto:'النظام',tDark:'داكن',tLight:'فاتح',keys:'اختصارات',kMove:'التالي / السابق',kOpen:'فتح المصدر',kSearch:'بحث',kView:'تبديل العرض',kStar:'حفظ',kShow:'وضع العرض',
  eNone:'لا توجد بيانات بعد',eNoneD:'تظهر أولى الأخبار بعد دقيقة أو دقيقتين من التشغيل.',eFilter:'لا نتائج مطابقة',eFilterD:'تصفية المصادر أو البحث الحالي يخفي كل الأخبار.',eScore:'لا أخبار بهذا التقييم حاليًا',eScoreD:'انتقل إلى «الكل» لعرض جميع الأخبار.',eConn:'فشل الاتصال',eConnD:'تعذّر جلب البيانات الآن. تعيد الصفحة المحاولة تلقائيًا.',
  newHot:'↑ {0} أخبار مهمة جديدة',newAll:'↑ {0} أخبار جديدة',trLoad:'جارٍ تنزيل نموذج الترجمة {0}%',trEnable:'فعّل ترجمة الأخبار',trNo:'هذا المتصفح لا يدعم الترجمة داخل الصفحة، فتُعرض الأخبار بلغتها الأصلية (متاح في كروم لسطح المكتب)',watch:'قائمتي',star:'المحفوظات',wTitle:'قائمة المتابعة',wPh:'مثل NVDA أو أرامكو أو الفيدرالي',add:'إضافة',wHint:'تُميَّز الأخبار المطابقة لهذه الكلمات وتُجمع في «قائمتي»',wEmpty:'لا توجد قائمة متابعة بعد',wEmptyD:'أضف رموز الأسهم أو الكلمات من «المصادر والإعدادات» في الأعلى.',wNone:'لا أخبار مطابقة لقائمتك حاليًا',sEmpty:'لا محفوظات بعد',sEmptyD:'افتح خبرًا واضغط «حفظ» ليظهر هنا.',save:'حفظ',saved:'محفوظ',share:'نسخ نص المشاركة',shared:'تم النسخ وجاهز للصق',present:'وضع العرض',pHint:'← → للتنقل · مسافة للإيقاف · Esc للخروج',pEmpty:'لا أخبار مهمة حاليًا',src:'المصدر',loadMore:'تحميل أخبار أقدم',loading:'جارٍ التحميل…',noMore:'لا أخبار أقدم (تحتفظ القاعدة بآخر 7 أيام)',loaded:'تم تحميل {0} · تحديث كل دقيقة',days:['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],dateFmt:'{2}، {1} {3}'}
@@ -1059,7 +1059,7 @@ $('live').addEventListener('click',function(){load(true)});$('live').addEventLis
 window.addEventListener('resize',setTop);
 
 /* ---------- 后台推送（Web Push）：关掉网页也能收到系统通知 ---------- */
-var PUSH={ok:'serviceWorker' in navigator&&'PushManager' in window&&!!window.Notification,reg:null,sub:null,info:null,cfg:{min:9,mode:'score',qf:null,qt:null},busy:false};
+var PUSH={ok:'serviceWorker' in navigator&&'PushManager' in window&&!!window.Notification,reg:null,sub:null,info:null,cfg:{min:9,mode:'score',qf:null,qt:null,sticky:false},busy:false};
 try{var pc=JSON.parse(localStorage.getItem('hwpush')||'null');if(pc)PUSH.cfg=pc}catch(e){}
 function pushSaveLocal(){try{localStorage.setItem('hwpush',JSON.stringify(PUSH.cfg))}catch(e){}}
 function u8(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
@@ -1070,12 +1070,12 @@ async function pushInit(){
   try{PUSH.reg=await navigator.serviceWorker.register(api('/sw.js'));PUSH.sub=await PUSH.reg.pushManager.getSubscription();}catch(e){}
   await pushInfo();
   if(PUSH.sub&&PUSH.info){var s=PUSH.info.sub;
-    if(s){PUSH.cfg={min:s.min,mode:s.mode,qf:s.quietFrom,qt:s.quietTo};pushSaveLocal();}
+    if(s){PUSH.cfg={min:s.min,mode:s.mode,qf:s.quietFrom,qt:s.quietTo,sticky:!!s.sticky};pushSaveLocal();}
     else await pushSave();} // 服务器那边丢了这个订阅（例如失效后被删）：用本地设置补上
   renderPush();
 }
 function pushBody(){var c=PUSH.cfg,tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''}catch(e){}
-  return {subscription:PUSH.sub.toJSON(),min:c.min,mode:c.mode,quietFrom:c.qf,quietTo:c.qt,tz:tz,page:location.href.split('#')[0]}}
+  return {subscription:PUSH.sub.toJSON(),min:c.min,mode:c.mode,quietFrom:c.qf,quietTo:c.qt,sticky:!!c.sticky,tz:tz,page:location.href.split('#')[0]}}
 async function pushSave(){if(!PUSH.sub)return;try{await pushPost('/api/push/subscribe',pushBody())}catch(e){}}
 async function pushToggle(){
   if(!PUSH.ok)return tip(T('pushNo'));
@@ -1102,7 +1102,7 @@ function renderPush(){
   $('swPush').setAttribute('aria-pressed',on?'true':'false');
   var chrome=/Chrome\//.test(navigator.userAgent)&&!/Edg\//.test(navigator.userAgent);
   $('pushHint').textContent=!PUSH.ok?T('pushNo'):Notification.permission==='denied'?T('notifDenied'):on?T('pushOn'):(chrome?T('pushDC'):T('pushD'));
-  $('pushOpts').hidden=!on;
+  $('pushOpts').hidden=!on;$('swSticky').setAttribute('aria-pressed',c.sticky?'true':'false');
   var key=c.mode==='confirmed'?'confirmed':String(c.min);
   [].forEach.call($('pushMin').children,function(b){var m=b.dataset.m;b.classList.toggle('on',m===key);b.querySelector('small').textContent=cnt&&cnt[m]!=null?T('perDay',cnt[m]):'';});
   $('pushCnt').textContent=cnt&&cnt[key]!=null?T('pushCnt',cnt[key]):'';
@@ -1113,10 +1113,11 @@ $('swPush').onclick=pushToggle;
 $('pushMin').onclick=function(e){var b=e.target.closest('[data-m]');if(!b)return;var m=b.dataset.m;
   if(m==='confirmed')PUSH.cfg.mode='confirmed';else{PUSH.cfg.mode='score';PUSH.cfg.min=Number(m);}pushSaveLocal();renderPush();pushSave();};
 function qChange(){var a=$('qFrom').value,b=$('qTo').value;PUSH.cfg.qf=a===''?null:Number(a);PUSH.cfg.qt=b===''?null:Number(b);pushSaveLocal();pushSave();}
+$('swSticky').onclick=function(){PUSH.cfg.sticky=!PUSH.cfg.sticky;pushSaveLocal();renderPush();pushSave();};
 $('qFrom').onchange=qChange;$('qTo').onchange=qChange;
 $('pushTest').onclick=async function(){if(!PUSH.sub)return;try{var d=await pushPost('/api/push/test',{endpoint:PUSH.sub.endpoint});tip(d.httpOk?T('pushSent'):T('pushFail',d.error||d.status),4000);}catch(e){tip(T('pushFail',e.message||e),4000);}};
 // 点通知打开看板时定位到那条快讯
-function openFromPush(id){if(!id||id==='test')return;if(byId(id))return openReader(id);load().then(function(){merge();render();if(byId(id))openReader(id);});}
+function openFromPush(id){if(!id||/^test/.test(id))return;if(byId(id))return openReader(id);load().then(function(){merge();render();if(byId(id))openReader(id);});}
 if(PUSH.ok)navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.hwOpen)openFromPush(e.data.hwOpen);});
 var hashId=/^#i=/.test(location.hash)?decodeURIComponent(location.hash.slice(3)):null;
 if(hashId){try{history.replaceState(history.state,'',location.href.split('#')[0])}catch(e){}}
@@ -1171,6 +1172,7 @@ const BODY = `
     <div class="pmin" id="pushMin"><button data-m="8">8+<small></small></button><button data-m="8.5">8.5+<small></small></button><button data-m="9">9+<small></small></button><button data-m="9.5">9.5+<small></small></button><button data-m="confirmed"><span data-i="pushConf"></span><small></small></button></div>
     <p class="whint" id="pushCnt"></p>
     <div class="set"><div data-i="pushQuiet"></div><div class="qh"><select id="qFrom"></select><span>–</span><select id="qTo"></select></div></div>
+    <div class="set"><div><span data-i="sticky"></span><small data-i="stickyD"></small></div><button class="sw" id="swSticky" data-ia="sticky" aria-pressed="false"></button></div>
     <div class="set"><button class="btn" id="pushTest" data-i="pushTest"></button></div>
   </div>
   <div class="sh"><span data-i="look"></span></div>

@@ -887,7 +887,7 @@ export default {
         return json({
           publicKey: keys.publicKey,
           counts: await dailyCounts(env),
-          sub: sub ? { min: sub.min_score, mode: sub.mode, quietFrom: sub.quiet_from, quietTo: sub.quiet_to, tz: sub.tz, lastOk: sub.last_ok, fails: sub.fails, lastError: sub.last_error } : null,
+          sub: sub ? { min: sub.min_score, mode: sub.mode, quietFrom: sub.quiet_from, quietTo: sub.quiet_to, tz: sub.tz, sticky: !!sub.sticky, lastOk: sub.last_ok, fails: sub.fails, lastError: sub.last_error } : null,
         });
       }
 
@@ -916,7 +916,8 @@ export default {
           const r = await sendPush(env, sub, {
             title: body?.title ? String(body.title).slice(0, 120) : 'Headline Watch 测试推送',
             body: body?.body ? String(body.body).slice(0, 200) : '能看到这条，说明推送已经通了',
-            id: 'test',
+            id: `test-${Date.now()}`, // 每次都不同，避免被当成同一条通知悄悄替换
+            sticky: !!sub.sticky,
             url: String(sub.origin || url.origin + '/').split('#')[0],
             ts: Date.now(),
           }, { ttl: 300 });

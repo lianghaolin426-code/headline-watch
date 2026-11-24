@@ -65,13 +65,21 @@ export async function encryptPayload(plaintext, p256dh, auth, { salt = crypto.ge
 
 let keyCache = null;
 
+let tablesReady = false;
 async function ensureTables(db) {
+  if (tablesReady) return;
   await db.batch([
     db.prepare('CREATE TABLE IF NOT EXISTS push_keys (id INTEGER PRIMARY KEY, public_key TEXT NOT NULL, private_jwk TEXT NOT NULL, created INTEGER NOT NULL)'),
     db.prepare(
       'CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, p256dh TEXT NOT NULL, auth TEXT NOT NULL, min_score REAL NOT NULL DEFAULT 9, mode TEXT NOT NULL DEFAULT \'score\', quiet_from INTEGER, quiet_to INTEGER, tz TEXT, origin TEXT, ua TEXT, created INTEGER NOT NULL, last_ok INTEGER, fails INTEGER NOT NULL DEFAULT 0, last_error TEXT)'
     ),
   ]);
+  try {
+    await db.prepare('ALTER TABLE push_subs ADD COLUMN sticky INTEGER NOT NULL DEFAULT 0').run(); // 后加的列：通知停留在屏幕上直到手动关掉
+  } catch {
+    // 已经有这一列
+  }
+  tablesReady = true;
 }
 
 export async function vapidKeys(env) {
@@ -157,6 +165,7 @@ function cleanSub(body) {
     quietFrom: hour(body.quietFrom),
     quietTo: hour(body.quietTo),
     tz: tz || null,
+    sticky: body.sticky ? 1 : 0,
   };
 }
 
@@ -168,12 +177,12 @@ export async function saveSubscription(env, body, { origin, ua }) {
   const exists = await env.DB.prepare('SELECT 1 FROM push_subs WHERE endpoint = ?').bind(s.endpoint).first();
   if (!exists && (n?.n || 0) >= 50) return { ok: false, error: 'too many subscriptions' };
   await env.DB.prepare(
-    `INSERT INTO push_subs (endpoint, p256dh, auth, min_score, mode, quiet_from, quiet_to, tz, origin, ua, created, fails)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `INSERT INTO push_subs (endpoint, p256dh, auth, min_score, mode, quiet_from, quiet_to, tz, origin, ua, created, fails, sticky)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
      ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, min_score = excluded.min_score, mode = excluded.mode,
-       quiet_from = excluded.quiet_from, quiet_to = excluded.quiet_to, tz = excluded.tz, origin = excluded.origin, ua = excluded.ua, fails = 0, last_error = NULL`
+       quiet_from = excluded.quiet_from, quiet_to = excluded.quiet_to, tz = excluded.tz, origin = excluded.origin, ua = excluded.ua, sticky = excluded.sticky, fails = 0, last_error = NULL`
   )
-    .bind(s.endpoint, s.p256dh, s.auth, s.min, s.mode, s.quietFrom, s.quietTo, s.tz, origin, String(ua || '').slice(0, 200), Date.now())
+    .bind(s.endpoint, s.p256dh, s.auth, s.min, s.mode, s.quietFrom, s.quietTo, s.tz, origin, String(ua || '').slice(0, 200), Date.now(), s.sticky)
     .run();
   return { ok: true };
 }
@@ -235,6 +244,7 @@ export async function pushToSubscribers(env, items, { dashboard, now = Date.now(
         url: base ? `${base}#i=${encodeURIComponent(it.id)}` : it.url,
         src: it.url,
         ts: it.ts,
+        sticky: !!sub.sticky,
       };
       try {
         const r = await sendPush(env, sub, payload, { topic: String(it.id).replace(/[^A-Za-z0-9_-]/g, '').slice(-32) || undefined });
@@ -285,6 +295,9 @@ self.addEventListener('push', function (e) {
   e.waitUntil(self.registration.showNotification(d.title || 'Headline Watch', {
     body: d.body || '',
     tag: d.id || undefined,
+    renotify: !!d.id, // 同一个 tag 的新通知也要再弹一次横幅，不然 macOS 只会悄悄替换
+    requireInteraction: !!d.sticky, // 停留在屏幕上直到手动关掉
+    silent: false,
     timestamp: d.ts || Date.now(),
     data: { url: d.url || '/', id: d.id || '', src: d.src || '' }
   }));
