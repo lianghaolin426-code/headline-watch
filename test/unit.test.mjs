@@ -297,3 +297,10 @@ test('echoed rows: swapped numbers are put back, unknown rows dropped', async ()
   assert.equal(dup.dropped, 1);
   assert.equal(parseEchoed('no json', titles), null);
 });
+
+test('embed code is stripped from summaries', async () => {
+  const { htmlToText } = await import('../src/parse.js');
+  assert.equal(htmlToText('<p>Tariffs rise</p><script>var a = 1;</script> new TradingView.chart({width:"100%",container_id:"desc_{{newsid}}"});'), 'Tariffs rise');
+  const { buildList } = await import('../src/translate.js');
+  assert.equal(buildList([{ title: 'FinancialJuice: US prepares tariffs', body: 'new TradingView.chart({a:1});' }]), '0.\nT: US prepares tariffs');
+});

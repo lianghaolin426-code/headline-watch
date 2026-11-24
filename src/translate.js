@@ -3,6 +3,7 @@
 // AI 出错或额度用完时返回 null，下一轮再试；看板这时显示原文。
 
 import { isZh } from './embed.js';
+import { stripCode } from './parse.js';
 import { claudeText, claudeUp } from './claude.js';
 
 const PROMPTS = {
@@ -22,7 +23,8 @@ Reply with ONLY a JSON array, one object per item, using the item's number as "i
 export const targetLang = (title) => (isZh(title) ? 'en' : 'zh');
 
 function tidy(s, max) {
-  return String(s || '')
+  return stripCode(String(s || ''))
+    .replace(/^FinancialJuice:\s*/i, '') // 来源名前缀不用翻
     .replace(/https?:\/\/\S+/g, '')
     .replace(/(?:^|\s|(?<=[^\x00-\x7f]))(?:[a-z0-9-]+\.)+[a-z]{2,6}\/[\w\-\/.?=&%#]+/gi, ' ') // reut.rs/xxxx 这类不带 http 的短链接
     .replace(/\s+/g, ' ')

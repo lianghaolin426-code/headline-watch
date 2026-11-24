@@ -13,13 +13,17 @@ export function decodeEntities(s) {
   });
 }
 
+// 有的来源把图表的嵌入代码放进摘要，如 new TradingView.chart({...}); ——不是给人看的，去掉
+export const stripCode = (s) => s.replace(/\bnew\s+[A-Za-z_$][\w$.]*\s*\(\s*\{[\s\S]*?\}\s*\)\s*;?/g, ' ');
+
 export function htmlToText(html) {
-  return decodeEntities(
+  return stripCode(decodeEntities(
     html
+      .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|li)>/gi, '\n')
       .replace(/<[^>]+>/g, '')
-  )
+  ))
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
