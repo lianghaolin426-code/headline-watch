@@ -373,11 +373,13 @@ function escapeXml(s) {
   return String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
 }
 
-async function listItems(env, { limit = 200, matched = false, since = 0 }) {
+async function listItems(env, { limit = 200, matched = false, since = 0, before = 0 }) {
   const sql = (tr) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${tr ? ', title_tr, body_tr, tr_lang' : ''} FROM items
-               WHERE seen_at > ? ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
+               WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ORDER BY ts DESC LIMIT ?`;
-  const run = (tr) => env.DB.prepare(sql(tr)).bind(since, Math.min(limit, 500)).all();
+  // before：只要比这个时间更早的（看板“加载更早的快讯”用）
+  const args = before > 0 ? [since, before, Math.min(limit, 500)] : [since, Math.min(limit, 500)];
+  const run = (tr) => env.DB.prepare(sql(tr)).bind(...args).all();
   try {
     return (await run(true)).results;
   } catch {
@@ -413,6 +415,7 @@ export default {
           limit: Number(url.searchParams.get('limit') || 200),
           matched: url.searchParams.get('matched') === '1',
           since: Number(url.searchParams.get('since') || 0),
+          before: Number(url.searchParams.get('before') || 0),
         });
         return json({ now: Date.now(), items });
       }

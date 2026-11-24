@@ -205,6 +205,8 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .empty{text-align:center;color:var(--ink3);padding:90px 24px;font-size:14px}
 .empty b{display:block;color:var(--ink);font:700 22px/1.3 var(--serif);margin-bottom:8px}
 .empty button{margin-top:18px}
+.morebox{text-align:center;padding:28px 0 0;font-size:13px;color:var(--ink3)}
+.morebox .btn[disabled]{opacity:.5;cursor:default}
 .sk{height:14px;border-radius:3px;background:var(--rule);margin:22px 0;animation:sk 1.3s ease-in-out infinite alternate}
 @keyframes sk{to{opacity:.4}}
 
@@ -341,7 +343,7 @@ zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',f
  alerts:'提醒',sound:'提示音',soundD:'有重要快讯时响一声',notif:'桌面通知',notifD:'有重要快讯时弹出系统通知',notifNo:'这个浏览器不支持',notifDenied:'已被浏览器拒绝，需在浏览器设置里放行',
  look:'外观',theme:'主题',tAuto:'跟随系统',tDark:'深色',tLight:'浅色',keys:'快捷键',kMove:'上下条',kOpen:'打开原文',kSearch:'搜索',kView:'切换视图',kStar:'收藏',kShow:'展示模式',
  eNone:'还没有数据',eNoneD:'部署后等一两分钟，第一批快讯就会出现。',eFilter:'没有符合条件的快讯',eFilterD:'当前的来源筛选或搜索把结果都过滤掉了。',eScore:'暂时没有达到这个分数的快讯',eScoreD:'可以切到“全部”看所有快讯。',eConn:'连接失败',eConnD:'暂时读不到数据，页面会自动重试。',
- newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
+ newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',loadMore:'加载更早的快讯',loading:'加载中…',noMore:'没有更早的快讯了（数据库保留最近 7 天）',loaded:'已载入 {0} 条 · 每分钟抓取',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
 en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
  search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
@@ -354,7 +356,7 @@ en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Conn
  alerts:'ALERTS',sound:'Sound',soundD:'Chime on important flashes',notif:'Desktop notifications',notifD:'System notification on important flashes',notifNo:'Not supported in this browser',notifDenied:'Blocked by the browser; allow it in browser settings',
  look:'APPEARANCE',theme:'Theme',tAuto:'System',tDark:'Dark',tLight:'Light',keys:'SHORTCUTS',kMove:'Next / previous',kOpen:'Open original',kSearch:'Search',kView:'Switch view',kStar:'Save',kShow:'Presentation',
  eNone:'No data yet',eNoneD:'The first flashes appear a minute or two after deployment.',eFilter:'Nothing matches',eFilterD:'The current source filter or search hides every flash.',eScore:'Nothing at this score yet',eScoreD:'Switch to "All" to see every flash.',eConn:'Connection failed',eConnD:'Data is unavailable right now. The page retries automatically.',
- newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
+ newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',loadMore:'Load earlier flashes',loading:'Loading…',noMore:'No earlier flashes (the database keeps the last 7 days)',loaded:'{0} loaded · fetched every minute',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
 ar:{tag:'أخبار عاجلة للسوقين الأمريكي والسعودي',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
  search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
@@ -367,13 +369,13 @@ ar:{tag:'أخبار عاجلة للسوقين الأمريكي والسعودي'
  alerts:'التنبيهات',sound:'صوت التنبيه',soundD:'نغمة عند ورود خبر مهم',notif:'إشعارات سطح المكتب',notifD:'إشعار من النظام عند ورود خبر مهم',notifNo:'غير مدعوم في هذا المتصفح',notifDenied:'حظرها المتصفح؛ اسمح بها من إعداداته',
  look:'المظهر',theme:'السمة',tAuto:'النظام',tDark:'داكن',tLight:'فاتح',keys:'اختصارات',kMove:'التالي / السابق',kOpen:'فتح المصدر',kSearch:'بحث',kView:'تبديل العرض',kStar:'حفظ',kShow:'وضع العرض',
  eNone:'لا توجد بيانات بعد',eNoneD:'تظهر أولى الأخبار بعد دقيقة أو دقيقتين من التشغيل.',eFilter:'لا نتائج مطابقة',eFilterD:'تصفية المصادر أو البحث الحالي يخفي كل الأخبار.',eScore:'لا أخبار بهذا التقييم حاليًا',eScoreD:'انتقل إلى «الكل» لعرض جميع الأخبار.',eConn:'فشل الاتصال',eConnD:'تعذّر جلب البيانات الآن. تعيد الصفحة المحاولة تلقائيًا.',
- newHot:'↑ {0} أخبار مهمة جديدة',newAll:'↑ {0} أخبار جديدة',trLoad:'جارٍ تنزيل نموذج الترجمة {0}%',trEnable:'فعّل ترجمة الأخبار',trNo:'هذا المتصفح لا يدعم الترجمة داخل الصفحة، فتُعرض الأخبار بلغتها الأصلية (متاح في كروم لسطح المكتب)',watch:'قائمتي',star:'المحفوظات',wTitle:'قائمة المتابعة',wPh:'مثل NVDA أو أرامكو أو الفيدرالي',add:'إضافة',wHint:'تُميَّز الأخبار المطابقة لهذه الكلمات وتُجمع في «قائمتي»',wEmpty:'لا توجد قائمة متابعة بعد',wEmptyD:'أضف رموز الأسهم أو الكلمات من «المصادر والإعدادات» في الأعلى.',wNone:'لا أخبار مطابقة لقائمتك حاليًا',sEmpty:'لا محفوظات بعد',sEmptyD:'افتح خبرًا واضغط «حفظ» ليظهر هنا.',save:'حفظ',saved:'محفوظ',share:'نسخ نص المشاركة',shared:'تم النسخ وجاهز للصق',present:'وضع العرض',pHint:'← → للتنقل · مسافة للإيقاف · Esc للخروج',pEmpty:'لا أخبار مهمة حاليًا',src:'المصدر',days:['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],dateFmt:'{2}، {1} {3}'}
+ newHot:'↑ {0} أخبار مهمة جديدة',newAll:'↑ {0} أخبار جديدة',trLoad:'جارٍ تنزيل نموذج الترجمة {0}%',trEnable:'فعّل ترجمة الأخبار',trNo:'هذا المتصفح لا يدعم الترجمة داخل الصفحة، فتُعرض الأخبار بلغتها الأصلية (متاح في كروم لسطح المكتب)',watch:'قائمتي',star:'المحفوظات',wTitle:'قائمة المتابعة',wPh:'مثل NVDA أو أرامكو أو الفيدرالي',add:'إضافة',wHint:'تُميَّز الأخبار المطابقة لهذه الكلمات وتُجمع في «قائمتي»',wEmpty:'لا توجد قائمة متابعة بعد',wEmptyD:'أضف رموز الأسهم أو الكلمات من «المصادر والإعدادات» في الأعلى.',wNone:'لا أخبار مطابقة لقائمتك حاليًا',sEmpty:'لا محفوظات بعد',sEmptyD:'افتح خبرًا واضغط «حفظ» ليظهر هنا.',save:'حفظ',saved:'محفوظ',share:'نسخ نص المشاركة',shared:'تم النسخ وجاهز للصق',present:'وضع العرض',pHint:'← → للتنقل · مسافة للإيقاف · Esc للخروج',pEmpty:'لا أخبار مهمة حاليًا',src:'المصدر',loadMore:'تحميل أخبار أقدم',loading:'جارٍ التحميل…',noMore:'لا أخبار أقدم (تحتفظ القاعدة بآخر 7 أيام)',loaded:'تم تحميل {0} · تحديث كل دقيقة',days:['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],dateFmt:'{2}، {1} {3}'}
 };
 var MONTHS={en:['January','February','March','April','May','June','July','August','September','October','November','December'],ar:['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']};
 function api(p){return p+(p.indexOf('?')>=0?'&':'?')+(KEY?'key='+encodeURIComponent(KEY):'');}
 var $=function(id){return document.getElementById(id)};
 var nav=(navigator.language||'zh').toLowerCase();
-var state={view:'brief',lang:nav.indexOf('ar')===0?'ar':nav.indexOf('zh')===0?'zh':'en',off:{},q:'',sound:true,notify:true,theme:'auto',items:[],pending:[],lastSeen:0,first:true,loaded:false,newIds:{},sel:null,health:{},prevSeen:0,topSeen:0,watch:[],stars:{}};
+var state={view:'brief',lang:nav.indexOf('ar')===0?'ar':nav.indexOf('zh')===0?'zh':'en',off:{},q:'',sound:true,notify:true,theme:'auto',items:[],pending:[],lastSeen:0,first:true,loaded:false,newIds:{},sel:null,health:{},prevSeen:0,topSeen:0,watch:[],stars:{},shown:400,noMore:false,older:false};
 try{var saved=JSON.parse(localStorage.getItem('hw')||'{}');
   if(/^(brief|hot|mid|all|watch|star)$/.test(saved.view))state.view=saved.view;if(/^(zh|en|ar)$/.test(saved.lang))state.lang=saved.lang;
   if(saved.off)state.off=saved.off;if(saved.sound===false)state.sound=false;if(saved.notify===false)state.notify=false;
@@ -614,7 +616,7 @@ function renderTabs(b){
   var oc=offCount(),parts=[];
   if(oc)parts.push(T('hidden',oc));if(state.q)parts.push(esc(T('searching',state.q)));
   var fresh=state.prevSeen?state.items.filter(function(i){return i.seen_at>state.prevSeen&&isHot(i)}).length:0;
-  $('sum').innerHTML=parts.length?'<span>'+parts.join(' · ')+'</span><button id="clr">'+T('clear')+'</button>':fresh?'<span>'+T('sinceVisit',fresh)+'</span>':'<span>'+T('total',state.items.length)+'</span>';
+  $('sum').innerHTML=parts.length?'<span>'+parts.join(' · ')+'</span><button id="clr">'+T('clear')+'</button>':fresh?'<span>'+T('sinceVisit',fresh)+'</span>':'<span>'+T('loaded',state.items.length)+'</span>';
   $('fbtn').classList.toggle('has',oc>0);
 }
 function emptyHtml(){
@@ -648,7 +650,7 @@ function render(soft,gesture){
   var html='';
   if(!state.loaded){for(var k=0;k<9;k++)html+='<div class="sk" style="width:'+(50+(k*37)%45)+'%"></div>';}
   else if(state.view==='brief'){html=briefHtml(b)||emptyHtml();}
-  else{var v=state.view==='star'?starList():b.filter(function(i){return inView(i,state.view)});html=v.length?'<div class="list">'+listHtml(v.slice(0,400))+'</div>':emptyHtml();}
+  else{var v=state.view==='star'?starList():b.filter(function(i){return inView(i,state.view)});html=v.length?'<div class="list">'+listHtml(v.slice(0,state.shown))+(state.view==='star'?'':'<div class="morebox">'+(v.length>state.shown||!state.noMore?'<button class="btn" id="moreBtn"'+(state.older?' disabled':'')+'>'+T(state.older?'loading':'loadMore')+'</button>':'<span>'+T('noMore')+'</span>')+'</div>')+'</div>':(state.noMore||state.view==='star'||state.view==='watch'&&!state.watch.length?emptyHtml():emptyHtml()+'<div class="morebox"><button class="btn" id="moreBtn"'+(state.older?' disabled':'')+'>'+T(state.older?'loading':'loadMore')+'</button></div>');}
   $('main').innerHTML=html;state.newIds={};
   if(prev&&Object.keys(prev).length)play(prev);
   if(document.body.classList.contains('open-reader'))renderReader();
@@ -686,7 +688,7 @@ function showPill(){var n=state.pending.length,el=$('pill');if(!n){el.classList.
   var hot=state.pending.filter(isHot).length;el.classList.toggle('hot',hot>0);
   el.textContent=hot?T('newHot',hot):T('newAll',n);el.classList.add('show');}
 function merge(){if(!state.pending.length)return;state.newIds={};if(!state.first)state.pending.forEach(function(i){state.newIds[i.id]=1});
-  state.items=state.pending.concat(state.items).sort(function(a,b){return b.ts-a.ts}).slice(0,800);state.pending=[];showPill();}
+  state.items=state.pending.concat(state.items).sort(function(a,b){return b.ts-a.ts}).slice(0,6000);state.pending=[];showPill();}
 
 /* ---------- 数据 ---------- */
 var unread=0;
@@ -728,7 +730,23 @@ async function loadHealth(){
 }
 
 /* ---------- 交互 ---------- */
-function setView(v){state.view=v;save();render();window.scrollTo({top:0});}
+function setView(v){state.view=v;state.shown=400;save();render();window.scrollTo({top:0});}
+// 加载更早的快讯：先把已载入但没显示的显示出来，不够再向服务器要更早的一批
+async function loadOlder(){
+  if(state.older)return;var v=visible();
+  if(v.length>state.shown){state.shown+=400;return render(true);}
+  if(state.noMore||!state.items.length)return;
+  state.older=true;render(true);
+  try{
+    var min=state.items[state.items.length-1].ts,r=await fetch(api('/api/items?limit=400&before='+min),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    var d=await r.json(),known={};state.items.forEach(function(x){known[x.id]=1});
+    var add=d.items.filter(function(i){return !known[i.id]});
+    if(d.items.length<400)state.noMore=true;
+    if(add.length){state.items=state.items.concat(add).sort(function(a,b){return b.ts-a.ts}).slice(0,6000);state.shown+=400;}
+  }catch(e){tip(T('fail'));}
+  state.older=false;render(true);
+}
 function clearFilters(){state.off={};state.q='';$('q').value='';save();render();}
 function panel(name,on){document.body.classList.remove('open-reader','open-side');if(on)document.body.classList.add('open-'+name);}
 function openReader(id){state.sel=id;var old=document.querySelector('.row.sel');if(old)old.classList.remove('sel');
@@ -751,6 +769,7 @@ function copyClick(e){var st=e.target.closest('[data-star]');if(st){toggleStar(s
 $('tabs').addEventListener('click',function(e){var t=e.target.closest('.tab');if(t)return setView(t.dataset.v);if(e.target.id==='clr')clearFilters();});
 $('main').addEventListener('click',function(e){
   if(e.target.id==='clr2')return clearFilters();
+  if(e.target.id==='moreBtn')return loadOlder();
   if(e.target.id==='wgo'){panel('side',true);return $('winp').focus();}
   var go=e.target.closest('[data-go]');if(go)return setView(go.dataset.go);
   var tp=e.target.closest('[data-topic]');if(tp){state.q=tp.dataset.topic;$('q').value=state.q;return setView('all');}
