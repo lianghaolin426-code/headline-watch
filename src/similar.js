@@ -32,14 +32,30 @@ export function tokens(title) {
   return out;
 }
 
-/** 两条标题是否说的是同一件事 */
-export function sameStory(a, b) {
+/**
+ * 按一批标题统计每个词有多常见，返回词权重函数（越常见权重越低）。
+ * 这样遇到大新闻时，“Nvidia、Huang”这种满屏都是的词不会让所有相关文章都互相“证实”。
+ */
+export function idfWeights(tokenSets) {
+  const df = new Map();
+  for (const T of tokenSets) for (const w of T) df.set(w, (df.get(w) || 0) + 1);
+  const n = Math.max(tokenSets.length, 1);
+  return (w) => Math.log((n + 1) / ((df.get(w) || 0) + 1)) + 0.1;
+}
+
+/** 两条标题是否说的是同一件事（weight 可选：idfWeights 的结果） */
+export function sameStory(a, b, weight = () => 1) {
   const A = a instanceof Set ? a : tokens(a);
   const B = b instanceof Set ? b : tokens(b);
   if (A.size < 3 || B.size < 3) return false;
-  let inter = 0;
-  for (const w of A) if (B.has(w)) inter++;
-  return inter >= 3 && inter / Math.min(A.size, B.size) >= 0.5;
+  let inter = 0, wi = 0, wa = 0, wb = 0;
+  for (const w of A) {
+    const x = weight(w);
+    wa += x;
+    if (B.has(w)) { inter++; wi += x; }
+  }
+  for (const w of B) wb += weight(w);
+  return inter >= 3 && wi / Math.min(wa, wb) >= 0.5;
 }
 
 /** 多源互证加分：被 n 个其他来源报道 */

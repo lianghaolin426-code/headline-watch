@@ -4,7 +4,7 @@
 import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
-import { tokens, sameStory, confirmBoost } from './similar.js';
+import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { renderPage } from './page.js';
 
@@ -103,16 +103,17 @@ async function findConfirmations(env, cfg, fresh, now) {
   ).results.filter((r) => !freshIds.has(r.id));
   for (const r of recent) r.tok = tokens(r.title);
   for (const f of fresh) f.tok = tokens(f.title);
+  const W = idfWeights([...recent, ...fresh].map((x) => x.tok));
   const bumped = new Map();
   for (const f of fresh) {
     const srcs = new Set();
     for (const r of recent) {
-      if (r.source === f.source || !sameStory(f.tok, r.tok)) continue;
+      if (r.source === f.source || !sameStory(f.tok, r.tok, W)) continue;
       srcs.add(r.source);
       if (!bumped.has(r.id)) bumped.set(r.id, { row: r, add: new Set() });
       bumped.get(r.id).add.add(f.source);
     }
-    for (const g of fresh) if (g !== f && g.source !== f.source && sameStory(f.tok, g.tok)) srcs.add(g.source);
+    for (const g of fresh) if (g !== f && g.source !== f.source && sameStory(f.tok, g.tok, W)) srcs.add(g.source);
     f.confirms = srcs.size;
   }
   return [...bumped.values()];

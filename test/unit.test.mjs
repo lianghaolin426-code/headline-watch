@@ -87,3 +87,19 @@ test('same story detection across sources', () => {
   assert.equal(sameStory('Jensen Huang reinstated as Nvidia CEO', 'Asian chip stocks soar tracking Nvidia rally; S.Korea, Taiwan lead'), false);
   assert.equal(sameStory('Gold rises amid risk-on sentiment', 'Fed official says rates likely higher'), false);
 });
+
+test('idf weighting stops a hot topic from matching unrelated follow-ups', async () => {
+  const { tokens, sameStory, idfWeights } = await import('../src/similar.js');
+  const titles = [
+    'Jensen Huang reinstated as Nvidia CEO, stock jumps 31%',
+    'Nvidia reinstates Jensen Huang as CEO, shares jump 31%',
+    'Six key questions raised by Jensen Huang return to Nvidia',
+    'How important are Nvidia and Jensen Huang to the economy',
+    'What Jensen Huang return means for Nvidia CFO Kress',
+    'Nvidia Jensen Huang cheered by employees after return',
+  ];
+  const T = titles.map(tokens);
+  const W = idfWeights(T);
+  assert.ok(sameStory(T[0], T[1], W));
+  assert.ok(!sameStory(T[2], T[3], W));
+});
