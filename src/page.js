@@ -491,9 +491,9 @@ function tx(i,needBody){
   if(itemLang(i)===state.lang)return o;
   var c=TR[i.id];
   if(i.tr_lang===state.lang&&i.title_tr){o.t=cleanTitle(i.title_tr);o.tr=true;
-    if(i.body_tr&&noCode(i.body_tr))o.b=noCode(i.body_tr);else if(c&&c.b)o.b=c.b;else if(needBody&&!(c&&c.nb)){wantBody[i.id]=1;want.push(i.id);}
+    if(i.body_tr&&noCode(i.body_tr))o.b=noCode(i.body_tr);else if(c&&c.b)o.b=noCode(c.b)||null;else if(needBody&&!(c&&c.nb)){wantBody[i.id]=1;want.push(i.id);}
     return o;}
-  if(c&&c.t){o.t=c.t;o.tr=true;if(c.b)o.b=c.b;}
+  if(c&&c.t){o.t=c.t;o.tr=true;if(c.b)o.b=noCode(c.b)||null;}
   if(!c||(!c.t&&!c.x))want.push(i.id);
   if(needBody&&!(c&&(c.b||c.nb))){wantBody[i.id]=1;want.push(i.id);}
   return o;
