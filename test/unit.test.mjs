@@ -66,3 +66,8 @@ test('AI score parsing is robust', () => {
   assert.equal(routinePenalty('Morgan Stanley raises Apple price target'), -2);
   assert.equal(routinePenalty('Nvidia CEO ousted'), 0);
 });
+
+test('AI positional score array', () => {
+  assert.deepEqual(parseScores('[7, 2, 9]', 3), [7, 2, 9]);
+  assert.deepEqual(parseScores('Scores: [8,3]', 3), [8, 3, null]);
+});

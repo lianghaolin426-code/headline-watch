@@ -27,7 +27,7 @@ function config(env) {
     threshold: Number(env.AI_THRESHOLD || 8),
     bigMin: Number(env.BIG_NUMBER_MIN_BILLION || 10),
     aiOn: env.AI_SCORING !== 'false',
-    maxAi: Number(env.MAX_AI_PER_RUN || 20),
+    maxAi: Number(env.MAX_AI_PER_RUN || 15),
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
   };
 }
@@ -44,6 +44,44 @@ function safeJson(s, d) {
 function ruleScore(it, cfg) {
   if (it.kwHit || it.amount >= cfg.bigMin) return 8;
   return it.hits.length ? 5 : 0;
+}
+
+function enrich(it, cfg) {
+  it.hits = matchItem(it, cfg.rules);
+  it.kwHit = matchItem(it, { keywords: cfg.rules.keywords, bigNumbers: false }).length > 0;
+  it.amount = maxAmountBillions(`${it.title}\n${it.body || ''}`);
+  it.weight = Number(cfg.weights[it.source] ?? 0);
+  return it;
+}
+
+/** 给一批快讯打分并写回数据库：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分；AI 失败时用规则 */
+async function scoreItems(env, cfg, list, report) {
+  // AI 很便宜（每条标题只要几十个 token），所以新快讯全部交给 AI 打分；
+  // 超出单轮上限时，优先给规则命中的和高权重来源的
+  const candidates = [...list]
+    .sort((a, b) => (b.hits.length > 0) + (b.weight >= 1) - ((a.hits.length > 0) + (a.weight >= 1)) || b.ts - a.ts)
+    .slice(0, cfg.maxAi);
+  const scores = cfg.aiOn ? await aiScores(env, candidates) : null;
+  if (cfg.aiOn && candidates.length && !scores) report.errors.push('AI 打分失败，本轮用规则判断');
+  candidates.forEach((it, k) => {
+    if (scores && scores[k] != null) {
+      it.score = Math.max(0, Math.min(10, scores[k] + it.weight + routinePenalty(it.title)));
+      it.scoreBy = 'ai';
+    }
+  });
+  const updates = [];
+  for (const it of list) {
+    if (it.score == null) {
+      it.score = it.hits.length || it.weight >= 1 ? ruleScore(it, cfg) : 0;
+      it.scoreBy = 'rule';
+    }
+    it.important = it.score >= cfg.threshold;
+    updates.push(
+      env.DB.prepare('UPDATE items SET score = ?, important = ?, score_by = ?, hits = ? WHERE id = ?').bind(
+        it.score || null, it.important ? 1 : 0, it.score ? it.scoreBy : null, it.hits.join(' | '), it.id)
+    );
+  }
+  if (updates.length) await env.DB.batch(updates);
 }
 
 async function fetchSource(src) {
@@ -106,12 +144,8 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     const firstRun = !states.get(key);
 
     if (items.length) {
-      const weight = Number(cfg.weights[src.name] ?? cfg.weights[items[0].source] ?? 0);
       const stmts = items.map((it) => {
-        it.hits = matchItem(it, cfg.rules);
-        it.kwHit = matchItem(it, { keywords: cfg.rules.keywords, bigNumbers: false }).length > 0;
-        it.amount = maxAmountBillions(`${it.title}\n${it.body || ''}`);
-        it.weight = weight;
+        enrich(it, cfg);
         it.firstRun = firstRun;
         return db
           .prepare(
@@ -138,34 +172,12 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
 
   // ---- 打分：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分 ----
   if (fresh.length) {
-    const candidates = fresh
-      .filter((it) => it.hits.length || it.weight >= 1)
-      .sort((a, b) => b.ts - a.ts)
-      .slice(0, cfg.maxAi);
-    const scores = cfg.aiOn ? await aiScores(env, candidates) : null;
-    if (cfg.aiOn && candidates.length && !scores) report.errors.push('AI 打分失败，本轮用规则判断');
-    candidates.forEach((it, k) => {
-      if (scores && scores[k] != null) {
-        it.score = Math.max(0, Math.min(10, scores[k] + it.weight + routinePenalty(it.title)));
-        it.scoreBy = 'ai';
-      }
-    });
-    const updates = [];
+    await scoreItems(env, cfg, fresh, report);
     for (const it of fresh) {
-      if (it.score == null) {
-        it.score = it.hits.length || it.weight >= 1 ? ruleScore(it, cfg) : 0;
-        it.scoreBy = 'rule';
-      }
-      it.important = it.score >= cfg.threshold;
       if (it.important) report.matched++;
-      if (it.score > 0)
-        updates.push(
-          db.prepare('UPDATE items SET score = ?, important = ?, score_by = ? WHERE id = ?').bind(it.score, it.important ? 1 : 0, it.scoreBy, it.id)
-        );
       const wanted = cfg.notifyMode === 'all' || (cfg.notifyMode === 'matched' && it.important);
       if (!it.firstRun && wanted && now - it.ts <= cfg.maxAgeMs) toNotify.push(it);
     }
-    if (updates.length) await db.batch(updates);
   }
 
   if (notify && toNotify.length && enabledChannels(env).length) {
@@ -230,7 +242,7 @@ export default {
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
     // 这样看板公开分享给别人也不会被人乱触发推送。
-    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify') {
+    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore') {
       if (env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY) {
         return new Response('需要 ?admin=管理密码', { status: 403 });
       }
@@ -277,6 +289,30 @@ export default {
         items.forEach((i) => (i.source = src.name));
         const input = items.length ? { src, items } : { src, error: `页面里没有解析到消息（${html.length} 字节）` };
         return json(await runOnce(env, { inputs: [input] }));
+      }
+
+      case '/api/rescore': {
+        // 按当前规则/AI 重新给最近 N 小时的快讯打分（改了阈值或权重后用）
+        const cfg = config(env);
+        const hours = Math.min(Number(url.searchParams.get('hours') || 6), 72);
+        const rows = (
+          await env.DB.prepare('SELECT id, source, title, body, ts FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 200')
+            .bind(Date.now() - hours * 3_600_000)
+            .all()
+        ).results.map((r) => enrich(r, cfg));
+        const report = { errors: [] };
+        const out = [];
+        for (let i = 0; i < rows.length; i += cfg.maxAi) {
+          const chunk = rows.slice(i, i + cfg.maxAi);
+          await scoreItems(env, cfg, chunk, report);
+          out.push(...chunk);
+        }
+        return json({
+          rescored: out.length,
+          important: out.filter((r) => r.important).length,
+          errors: report.errors,
+          top: out.sort((a, b) => b.score - a.score).slice(0, 15).map((r) => ({ score: r.score, by: r.scoreBy, title: r.title })),
+        });
       }
 
       case '/api/run': // 手动触发一次抓取（测试用）
