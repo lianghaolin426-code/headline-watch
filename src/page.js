@@ -8,7 +8,7 @@
 const CSS = String.raw`
 :root{
   --bg:#f5f0e6;--bg2:#ece5d7;--ink:#1a1714;--ink2:#4a433b;--ink3:#7a7065;--ink4:#a79c8d;--rule:#d9d0c0;--rule2:#c7bca9;
-  --red:#c8371d;--on-red:#fff;--red-soft:rgba(200,55,29,.1);--amber:#c98a1a;--ok:#2f8f5b;
+  --red:#c8371d;--on-red:#fff;--blue:#2b5c9c;--violet:#6a48a0;--red-soft:rgba(200,55,29,.1);--amber:#c98a1a;--ok:#2f8f5b;
   --glass:rgba(255,255,255,.52);--glass2:rgba(255,255,255,.72);--glass-line:rgba(255,255,255,.85);--glass-edge:rgba(26,23,20,.07);
   --bar:rgba(245,240,230,.78);--shadow:0 1px 1px rgba(60,40,20,.04),0 12px 34px rgba(60,40,20,.08);--shadow2:0 30px 80px rgba(40,25,10,.28);
   --blob1:rgba(200,55,29,.13);--blob2:rgba(201,138,26,.16);--blob3:rgba(120,90,60,.1);--mark:rgba(201,138,26,.3);
@@ -19,14 +19,14 @@ const CSS = String.raw`
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#12100d;--bg2:#1a1713;--ink:#f3ecdf;--ink2:#cfc6b7;--ink3:#978d7f;--ink4:#6a6156;--rule:#2d2822;--rule2:#40392f;
-  --red:#ff6b4a;--on-red:#1c0b06;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
+  --red:#ff6b4a;--on-red:#1c0b06;--blue:#86b4f2;--violet:#b9a0f2;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
   --glass:rgba(255,255,255,.045);--glass2:rgba(255,255,255,.08);--glass-line:rgba(255,255,255,.1);--glass-edge:rgba(0,0,0,.4);
   --bar:rgba(18,16,13,.74);--shadow:0 1px 1px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.35);--shadow2:0 30px 90px rgba(0,0,0,.7);
   --blob1:rgba(255,107,74,.16);--blob2:rgba(227,167,67,.1);--blob3:rgba(140,110,80,.12);--mark:rgba(227,167,67,.32);
 }}
 :root[data-theme=dark]{
   --bg:#12100d;--bg2:#1a1713;--ink:#f3ecdf;--ink2:#cfc6b7;--ink3:#978d7f;--ink4:#6a6156;--rule:#2d2822;--rule2:#40392f;
-  --red:#ff6b4a;--on-red:#1c0b06;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
+  --red:#ff6b4a;--on-red:#1c0b06;--blue:#86b4f2;--violet:#b9a0f2;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
   --glass:rgba(255,255,255,.045);--glass2:rgba(255,255,255,.08);--glass-line:rgba(255,255,255,.1);--glass-edge:rgba(0,0,0,.4);
   --bar:rgba(18,16,13,.74);--shadow:0 1px 1px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.35);--shadow2:0 30px 90px rgba(0,0,0,.7);
   --blob1:rgba(255,107,74,.16);--blob2:rgba(227,167,67,.1);--blob3:rgba(140,110,80,.12);--mark:rgba(227,167,67,.32);
@@ -140,16 +140,17 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .sc{display:inline-block;flex:none;min-width:30px;text-align:center;font:700 12px/1 var(--mono);letter-spacing:-.03em;padding:5px 6px;border-radius:4px;color:var(--ink3)}
 .sc.s2{color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink2)}
 .sc.s3{background:var(--red);color:var(--on-red)}
-.tg{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--bg);background:var(--ink2);border-radius:3px;padding:0 5px;line-height:16px;white-space:nowrap}
+.tg{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--bg);background:var(--violet);border-radius:3px;padding:0 5px;line-height:16px;white-space:nowrap}
 .rels{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.rc{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;line-height:1;color:var(--ink2);white-space:nowrap;padding:4px 9px;padding-inline-start:7px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--rule2)}
-.rc svg{width:12px;height:12px;flex:none;color:var(--ink3)}
-.rc b{font-weight:700;color:var(--ink)}
-.rc.cfm svg{color:var(--ok)}
+.rc{--c:var(--ink3);display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;line-height:1;color:color-mix(in srgb,var(--c) 55%,var(--ink));white-space:nowrap;padding:4px 9px;padding-inline-start:7px;border-radius:999px;background:color-mix(in srgb,var(--c) 11%,transparent)}
+.rc svg{width:12px;height:12px;flex:none;color:var(--c)}
+.rc b{font-weight:700;color:color-mix(in srgb,var(--c) 35%,var(--ink))}
+.rc.cfm{--c:var(--ok)}.rc.evt{--c:var(--blue)}.rc.dpc{--c:var(--violet)}
+.tg.fl{background:var(--ink2)}
 button.rc{transition:background .15s,box-shadow .15s}
-button.rc::after{content:"";width:5px;height:5px;border-top:1.5px solid var(--ink3);border-inline-end:1.5px solid var(--ink3);transform:rotate(45deg);margin-inline-start:1px}
+button.rc::after{content:"";width:5px;height:5px;border-top:1.5px solid var(--c);border-inline-end:1.5px solid var(--c);transform:rotate(45deg);margin-inline-start:1px}
 [dir=rtl] button.rc::after{transform:rotate(-45deg)}
-button.rc:hover{background:var(--glass2);box-shadow:inset 0 0 0 1px var(--ink3)}
+button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 .hit{font:500 11px/1 var(--mono);letter-spacing:-.02em;padding:4px 6px;border-radius:3px;color:var(--ink3);box-shadow:inset 0 0 0 1px var(--rule2);white-space:nowrap}
 .wh{color:var(--amber);font-size:11.5px;font-weight:600;white-space:nowrap}
 .tsep{width:1px;height:16px;background:var(--rule2);flex:none}
@@ -167,9 +168,9 @@ button.rc:hover{background:var(--glass2);box-shadow:inset 0 0 0 1px var(--ink3)}
 .crumb{position:sticky;top:var(--top,92px);z-index:15;display:flex;align-items:center;gap:14px;margin:14px 0 4px;padding-block:8px;padding-inline:8px 14px;border:1px solid var(--rule);border-radius:999px;background:var(--bar);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);font-size:13px;color:var(--ink3);width:fit-content;max-width:100%;box-shadow:0 6px 20px -12px rgba(0,0,0,.35)}
 .crumb button{display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--bg);background:var(--ink);border-radius:999px;padding:6px 14px 6px 8px;white-space:nowrap}.crumb button svg{width:15px;height:15px}[dir=rtl] .crumb button svg{transform:scaleX(-1)}
 .crumb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.also{margin-top:26px;max-width:40em}
+.also{margin-top:26px;max-width:40em;border-inline-start:2px solid var(--blue);padding-inline-start:16px}
 .also .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3);padding-bottom:8px}
-.also .hd button{font-size:12px;font-weight:600;letter-spacing:0;color:var(--ink2)}.also .hd button:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.also .hd button{font-size:12px;font-weight:600;letter-spacing:0;color:var(--blue)}.also .hd button:hover{text-decoration:underline;text-underline-offset:3px}
 .also .li .lt{font-family:var(--serif);font-size:15.5px;-webkit-line-clamp:2}
 [dir=rtl] .also .hd{letter-spacing:0}
 .tkr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:8px 0;border:0;border-top:1px solid var(--rule);background:none;color:inherit;font:inherit;text-align:start;cursor:pointer}
@@ -236,7 +237,7 @@ button.rc:hover{background:var(--glass2);box-shadow:inset 0 0 0 1px var(--ink3)}
 .stat b{display:block;font:700 58px/1 var(--serif);letter-spacing:-.04em}
 .stat p{margin:8px 0 0;font-size:13px;color:var(--ink3);line-height:1.5}
 .topic h3{margin:0;font:700 25px/1.15 var(--serif);letter-spacing:-.02em;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.topic h3 span{font:500 12px/1 var(--sans);letter-spacing:0;color:var(--red);white-space:nowrap}
+.topic h3 span{font:500 12px/1 var(--sans);letter-spacing:0;color:var(--blue);white-space:nowrap}
 .topic .cnt{font-size:12.5px;color:var(--ink3);margin:3px 0 8px}
 .li{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:9px 0;border-top:1px solid var(--rule);font-size:13.5px;line-height:1.4}
 .li .lt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -653,8 +654,8 @@ function tags(i,o){var h='';
 // 关联关系：统一的小胶囊。g 是简报里的事件分组（有就加“同一事件还有 N 条”，点了进时间线）
 function rels(i,g){var h='';
   if(i.confirms>0)h+='<span class="rc cfm">'+IC.cf+'<span>'+T('nSrc',nb(i.confirms+1))+'</span></span>';
-  if(g){var n=g.items.length-1;if(n>0&&g.key){var q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;h+='<button class="rc" data-rel="'+esc(q)+'">'+IC.ev+'<span>'+T('related',nb(n))+'</span></button>';}}
-  if(i.rel>0)h+='<span class="rc">'+(isArt(i)?IC.fl:IC.dp)+'<span>'+T(isArt(i)?'nFlash':'nDeep',nb(i.rel))+'</span></span>';
+  if(g){var n=g.items.length-1;if(n>0&&g.key){var q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;h+='<button class="rc evt" data-rel="'+esc(q)+'">'+IC.ev+'<span>'+T('related',nb(n))+'</span></button>';}}
+  if(i.rel>0)h+='<span class="rc dpc">'+(isArt(i)?IC.fl:IC.dp)+'<span>'+T(isArt(i)?'nFlash':'nDeep',nb(i.rel))+'</span></span>';
   if(i.dup_of)h+='<span class="rc">'+IC.mg+'<span>'+T('merged')+'</span></span>';
   return h;}
 function hits(i){var h='';if(i.hits)i.hits.split(' | ').forEach(function(x){if(x)h+='<span class="hit" dir="ltr">'+esc(x)+'</span>'});return h;}
@@ -835,7 +836,7 @@ var REL={};
 function relHtml(i){var c=REL[i.id];if(!c||!c.items||!c.items.length)return '';
   return '<div class="d-rel"><div class="d-rel-h">'+T(isArt(i)?'relFlash':'relArts')+' · <span class="num">'+c.items.length+'</span></div>'+c.items.map(function(r){var u=fixUrl(r.url),t=state.lang!=='zh'&&r.title_tr&&r.tr_lang===state.lang?r.title_tr:cleanTitle(r.title);
     var k=byId(r.id);
-    return '<a class="d-rel-a" href="'+esc(u||'#')+'" target="_blank" rel="noopener">'+(isArt(i)&&k?sc(k):'<span class="tg" style="margin-top:3px">'+T(isArt(i)?'flashB':'deepB')+'</span>')+'<div><span dir="auto">'+esc(t)+'</span><small>'+esc(shortSrc(r.source))+' · <span class="num">'+hm(r.ts)+'</span></small></div></a>'}).join('')+'</div>';}
+    return '<a class="d-rel-a" href="'+esc(u||'#')+'" target="_blank" rel="noopener">'+(isArt(i)&&k?sc(k):'<span class="tg'+(isArt(i)?' fl':'')+'" style="margin-top:3px">'+T(isArt(i)?'flashB':'deepB')+'</span>')+'<div><span dir="auto">'+esc(t)+'</span><small>'+esc(shortSrc(r.source))+' · <span class="num">'+hm(r.ts)+'</span></small></div></a>'}).join('')+'</div>';}
 async function loadRel(i){if(!isArt(i)&&!(i.rel>0)&&!i.dup_of)return;var c=REL[i.id];if(c&&Date.now()-c.at<3e5)return;REL[i.id]={at:Date.now(),items:c&&c.items||[]};
   try{var r=await fetch(api('/api/related?id='+encodeURIComponent(i.id)),{cache:'no-store'});if(!r.ok)return;var d=await r.json();REL[i.id]={at:Date.now(),items:d.items||[]};
     if(state.sel===i.id&&d.items&&d.items.length)$('rbody').innerHTML=detailHtml(i);}catch(e){}}
@@ -1234,8 +1235,8 @@ const BODY = `
     <div><span><span class="sc s1">3</span></span><span data-i="lg1"></span></div>
     <div><span><span class="tg" data-i="deepB"></span></span><span data-i="lgDeep"></span></div>
     <div><span><span class="rc cfm"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="4.9"/><path d="m3.8 6.2 1.5 1.5 2.9-3.2"/></svg><b class="num">3</b></span></span><span data-i="lgCf"></span></div>
-    <div><span><span class="rc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3h8M2 6h8M2 9h5"/></svg><b class="num">2</b></span></span><span data-i="lgEv"></span></div>
-    <div><span><span class="rc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 1.5h4.2L9.5 3.8v6.7H3z"/><path d="M5 6h2.6M5 8h2.6"/></svg><b class="num">1</b></span></span><span data-i="lgDp"></span></div>
+    <div><span><span class="rc evt"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3h8M2 6h8M2 9h5"/></svg><b class="num">2</b></span></span><span data-i="lgEv"></span></div>
+    <div><span><span class="rc dpc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 1.5h4.2L9.5 3.8v6.7H3z"/><path d="M5 6h2.6M5 8h2.6"/></svg><b class="num">1</b></span></span><span data-i="lgDp"></span></div>
     <div><span><span class="wh">◆ ★</span></span><span data-i="lgMine"></span></div>
   </div>
   <div class="keysec"><div class="sh"><span data-i="keys"></span></div>
