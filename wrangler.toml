@@ -78,8 +78,8 @@ MAX_AGE_MINUTES = "30"
 #   WEBHOOK_URL      任意 webhook
 #   ACCESS_KEY       设了之后，网页需要 ?key=这个密码 才能打开
 
-# 中英互译（看板可整页切换中文 / English）。和评分共用 Workers AI 免费额度，所以只翻评分达到下面分数的快讯；
-# 额度用完时显示原文。TRANSLATE = "false" 可整体关闭。可用 TRANSLATE_MODEL 换成更省额度的模型。
-TRANSLATE = "true"
+# 服务器端中英互译，默认关闭：看板的翻译改在访问者浏览器里做，不占额度。想让手机上也有译文时可设为 "true"，
+# 它和评分共用 Workers AI 免费额度，只翻评分达到下面分数的快讯，额度用完时显示原文。可用 TRANSLATE_MODEL 换模型。
+TRANSLATE = "false"
 TRANSLATE_MIN_SCORE = "6"
 MAX_TRANSLATE_PER_RUN = "8"
