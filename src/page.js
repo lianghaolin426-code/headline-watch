@@ -366,7 +366,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 
 const JS = String.raw`
 var I18N={
-zh:{staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美股 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
+zh:{staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
  search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
  lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',
