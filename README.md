@@ -50,6 +50,16 @@ npm run deploy     # 部署，最后会打印网址，形如 https://headline-wa
 
 想让网页不对外公开，可以设一个访问密码：运行 `npx wrangler secret put ACCESS_KEY`，之后用 `网址/?key=密码` 打开。
 
+## 网页推送（不用装 App，推荐）
+
+看板右上角“来源与设置” → “后台推送”，打开开关、在浏览器弹窗里点“允许”。之后关掉网页也能收到系统通知，点通知会打开看板并定位到那条快讯。
+
+- 每个浏览器自己选门槛（8 / 8.5 / 9 / 9.5 分，或“8 分+多源证实”）和免打扰时段（按你所在的时区），设置存在服务器上。
+- Chrome：可以关掉所有窗口，但 Chrome 要在后台运行；用 ⌘Q 完全退出后，通知要等下次打开 Chrome 才到。macOS 的“系统设置 → 通知 → Google Chrome”要允许通知。
+- Safari（macOS 15.5 以上）网页关掉也能收到。iPhone（iOS 16.4 以上）要先在 Safari 里把看板“添加到主屏幕”，再从主屏幕图标打开并开启。
+- 加密和签名用 Worker 自带的 WebCrypto（`src/webpush.js`）。签名密钥第一次用到时自动生成并存在 D1（`push_keys` 表），也可以用 `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_JWK` 密钥覆盖。订阅存在 `push_subs` 表（`migrate-v9.sql`，不跑也会自动建）。
+- 推送失效（浏览器退订或清了数据）时自动删除该订阅；`/api/status` 的 `webpush` 一栏可以看到订阅数、最近一次成功时间和错误。
+
 ## 以后加推送渠道（想好再配，不用改代码）
 
 在终端里运行 `npx wrangler secret put <名字>`，然后粘贴对应的值。配好后访问 `/api/test-notify` 试一下。
