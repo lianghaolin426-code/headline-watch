@@ -103,3 +103,21 @@ test('idf weighting stops a hot topic from matching unrelated follow-ups', async
   assert.ok(sameStory(T[0], T[1], W));
   assert.ok(!sameStory(T[2], T[3], W));
 });
+
+test('Chinese flash JSON (wallstreetcn / cls shapes)', async () => {
+  const { parseCnJson } = await import('../src/cnfeeds.js');
+  const w = parseCnJson(JSON.stringify({ data: { items: [{ id: 1, title: '', content_text: '【SpaceX和特斯拉委派董事负责合并谈判】据FT报道……', display_time: 1795490000 }] } }), '华尔街见闻', 'wscn');
+  assert.equal(w[0].title, 'SpaceX和特斯拉委派董事负责合并谈判');
+  assert.equal(w[0].ts, 1795490000000);
+  const c = parseCnJson(JSON.stringify({ data: { roll_data: [{ id: 9, title: '美股三大指数集体高开', content: '……', ctime: 1795490001 }] } }), '财联社电报', 'cls');
+  assert.equal(c[0].title, '美股三大指数集体高开');
+  assert.equal(c[0].url, 'https://www.cls.cn/detail/9');
+});
+
+test('int8 vector packing keeps cosine', async () => {
+  const { pack, unpack, cos } = await import('../src/embed.js');
+  const a = pack([1, 2, 3]), b = pack([1, 2, 3.1]), c = pack([-3, 0, 1]);
+  assert.ok(cos(a, b) > 0.99);
+  assert.ok(cos(a, c) < 0.1);
+  assert.ok(Math.abs(cos(unpack(Array.from(new Uint8Array(a.buffer))), b) - cos(a, b)) < 1e-9);
+});

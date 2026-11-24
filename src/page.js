@@ -152,7 +152,7 @@ function fmtScore(x){return Math.round(x*10)/10}
 function visible(){
   var qq=state.q.toLowerCase();
   return state.items.filter(function(i){
-    if(state.view==='hot'&&!i.important)return false;
+    if(state.view==='hot'&&!(i.important&&!i.dup_of))return false;
     if(state.off[i.source])return false;
     if(qq&&(i.title+' '+(i.body||'')).toLowerCase().indexOf(qq)<0)return false;
     return true;});
@@ -161,14 +161,14 @@ function renderChips(){
   var srcs={};state.items.forEach(function(i){srcs[i.source]=(srcs[i.source]||0)+1});
   $('chips').innerHTML=Object.keys(srcs).sort().map(function(s){
     return '<button class="chip'+(state.off[s]?' off':'')+'" data-s="'+esc(s)+'"><i style="background:'+srcColor(s)+'"></i>'+esc(s)+'</button>';}).join('');
-  $('nHot').textContent=state.items.filter(function(i){return i.important}).length;
+  $('nHot').textContent=state.items.filter(function(i){return i.important&&!i.dup_of}).length;
   $('nAll').textContent=state.items.length;
   [].forEach.call($('seg').children,function(b){b.classList.toggle('on',b.dataset.v===state.view)});
   $('snd').classList.toggle('on',state.sound);
   $('ntf').classList.toggle('on',window.Notification&&Notification.permission==='granted');
 }
 function itemHtml(i){
-  var hot=!!i.important, tags='';
+  var hot=!!(i.important&&!i.dup_of), tags=i.dup_of?'<span class="tag">同一事件已合并</span>':'';
   if(i.hits)i.hits.split(' | ').forEach(function(h){if(h)tags+='<span class="tag">'+esc(h)+'</span>'});
   var sc=(!hot&&i.score)?'<span class="sc'+(i.score_by==='ai'?' ai':'')+'" title="'+(i.score_by==='ai'?'AI 评分':'规则评分')+'">'+fmtScore(i.score)+'</span>':'';
   return '<article class="it'+(hot?' hot':'')+(state.newIds[i.id]?' new':'')+'" data-id="'+esc(i.id)+'">'+
@@ -210,7 +210,7 @@ async function load(){
       fresh.forEach(function(i){state.lastSeen=Math.max(state.lastSeen,i.seen_at)});
       if(!state.first){
         fresh.forEach(function(i){state.newIds[i.id]=1});
-        var hot=fresh.filter(function(i){return i.important});
+        var hot=fresh.filter(function(i){return i.important&&!i.dup_of});
         if(hot.length){
           if(state.sound)beep();
           if(window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(i.title,{body:i.source+' · 评分 '+fmtScore(i.score),tag:i.id})}catch(e){}});

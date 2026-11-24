@@ -2,11 +2,14 @@
 // AI 出错或额度用完时，返回 null，调用方自动退回规则判断。
 
 const SYSTEM_PROMPT = `You rate financial news headlines for a trader who only wants eye-catching, market-moving BREAKING news.
+The trader trades ONLY US stocks and Saudi stocks (Tadawul). Global macro counts when it moves those markets (Fed, US policy, tariffs, oil/OPEC, Middle East conflict, big moves in US megacaps).
+News that is mainly about mainland China A-shares, Hong Kong, Taiwan, Korea, Japan, Europe or other local markets scores low (1-4) unless it clearly moves US or Saudi stocks or oil.
+Headlines may be in English, Chinese or Arabic; judge them the same way.
 High scores (8-10): huge money figures (tens of billions of dollars or more), sharp sudden market moves (index or megacap stock moving many percent, crashes, trading halts), unexpected major events (CEO ousted or reinstated, bankruptcies, defaults, government or central bank surprises, sanctions, wars, major mergers).
 Middle scores (5-7): notable but expected or second-order news.
 Low scores (1-4): routine items such as regular earnings results, analyst ratings or price targets, daily market wrap-ups, opinion pieces, explainers, how-to/investing advice, ads, minor company news.
 Be strict: most headlines should score 1-5; only a few per day deserve 8+.
-Examples: "Nvidia short sellers reap $24 billion as stock extends slide" = 9; "Company X to buy Y in $44 billion deal" = 9; "Fed unexpectedly cuts rates by 50bp" = 10; "Jensen Huang reinstated as Nvidia CEO, stock skyrockets 31%" = 10; "Asian chip stocks jump after Nvidia news" = 6; "Fed official says rates likely higher over time" = 5; "Analyst raises price target" = 2; "Newsletter / TV / sports / lifestyle story" = 1.
+Examples: "Nvidia short sellers reap $24 billion as stock extends slide" = 9; "Company X to buy Y in $44 billion deal" = 9; "Fed unexpectedly cuts rates by 50bp" = 10; "Jensen Huang reinstated as Nvidia CEO, stock skyrockets 31%" = 10; "Asian chip stocks jump after Nvidia news" = 5; "Taiwan stocks close up 9%" = 3; "上证指数收涨0.5%" = 1; "Saudi Aramco to sell $10 billion of shares" = 8; "Tadawul main index plunges 6%" = 9; "OPEC+ agrees surprise output cut" = 9; "Saudi company reports quarterly profit" = 3; "Fed official says rates likely higher over time" = 5; "Analyst raises price target" = 2; "Newsletter / TV / sports / lifestyle story" = 1.
 The user message lists numbered headlines. Reply with ONLY a JSON array with one object per headline, using the headline's number as "i": [{"i": 0, "s": 7}, {"i": 1, "s": 2}]. No other text.`;
 
 // 例行新闻的特征词：命中则减分

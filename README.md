@@ -86,3 +86,11 @@ npm run deploy     # 部署，最后会打印网址，形如 https://headline-wa
 ```bash
 npm test     # 解析和过滤的单元测试
 ```
+
+## 中文快讯与跨语言合并（2026-11-24）
+
+- 关注范围：只看美股、沙特股，以及影响它们的全球宏观（美联储、关税、原油/OPEC、中东局势等）。AI 评分提示词已按这个范围写。
+- 中文快讯源用 `"type": "cnjson"`（华尔街见闻、格隆汇的公开 JSON 接口）。加了 `"focus": true` 的源只保留和美国/沙特/全球宏观相关的快讯（关键词见 `src/index.js` 里的 `FOCUS_ZH`），A 股、港股本地新闻直接丢掉。
+- 跨语言互证：每条新快讯用 Workers AI 的多语言向量模型 `@cf/baai/bge-m3` 求向量，和最近 2 小时另一种语言的快讯比相似度，≥ `CROSS_LANGUAGE_MIN`（默认 0.65）算同一件事。关掉：`CROSS_LANGUAGE = "false"`。
+- 同一件事只推一次：已有更早的重要快讯时，新来的记为重复（`dup_of`），不再推送，看板“重要”里也只显示最早那条，并显示“N 个来源证实”。
+- 新表需要先执行一次：`npx wrangler d1 execute headline-watch --remote --file migrate-v4.sql`

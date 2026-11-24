@@ -4,6 +4,8 @@
 import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
+import { parseCnJson } from './cnfeeds.js';
+import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { renderPage } from './page.js';
@@ -30,6 +32,8 @@ function config(env) {
     aiOn: env.AI_SCORING !== 'false',
     maxAi: Number(env.MAX_AI_PER_RUN || 15),
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
+    xlangOn: env.CROSS_LANGUAGE !== 'false',
+    xlangMin: Number(env.CROSS_LANGUAGE_MIN || 0.65),
   };
 }
 
@@ -96,27 +100,67 @@ async function findConfirmations(env, cfg, fresh, now) {
   const freshIds = new Set(fresh.map((f) => f.id));
   const recent = (
     await env.DB.prepare(
-      'SELECT id, source, title, url, ts, base_score, confirms, important, notified, score_by, hits FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 1500'
+      'SELECT id, source, title, url, ts, base_score, confirms, important, notified, score_by, hits, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 800'
     )
-      .bind(now - 6 * 3_600_000)
+      .bind(now - 3 * 3_600_000)
       .all()
   ).results.filter((r) => !freshIds.has(r.id));
   for (const r of recent) r.tok = tokens(r.title);
   for (const f of fresh) f.tok = tokens(f.title);
   const W = idfWeights([...recent, ...fresh].map((x) => x.tok));
+  await crossLanguage(env, cfg, fresh, now); // 中英文之间：f.xl = 匹配到的旧快讯 id，f.xlFresh = 匹配到的本轮快讯
   const bumped = new Map();
   for (const f of fresh) {
     const srcs = new Set();
+    f.matches = [];
+    f.freshMatches = [];
     for (const r of recent) {
-      if (r.source === f.source || !sameStory(f.tok, r.tok, W)) continue;
+      if (r.source === f.source) continue;
+      if (!(f.xl?.has(r.id) || sameStory(f.tok, r.tok, W))) continue;
       srcs.add(r.source);
-      if (!bumped.has(r.id)) bumped.set(r.id, { row: r, add: new Set() });
+      f.matches.push(r);
+      if (!bumped.has(r.id)) bumped.set(r.id, { row: r, add: new Set(), by: [] });
       bumped.get(r.id).add.add(f.source);
+      bumped.get(r.id).by.push(f);
     }
-    for (const g of fresh) if (g !== f && g.source !== f.source && sameStory(f.tok, g.tok, W)) srcs.add(g.source);
+    for (const g of fresh) {
+      if (g === f || g.source === f.source) continue;
+      if (!(f.xlFresh?.has(g) || g.xlFresh?.has(f) || sameStory(f.tok, g.tok, W))) continue;
+      srcs.add(g.source);
+      f.freshMatches.push(g);
+    }
     f.confirms = srcs.size;
   }
   return [...bumped.values()];
+}
+
+/**
+ * 跨语言互证：给新快讯求向量存起来，再和最近 2 小时“另一种语言”的快讯比相似度。
+ * 校准结果：同一件事的中英文标题相似度一般在 0.65 以上，不相关的在 0.6 以下。
+ */
+async function crossLanguage(env, cfg, fresh, now) {
+  if (!cfg.xlangOn || !fresh.length) return;
+  const vecs = await embed(env, fresh.map((f) => f.title));
+  if (!vecs) return;
+  const stmts = [];
+  fresh.forEach((f, i) => {
+    f.vec = pack(vecs[i]);
+    f.zh = isZh(f.title);
+    stmts.push(env.DB.prepare('INSERT OR REPLACE INTO vecs (id, ts, zh, v) VALUES (?, ?, ?, ?)').bind(f.id, now, f.zh ? 1 : 0, new Uint8Array(f.vec.buffer)));
+  });
+  await env.DB.batch(stmts);
+  const freshIds = new Set(fresh.map((f) => f.id));
+  const rows = (await env.DB.prepare('SELECT id, zh, v FROM vecs WHERE ts > ?').bind(now - 2 * 3_600_000).all()).results.filter(
+    (r) => !freshIds.has(r.id)
+  );
+  const zhRows = rows.filter((r) => r.zh).map((r) => ({ id: r.id, v: unpack(r.v) }));
+  const enRows = rows.filter((r) => !r.zh).map((r) => ({ id: r.id, v: unpack(r.v) }));
+  for (const f of fresh) {
+    f.xl = new Set();
+    f.xlFresh = new Set();
+    for (const r of f.zh ? enRows : zhRows) if (cos(f.vec, r.v) >= cfg.xlangMin) f.xl.add(r.id);
+    for (const g of fresh) if (g.zh !== f.zh && cos(f.vec, g.vec) >= cfg.xlangMin) f.xlFresh.add(g);
+  }
 }
 
 async function fetchSource(src) {
@@ -128,13 +172,30 @@ async function fetchSource(src) {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     if (src.type === 'telegram' && !r.url.includes('/s/')) throw new Error('Telegram 把请求重定向了（不允许从 Cloudflare 读取频道网页）');
     const text = await r.text();
-    const items = src.type === 'telegram' ? parseTelegram(text, src.channel) : parseFeed(text, src.name || url);
+    const items =
+      src.type === 'telegram'
+        ? parseTelegram(text, src.channel)
+        : src.type === 'cnjson'
+          ? parseCnJson(text, src.name, src.format)
+          : parseFeed(text, src.name || url);
     if (src.name && src.type === 'telegram') items.forEach((i) => (i.source = src.name));
+    // 只关注美股、沙特股：中文快讯里 A 股、港股、国内政策等本地新闻直接丢掉，只留和美国/沙特/全球宏观相关的
+    if (src.focus) {
+      const re = new RegExp(src.focus === true ? FOCUS_ZH : src.focus, 'i');
+      return items.filter((i) => re.test(i.title));
+    }
     return items;
   } finally {
     clearTimeout(timer);
   }
 }
+
+// 中文快讯的关注范围：美国市场、美国政策、美股大公司、沙特/中东/原油、全球宏观
+const FOCUS_ZH =
+  '美股|美国|美联储|美元|美债|鲍威尔|特朗普|白宫|华尔街|纳指|纳斯达克|标普|道指|道琼斯|罗素|VIX|恐慌指数|非农|CPI|PCE|GDP|' +
+  '英伟达|苹果|微软|谷歌|亚马逊|Meta|特斯拉|马斯克|OpenAI|Anthropic|博通|台积电|伯克希尔|巴菲特|摩根|高盛|贝莱德|' +
+  '沙特|阿美|利雅得|中东|海湾|OPEC|欧佩克|原油|油价|布伦特|WTI|伊朗|以色列|霍尔木兹|' +
+  '黄金|比特币|关税|制裁|收购|并购|破产|暴跌|暴涨|熔断|[A-Z]{2,5}\\.(?:O|N)\\b|美股盘前|美股盘后|美股收盘|美股开盘';
 
 function sourceKey(src) {
   return src.type === 'telegram' ? `tg:${src.channel}` : `rss:${src.name || src.url}`;
@@ -211,24 +272,39 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   if (fresh.length) {
     const bumps = await findConfirmations(env, cfg, fresh, now);
     await scoreItems(env, cfg, fresh, report);
-    // 旧快讯被新来源证实：加分，刚过阈值且还没推送过的补推
+    // 同一件事只推一次、看板只显示一条：已有更早的重要快讯（或本轮更早的一条）时，记为它的重复
+    const heads = new Set();
+    for (const it of [...fresh].sort((a, b) => a.ts - b.ts || (a.id < b.id ? -1 : 1))) {
+      if (!it.important) continue;
+      const prior = it.matches.filter((r) => r.important || r.notified).sort((a, b) => a.ts - b.ts)[0];
+      const priorFresh = it.freshMatches.find((g) => heads.has(g));
+      const head = prior ? prior.dup_of || prior.id : priorFresh ? priorFresh.id : null;
+      if (head) it.dupOf = head;
+      else heads.add(it);
+    }
+    const dupUpd = fresh.filter((it) => it.dupOf).map((it) => env.DB.prepare('UPDATE items SET dup_of = ? WHERE id = ?').bind(it.dupOf, it.id));
+    if (dupUpd.length) await env.DB.batch(dupUpd);
+
+    for (const it of fresh) {
+      if (it.important) report.matched++;
+      const wanted = cfg.notifyMode === 'all' || (cfg.notifyMode === 'matched' && it.important && !it.dupOf);
+      if (!it.firstRun && wanted && now - it.ts <= cfg.maxAgeMs) toNotify.push(it);
+    }
+
+    // 旧快讯被新来源证实：加分；刚过阈值、这件事还没推送过的，补推
     const upd = [];
-    for (const { row, add } of bumps) {
+    for (const { row, add, by } of bumps) {
       if (row.base_score == null) continue;
       const confirms = (row.confirms || 0) + add.size;
       const score = Math.min(10, row.base_score + confirmBoost(confirms));
       const important = score >= cfg.threshold;
       upd.push(env.DB.prepare('UPDATE items SET confirms = ?, score = ?, important = ? WHERE id = ?').bind(confirms, score, important ? 1 : 0, row.id));
-      if (important && !row.important && !row.notified && now - row.ts <= cfg.maxAgeMs && cfg.notifyMode !== 'off') {
+      const storyPushed = row.dup_of || by.some((f) => f.important || f.matches.some((m) => m.notified || m.important));
+      if (important && !row.important && !row.notified && !storyPushed && now - row.ts <= cfg.maxAgeMs && cfg.notifyMode !== 'off') {
         toNotify.push({ id: row.id, title: row.title, source: row.source, url: row.url, ts: row.ts, score, scoreBy: row.score_by, hits: [`${confirms + 1} 个来源证实`] });
       }
     }
     if (upd.length) await env.DB.batch(upd);
-    for (const it of fresh) {
-      if (it.important) report.matched++;
-      const wanted = cfg.notifyMode === 'all' || (cfg.notifyMode === 'matched' && it.important);
-      if (!it.firstRun && wanted && now - it.ts <= cfg.maxAgeMs) toNotify.push(it);
-    }
   }
 
   if (notify && toNotify.length && enabledChannels(env).length) {
@@ -251,6 +327,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // 每小时清理一次过期数据
   if (!inputs && new Date(now).getUTCMinutes() === 0) {
     await db.prepare('DELETE FROM items WHERE seen_at < ?').bind(now - cfg.keepDays * 86_400_000).run();
+    await db.prepare('DELETE FROM vecs WHERE ts < ?').bind(now - 6 * 3_600_000).run();
   }
 
   if (report.errors.length) console.warn('run errors', report.errors);
@@ -277,8 +354,8 @@ function escapeXml(s) {
 }
 
 async function listItems(env, { limit = 200, matched = false, since = 0 }) {
-  const sql = `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, confirms FROM items
-               WHERE seen_at > ? ${matched ? 'AND important = 1' : ''}
+  const sql = `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, confirms, dup_of FROM items
+               WHERE seen_at > ? ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ORDER BY ts DESC LIMIT ?`;
   return (await env.DB.prepare(sql).bind(since, Math.min(limit, 500)).all()).results;
 }
@@ -293,7 +370,7 @@ export default {
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
     // 这样看板公开分享给别人也不会被人乱触发推送。
-    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore') {
+    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore' || url.pathname === '/api/xlang') {
       if (env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY) {
         return new Response('需要 ?admin=管理密码', { status: 403 });
       }
@@ -343,6 +420,28 @@ export default {
         items.forEach((i) => (i.source = src.name));
         const input = items.length ? { src, items } : { src, error: `页面里没有解析到消息（${html.length} 字节）` };
         return json(await runOnce(env, { inputs: [input] }));
+      }
+
+      case '/api/xlang': {
+        // 校准用：最近 N 小时里，中文和英文快讯两两比对，列出最相似的几对
+        const hours = Math.min(Number(url.searchParams.get('hours') || 1), 6);
+        const rows = (await env.DB.prepare('SELECT id, source, title FROM items WHERE seen_at > ? ORDER BY ts DESC LIMIT 400').bind(Date.now() - hours * 3_600_000).all()).results;
+        const vecs = await embed(env, rows.map((r) => r.title));
+        if (!vecs) return json({ error: 'embed failed' });
+        const q = vecs.map(pack);
+        const pairs = [];
+        for (let i = 0; i < rows.length; i++) {
+          if (!isZh(rows[i].title)) continue;
+          let best = -1, bj = -1;
+          for (let j = 0; j < rows.length; j++) {
+            if (isZh(rows[j].title)) continue;
+            const c = cos(q[i], q[j]);
+            if (c > best) { best = c; bj = j; }
+          }
+          if (bj >= 0) pairs.push({ s: Math.round(best * 1000) / 1000, zh: rows[i].title.slice(0, 80), en: `${rows[bj].source} | ${rows[bj].title.slice(0, 100)}` });
+        }
+        pairs.sort((a, b) => b.s - a.s);
+        return json({ n: rows.length, dims: vecs[0]?.length, pairs: pairs.slice(0, 60) });
       }
 
       case '/api/rescore': {

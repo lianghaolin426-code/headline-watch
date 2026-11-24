@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS items (
   important INTEGER NOT NULL DEFAULT 0, -- 1 = 达到阈值，算重要快讯
   score_by TEXT,              -- ai 或 rule
   base_score REAL,            -- 互证加分前的分数
-  confirms INTEGER NOT NULL DEFAULT 0 -- 被几个其他来源报道
+  confirms INTEGER NOT NULL DEFAULT 0, -- 被几个其他来源报道
+  dup_of TEXT -- 同一件事已有更早的重要快讯时，指向那一条（看板合并显示、不重复推送）
 );
 CREATE INDEX IF NOT EXISTS idx_items_ts ON items(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_items_seen ON items(seen_at);
@@ -27,3 +28,7 @@ CREATE TABLE IF NOT EXISTS source_state (
   last_error_at INTEGER
 );
 
+
+-- 标题向量（跨语言判断同一件事用），只保留几个小时
+CREATE TABLE IF NOT EXISTS vecs (id TEXT PRIMARY KEY, ts INTEGER NOT NULL, zh INTEGER NOT NULL, v BLOB NOT NULL);
+CREATE INDEX IF NOT EXISTS vecs_ts ON vecs (ts);
