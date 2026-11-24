@@ -425,7 +425,7 @@ var CHECK='<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-wid
 var EXT='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H3v10h10v-3M9 3h4v4M13 3 7.5 8.5"/></svg>';
 
 /* ---------- 快讯内容翻译：在浏览器里完成，不占服务器额度 ---------- */
-var TR={},trs={},want=[],wantBody={},pumping=false,trTok=0,trTimer=0;
+var TR={},trs={},trBusy={},want=[],wantBody={},pumping=false,pumpAgain=false,trTok=0,trTimer=0;
 function trLoad(){try{TR=JSON.parse(localStorage.getItem('hw-tr-'+state.lang)||'{}')}catch(e){TR={}}}
 function trSave(){try{var ks=Object.keys(TR);if(ks.length>700){var o={};ks.slice(-500).forEach(function(k){o[k]=TR[k]});TR=o;}localStorage.setItem('hw-tr-'+state.lang,JSON.stringify(TR))}catch(e){}}
 // 返回要显示的标题和摘要；还没有译文的先显示原文，并排队等翻译
@@ -444,22 +444,31 @@ function trStatus(mode,n){var el=$('trs'),bt=$('trOn');el.classList.remove('on')
 async function getTr(src,dst,gesture){
   var k=src+'>'+dst;if(k in trs)return trs[k];
   if(!('Translator' in self)){trs[k]=null;if(!getTr.told){getTr.told=1;tip(T('trNo'),5200);}return null;}
-  try{
-    var av=await Translator.availability({sourceLanguage:src,targetLanguage:dst});
-    if(av==='unavailable'){trs[k]=null;return null;}
-    if(av!=='available'&&!gesture){trStatus('click');return null;}
-    var t=await Translator.create({sourceLanguage:src,targetLanguage:dst,monitor:function(m){m.addEventListener('downloadprogress',function(e){if(e.loaded<1)trStatus('load',Math.round(e.loaded*100));else trStatus();});}});
-    trStatus();trs[k]=t;return t;
-  }catch(e){if(gesture)trs[k]=null;return null;}
+  if(trBusy[k])return trBusy[k];
+  var tok=trTok;
+  var job=(async function(){
+    try{
+      var av=await Translator.availability({sourceLanguage:src,targetLanguage:dst});
+      if(av==='unavailable'){if(tok===trTok)trs[k]=null;return null;}
+      // 模型还没下载时，浏览器要求由用户点击触发；没有点击就先显示“点此启用”的提示
+      if(av!=='available'&&!gesture){trStatus('click');return null;}
+      var t=await Translator.create({sourceLanguage:src,targetLanguage:dst,monitor:function(m){m.addEventListener('downloadprogress',function(e){if(tok!==trTok)return;if(e.loaded<1)trStatus('load',Math.round(e.loaded*100));else trStatus();});}});
+      if(tok!==trTok)return null;
+      trStatus();trs[k]=t;return t;
+    }catch(e){if(tok===trTok)trStatus('click');return null;}
+  })();
+  trBusy[k]=job;
+  try{return await job;}finally{if(trBusy[k]===job)delete trBusy[k];}
 }
+function warm(){var has={};state.items.forEach(function(i){has[itemLang(i)]=1});Object.keys(has).forEach(function(src){if(src!==state.lang)getTr(src,state.lang,true)});}
 async function pump(gesture){
-  if(pumping)return;pumping=true;var tok=trTok,done=0;
+  if(pumping){if(gesture)pumpAgain=true;return;}pumping=true;var tok=trTok,done=0,skip={};
   try{
     var seen={},ids=want.filter(function(id){if(seen[id])return false;seen[id]=1;return true});want=[];
     for(var n=0;n<ids.length&&n<160;n++){
       if(tok!==trTok)break;
       var i=byId(ids[n]);if(!i)continue;var src=itemLang(i);if(src===state.lang)continue;
-      var tr=await getTr(src,state.lang,gesture);if(!tr)continue;
+      if(skip[src])continue;var tr=await getTr(src,state.lang,gesture);if(!tr){skip[src]=1;continue;}
       var c=TR[i.id]||(TR[i.id]={});
       try{
         if(!c.t){c.t=String(await tr.translate(cleanTitle(i.title))||'').trim();if(!c.t)c.x=1;}
@@ -468,7 +477,7 @@ async function pump(gesture){
       if(tok!==trTok)break;
       if(++done%6===0)softRender();
     }
-  }finally{pumping=false;if(done&&tok===trTok){trSave();softRender();}}
+  }finally{pumping=false;if(done&&tok===trTok){trSave();softRender();}else if(pumpAgain||tok!==trTok){softRender();}pumpAgain=false;}
 }
 function softRender(){clearTimeout(trTimer);trTimer=setTimeout(function(){render(true);if(show.on){var k=show.k;showRender();show.k=k;}},120);}
 
@@ -617,7 +626,7 @@ function emptyHtml(){
     :filtered?'<div class="empty"><b>'+T('eFilter')+'</b>'+T('eFilterD')+'<br><button class="btn" id="clr2">'+T('clear')+'</button></div>'
     :'<div class="empty"><b>'+T('eScore')+'</b>'+T('eScoreD')+'</div>';
 }
-function render(soft){
+function render(soft,gesture){
   want=[];var b=base();renderTabs(b);if(!soft)renderSide();
   var html='';
   if(!state.loaded){for(var k=0;k<9;k++)html+='<div class="sk" style="width:'+(50+(k*37)%45)+'%"></div>';}
@@ -625,7 +634,7 @@ function render(soft){
   else{var v=state.view==='star'?starList():b.filter(function(i){return inView(i,state.view)});html=v.length?'<div class="list">'+listHtml(v.slice(0,400))+'</div>':emptyHtml();}
   $('main').innerHTML=html;state.newIds={};
   if(document.body.classList.contains('open-reader'))renderReader();
-  setTop();if(want.length)pump(false);
+  setTop();if(want.length)pump(!!gesture);
 }
 function renderReader(){var i=state.sel&&byId(state.sel);if(i)$('rbody').innerHTML=detailHtml(i);}
 function setTop(){document.documentElement.style.setProperty('--top',($('util').offsetHeight+$('tabs').offsetHeight)+'px');}
@@ -711,7 +720,7 @@ function move(dir){if(state.view==='brief')return;var v=visible();if(!v.length)r
   k=Math.max(0,Math.min(v.length-1,k+dir));openReader(v[k].id);}
 function applyTheme(){var r=document.documentElement;if(state.theme==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',state.theme);
   var dark=state.theme==='dark'||(state.theme==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);$('tc').setAttribute('content',dark?'#12100d':'#f5f0e6');}
-function setLang(l,gesture){state.lang=l;trTok++;trs={};want=[];wantBody={};trStatus();trLoad();save();applyI18n();render();$('liveTxt').textContent=T('updated',hm(Date.now()));if(gesture)pump(true);}
+function setLang(l,gesture){state.lang=l;trTok++;trs={};trBusy={};want=[];wantBody={};trStatus();trLoad();save();applyI18n();if(gesture)warm();render(false,gesture);$('liveTxt').textContent=T('updated',hm(Date.now()));}
 function shareText(i){var o=tx(i,true),b=o.b!=null?o.b:(o.tr?'':cleanBody(i)),u=fixUrl(i.url),d=new Date(i.ts);
   var L=['【'+o.t+'】'];if(b)L.push(b.split('\n\n')[0]);if(o.tr)L.push(T('original')+': '+cleanTitle(i.title));
   L.push(T('src')+': '+shortSrc(i.source)+' · '+(d.getMonth()+1)+'/'+d.getDate()+' '+hm(i.ts)+' · '+T('scoreN',fmtScore(i.score))+(i.confirms>0?' · '+T('nSrc',i.confirms+1):''));if(u)L.push(u);return L.join('\n');}
@@ -751,7 +760,7 @@ $('swNotify').onclick=function(){
   Notification.requestPermission().then(function(p){state.notify=p==='granted';save();renderSide();});};
 $('theme').onclick=function(e){var b=e.target.closest('button');if(!b)return;state.theme=b.dataset.t;save();applyTheme();renderSide();};
 $('lang').onclick=function(e){var b=e.target.closest('button');if(b)setLang(b.dataset.l,true);};
-$('trOn').onclick=function(){trStatus();render(true);pump(true);};
+$('trOn').onclick=function(){trStatus();warm();render(true,true);};
 $('q').oninput=function(e){state.q=e.target.value.trim();if(state.q&&state.view==='brief')state.view='all';render();};
 $('sbtn').onclick=function(){$('util').classList.add('searching');$('q').focus();};
 $('cancel').onclick=function(){$('util').classList.remove('searching');if(state.q){state.q='';$('q').value='';render();}};
