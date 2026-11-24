@@ -388,7 +388,7 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 .pill.show{transform:translate(-50%,0)}
 .pill.hot{background:var(--red);color:#fff}
 .tip{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);font-size:13px;padding:9px 15px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:88vw;text-align:center}
-.tip.show{opacity:1}
+.tip.show{opacity:1}.tip.act{pointer-events:auto;cursor:pointer}
 
 /* ---------- 窄一些的电脑窗口和平板：两个市场排到标题下面，各占一半 ---------- */
 @media (max-width:1240px){
@@ -450,7 +450,7 @@ button.rc:hover{background:color-mix(in srgb,var(--c) 20%,transparent)}
 
 const JS = String.raw`
 var I18N={
-zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',nextDay:'下一交易日 {0}',yourT:'你的时间 {0}',backTo:'返回{0}',crumbQ:'正在看：{0}',crumbN:'{0} 条',related:'同一事件还有 {0} 条',alsoH:'事件脉络',alsoAll:'查看全部 {0} 条 →',tlFirst:'首次报道',tlLead:'头条',tlNow:'当前这条',fSrc:'家来源证实',fEv:'条相关快讯',fAge:'首次报道至今',fH:'小时',fM:'分钟',dEv:'同一事件',dTk:'相关股票',dTp:'话题',dDir:'方向',dUp:'利好',dDn:'利空',topSub:'按评分排序，同一事件只列一条',moreSub:'8 分以上，最新在前',wireSub:'全部来源，最新在前',cfBy:'证实来源',hitL:'命中规则',noBodyArt:'这篇文章只抓到了标题，点「打开原文」读全文。',lgT:'标记说明',lg3:'8 分以上，重要',lg2:'6 到 8 分，值得关注',lg1:'6 分以下，常规消息',lgDeep:'解读文章，不是快讯',lgCf:'多家来源报了同一条',lgEv:'同一件事的其他快讯',lgDp:'有相关的深度文章',lgMine:'命中你的自选词 / 已收藏',staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
+zh:{newVer:'有新版本，点这里刷新',thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',nextDay:'下一交易日 {0}',yourT:'你的时间 {0}',backTo:'返回{0}',crumbQ:'正在看：{0}',crumbN:'{0} 条',related:'同一事件还有 {0} 条',alsoH:'事件脉络',alsoAll:'查看全部 {0} 条 →',tlFirst:'首次报道',tlLead:'头条',tlNow:'当前这条',fSrc:'家来源证实',fEv:'条相关快讯',fAge:'首次报道至今',fH:'小时',fM:'分钟',dEv:'同一事件',dTk:'相关股票',dTp:'话题',dDir:'方向',dUp:'利好',dDn:'利空',topSub:'按评分排序，同一事件只列一条',moreSub:'8 分以上，最新在前',wireSub:'全部来源，最新在前',cfBy:'证实来源',hitL:'命中规则',noBodyArt:'这篇文章只抓到了标题，点「打开原文」读全文。',lgT:'标记说明',lg3:'8 分以上，重要',lg2:'6 到 8 分，值得关注',lg1:'6 分以下，常规消息',lgDeep:'解读文章，不是快讯',lgCf:'多家来源报了同一条',lgEv:'同一件事的其他快讯',lgDp:'有相关的深度文章',lgMine:'命中你的自选词 / 已收藏',staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
  search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',deep:'深度',deepB:'深度',flashB:'快讯',nDeep:'深度解读 {0} 篇',nFlash:'关联快讯 {0} 条',lvDeep:'深度文章',byDeep:'解读和评论，不打分、不推送',relArts:'深度解读',relFlash:'关联快讯',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
  lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',
@@ -463,7 +463,7 @@ zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',n
  look:'外观',theme:'主题',tAuto:'跟随系统',tDark:'深色',tLight:'浅色',keys:'快捷键',kMove:'上下条',kOpen:'打开原文',kSearch:'搜索',kView:'切换视图',kStar:'收藏',kShow:'展示模式',
  eNone:'还没有数据',eNoneD:'部署后等一两分钟，第一批快讯就会出现。',eFilter:'没有符合条件的快讯',eFilterD:'当前的来源筛选或搜索把结果都过滤掉了。',eScore:'暂时没有达到这个分数的快讯',eScoreD:'可以切到“全部”看所有快讯。',eConn:'连接失败',eConnD:'暂时读不到数据，页面会自动重试。',
  newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',loadMore:'加载更早的快讯',loading:'加载中…',noMore:'没有更早的快讯了（数据库保留最近 7 天）',loaded:'已载入 {0} 条 · 每分钟抓取',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
-en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextDay:'Next session {0}',yourT:'{0} your time',backTo:'Back to {0}',crumbQ:'Showing: {0}',crumbN:'{0} items',related:'{0} more on this story',alsoH:'HOW IT UNFOLDED',alsoAll:'View all {0} →',tlFirst:'First report',tlLead:'Lead story',tlNow:'This one',fSrc:'sources confirm',fEv:'related flashes',fAge:'since first report',fH:'h',fM:'min',dEv:'SAME STORY',dTk:'Stocks',dTp:'Topic',dDir:'Direction',dUp:'Bullish',dDn:'Bearish',topSub:'Ranked by score, one per story',moreSub:'Score 8+, newest first',wireSub:'All sources, newest first',cfBy:'Confirmed by',hitL:'Rule hits',noBodyArt:'Only the headline was captured. Use Open original to read the article.',lgT:'Legend',lg3:'8 and above: important',lg2:'6 to 8: worth a look',lg1:'Below 6: routine',lgDeep:'Analysis article, not a flash',lgCf:'Several sources ran the same item',lgEv:'More flashes on the same story',lgDp:'Has related in-depth articles',lgMine:'Matches your watchlist / saved',staleAt:'Connection lost, last update {0}',refreshTip:'Click to refresh now',refreshed:'Up to date',sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKETS · LIVE WIRE',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
+en:{newVer:'New version ready — tap to refresh',thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextDay:'Next session {0}',yourT:'{0} your time',backTo:'Back to {0}',crumbQ:'Showing: {0}',crumbN:'{0} items',related:'{0} more on this story',alsoH:'HOW IT UNFOLDED',alsoAll:'View all {0} →',tlFirst:'First report',tlLead:'Lead story',tlNow:'This one',fSrc:'sources confirm',fEv:'related flashes',fAge:'since first report',fH:'h',fM:'min',dEv:'SAME STORY',dTk:'Stocks',dTp:'Topic',dDir:'Direction',dUp:'Bullish',dDn:'Bearish',topSub:'Ranked by score, one per story',moreSub:'Score 8+, newest first',wireSub:'All sources, newest first',cfBy:'Confirmed by',hitL:'Rule hits',noBodyArt:'Only the headline was captured. Use Open original to read the article.',lgT:'Legend',lg3:'8 and above: important',lg2:'6 to 8: worth a look',lg1:'Below 6: routine',lgDeep:'Analysis article, not a flash',lgCf:'Several sources ran the same item',lgEv:'More flashes on the same story',lgDp:'Has related in-depth articles',lgMine:'Matches your watchlist / saved',staleAt:'Connection lost, last update {0}',refreshTip:'Click to refresh now',refreshed:'Up to date',sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKETS · LIVE WIRE',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
  search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',deep:'In depth',deepB:'IN DEPTH',flashB:'FLASH',nDeep:'{0} in-depth',nFlash:'{0} linked flashes',lvDeep:'In-depth article',byDeep:'Analysis and commentary, not scored or pushed',relArts:'In-depth coverage',relFlash:'Linked flashes',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
  lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiAi:'Judged per headline by AI',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',
@@ -476,7 +476,7 @@ en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextD
  look:'APPEARANCE',theme:'Theme',tAuto:'System',tDark:'Dark',tLight:'Light',keys:'SHORTCUTS',kMove:'Next / previous',kOpen:'Open original',kSearch:'Search',kView:'Switch view',kStar:'Save',kShow:'Presentation',
  eNone:'No data yet',eNoneD:'The first flashes appear a minute or two after deployment.',eFilter:'Nothing matches',eFilterD:'The current source filter or search hides every flash.',eScore:'Nothing at this score yet',eScoreD:'Switch to "All" to see every flash.',eConn:'Connection failed',eConnD:'Data is unavailable right now. The page retries automatically.',
  newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',loadMore:'Load earlier flashes',loading:'Loading…',noMore:'No earlier flashes (the database keeps the last 7 days)',loaded:'{0} loaded · fetched every minute',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
-ar:{thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'الافتتاح',lClose:'الإغلاق',nextDay:'الجلسة التالية {0}',yourT:'{0} بتوقيتك',backTo:'العودة إلى {0}',crumbQ:'المعروض: {0}',crumbN:'{0} خبر',related:'{0} أخبار ذات صلة',alsoH:'تسلسل الحدث',alsoAll:'عرض الكل ({0}) ←',tlFirst:'أول خبر',tlLead:'الخبر الرئيسي',tlNow:'هذا الخبر',fSrc:'مصادر أكدته',fEv:'أخبار ذات صلة',fAge:'منذ أول خبر',fH:'س',fM:'د',dEv:'الخبر نفسه',dTk:'الأسهم',dTp:'الموضوع',dDir:'الاتجاه',dUp:'إيجابي',dDn:'سلبي',topSub:'مرتبة حسب التقييم، خبر واحد لكل حدث',moreSub:'تقييم 8 فأكثر، الأحدث أولًا',wireSub:'كل المصادر، الأحدث أولًا',cfBy:'أكدته',hitL:'القواعد المطابقة',noBodyArt:'لم يُلتقط سوى العنوان. استخدم «فتح المصدر» لقراءة المقال.',lgT:'دليل العلامات',lg3:'8 فأكثر: مهم',lg2:'من 6 إلى 8: جدير بالمتابعة',lg1:'أقل من 6: اعتيادي',lgDeep:'مقال تحليلي وليس خبرًا عاجلًا',lgCf:'نشرته عدة مصادر',lgEv:'أخبار أخرى عن الحدث نفسه',lgDp:'له مقالات تحليلية مرتبطة',lgMine:'يطابق قائمة متابعتك / محفوظ',staleAt:'انقطع الاتصال، آخر تحديث {0}',refreshTip:'انقر للتحديث الآن',refreshed:'محدَّث',sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'السوقان الأمريكي والسعودي · أخبار لحظية',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
+ar:{newVer:'نسخة جديدة جاهزة — اضغط للتحديث',thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'الافتتاح',lClose:'الإغلاق',nextDay:'الجلسة التالية {0}',yourT:'{0} بتوقيتك',backTo:'العودة إلى {0}',crumbQ:'المعروض: {0}',crumbN:'{0} خبر',related:'{0} أخبار ذات صلة',alsoH:'تسلسل الحدث',alsoAll:'عرض الكل ({0}) ←',tlFirst:'أول خبر',tlLead:'الخبر الرئيسي',tlNow:'هذا الخبر',fSrc:'مصادر أكدته',fEv:'أخبار ذات صلة',fAge:'منذ أول خبر',fH:'س',fM:'د',dEv:'الخبر نفسه',dTk:'الأسهم',dTp:'الموضوع',dDir:'الاتجاه',dUp:'إيجابي',dDn:'سلبي',topSub:'مرتبة حسب التقييم، خبر واحد لكل حدث',moreSub:'تقييم 8 فأكثر، الأحدث أولًا',wireSub:'كل المصادر، الأحدث أولًا',cfBy:'أكدته',hitL:'القواعد المطابقة',noBodyArt:'لم يُلتقط سوى العنوان. استخدم «فتح المصدر» لقراءة المقال.',lgT:'دليل العلامات',lg3:'8 فأكثر: مهم',lg2:'من 6 إلى 8: جدير بالمتابعة',lg1:'أقل من 6: اعتيادي',lgDeep:'مقال تحليلي وليس خبرًا عاجلًا',lgCf:'نشرته عدة مصادر',lgEv:'أخبار أخرى عن الحدث نفسه',lgDp:'له مقالات تحليلية مرتبطة',lgMine:'يطابق قائمة متابعتك / محفوظ',staleAt:'انقطع الاتصال، آخر تحديث {0}',refreshTip:'انقر للتحديث الآن',refreshed:'محدَّث',sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'السوقان الأمريكي والسعودي · أخبار لحظية',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
  search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',deep:'تحليلات',deepB:'تحليل',flashB:'خبر',nDeep:'{0} تحليل',nFlash:'{0} أخبار مرتبطة',lvDeep:'مقال تحليلي',byDeep:'تحليل وتعليق، بلا تقييم ولا إشعار',relArts:'مقالات تحليلية ذات صلة',relFlash:'الأخبار التي يتناولها المقال',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
  lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiAi:'تقييم الذكاء الاصطناعي لكل عنوان',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',
@@ -988,9 +988,12 @@ var unread=0;
 async function load(manual){
   if(state.loading)return;state.loading=true;if(manual)$('live').classList.add('spin');
   try{
-    var r=await fetch(api('/api/items?limit=400&since='+(state.first?0:Math.max(0,state.lastSeen-18e5))),{cache:'no-store'});
+    var r=await fetch(api('/api/items?limit=400&since='+(state.first?(state.bootAt?Math.max(0,Math.min(state.lastSeen,state.bootAt)-18e5):0):Math.max(0,state.lastSeen-18e5))),{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     var d=await r.json(),known={},changed=!state.loaded;
+    // 用本机快照先显示的：如果离开太久、中间隔了不止一页，就丢掉快照，只用新数据，避免中间缺一段
+    if(state.first&&state.bootAt&&d.items.length>=400){state.items=[];changed=true;}
+    if(d.build)newBuild(d.build);
     state.items.forEach(function(x){known[x.id]=1});state.pending.forEach(function(x){known[x.id]=1});
     var fresh=d.items.filter(function(i){return !known[i.id]});
     // 已有条目可能后来被打分：用新数据覆盖
@@ -1013,7 +1016,7 @@ async function load(manual){
     }
     state.first=false;state.loaded=true;
     if(!document.hidden){if(state.lastSeen>state.topSeen)state.topSeen=state.lastSeen;save();}
-    if(changed)render();
+    if(changed){render();snapSoon();}
     state.okAt=Date.now();$('live').classList.remove('err');$('liveTxt').textContent=T('updated',hm(Date.now()));if(manual&&!changed)tip(T('refreshed'));
   }catch(e){stale();if(manual)tip(T('fail'));if(!state.loaded&&!state.items.length){$('main').innerHTML='<div class="empty"><b>'+T('eConn')+'</b>'+T('eConnD')+'</div>';}}
   state.loading=false;$('live').classList.remove('spin');
@@ -1240,7 +1243,35 @@ function openFromPush(id){if(!id||/^test/.test(id))return;if(byId(id))return ope
 if(PUSH.ok)navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.hwOpen)openFromPush(e.data.hwOpen);});
 var hashId=/^#i=/.test(location.hash)?decodeURIComponent(location.hash.slice(3)):null;
 if(hashId){try{history.replaceState(history.state,'',location.href.split('#')[0])}catch(e){}}
-trLoad();applyTheme();applyI18n();render();load().then(function(){if(hashId)openFromPush(hashId);}).then(backfill);pushInit();loadHealth();loadStats();setInterval(loadStats,3e5);
+/* ---------- 秒开：先用现成的数据把页面画出来，再去拿更新 ----------
+   两个来源取较新的一个：服务器写进网页的首屏数据（BOOT），和本机上次看到的快照（刷新、断网时用）。
+   超过 12 小时的旧数据不用，照常显示骨架等网络。 */
+var SNAP='hw-snap',snapT=0;
+function snapSave(){try{if(state.loaded&&state.items.length)localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),stats:state.stats,items:state.items.slice(0,400)}))}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
+function snapSoon(){clearTimeout(snapT);snapT=setTimeout(function(){(window.requestIdleCallback||setTimeout)(snapSave)},1500);}
+window.addEventListener('pagehide',snapSave);
+function bootData(){var b=BOOT,c=null;try{c=JSON.parse(localStorage.getItem(SNAP)||'null')}catch(e){}
+  if(!b||!b.items||(c&&c.items&&c.now>b.now))b=c;
+  if(!b||!b.items||!b.items.length||Date.now()-b.now>432e5)return false;
+  state.items=b.items;state.stats=b.stats||null;state.bootAt=b.now;state.loaded=true;
+  b.items.forEach(function(i){if(i.seen_at>state.lastSeen)state.lastSeen=i.seen_at});
+  return Math.abs(Date.now()-b.now)<2e4;}
+/* 新版本：服务器的版本号和这张网页不一样时，先把新网页存好。刚打开、还没动过就悄悄换上；已经在用了就只提示，不打断 */
+var touched=false,buildSeen='';
+['pointerdown','keydown','wheel','touchstart'].forEach(function(n){window.addEventListener(n,function(){touched=true},{passive:true,capture:true})});
+async function newBuild(b){if(!b||b===BUILD||b===buildSeen)return;buildSeen=b;
+  try{if(window.caches){var r=await fetch(location.href.split('#')[0],{cache:'reload'});if(r.ok&&r.headers.get('X-HW-Build')===b)await (await caches.open('hw-shell')).put(location.href.split('#')[0],r);}}catch(e){}
+  var tried='';try{tried=sessionStorage.getItem('hw-build')||'';sessionStorage.setItem('hw-build',b)}catch(e){return}
+  if(tried===b)return;
+  if(!touched&&!document.body.classList.contains('open-reader')&&!document.body.classList.contains('open-side')&&!show.on&&window.scrollY<200)location.reload();
+  else{var el=$('tip');el.textContent=T('newVer');el.classList.add('show','act');el.onclick=function(){location.reload()};}}
+if('serviceWorker' in navigator)navigator.serviceWorker.register(api('/sw.js')).catch(function(){});
+var freshBoot=bootData();
+trLoad();applyTheme();applyI18n();render();
+if(freshBoot){state.first=false;state.okAt=Date.now();$('liveTxt').textContent=T('updated',hm(Date.now()));if(state.lastSeen>state.topSeen)state.topSeen=state.lastSeen;save();snapSoon();if(hashId)openFromPush(hashId);(window.requestIdleCallback||setTimeout)(backfill);}
+else{load().then(function(){if(hashId)openFromPush(hashId);}).then(backfill);}
+if(!state.stats)loadStats();
+pushInit();(window.requestIdleCallback||setTimeout)(loadHealth);setInterval(loadStats,3e5);
 setInterval(load,15000);setInterval(renderClocks,20000);setInterval(loadHealth,300000);
 `;
 
@@ -1316,10 +1347,19 @@ const BODY = `
 <div class="tip" id="tip" role="status"></div>
 `;
 
-export function renderPage({ key }) {
-  // key 来自网址参数，转义尖括号和行分隔符，避免提前结束 <script>
-  const seps = new RegExp('[' + String.fromCharCode(0x2028, 0x2029) + ']', 'g');
-  const safeKey = JSON.stringify(String(key || '')).replace(/</g, '\\' + 'u003c').replace(seps, '');
+// 版本号：页面内容（样式、脚本、骨架）的指纹。浏览器发现服务器上的版本号变了，就知道有新版本
+function fingerprint(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+export const BUILD = fingerprint(CSS + BODY + JS);
+
+// 写进 <script> 的数据：转义尖括号和行分隔符，避免提前结束 <script>
+const seps = new RegExp('[' + String.fromCharCode(0x2028, 0x2029) + ']', 'g');
+const inline = (v) => JSON.stringify(v).replace(/</g, '\\' + 'u003c').replace(seps, '');
+
+export function renderPage({ key, boot }) {
   return `<!doctype html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8">
@@ -1331,5 +1371,5 @@ export function renderPage({ key }) {
 <link rel="manifest" href="/manifest.webmanifest${key ? '?key=' + encodeURIComponent(key) : ''}">
 <script>try{var t=JSON.parse(localStorage.getItem('hw')||'{}').theme;if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>${CSS}</style></head><body>${BODY}<script>
-var KEY=${safeKey};${JS}</script></body></html>`;
+var KEY=${inline(String(key || ''))},BUILD=${inline(BUILD)},BOOT=${boot ? inline(boot) : 'null'};${JS}</script></body></html>`;
 }

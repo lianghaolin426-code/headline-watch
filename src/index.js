@@ -10,7 +10,7 @@ import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
-import { renderPage } from './page.js';
+import { renderPage, BUILD } from './page.js';
 import { translatePending } from './translate.js';
 
 const UA =
@@ -644,7 +644,7 @@ function authorized(req, env) {
 }
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
+  return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
   });
@@ -687,6 +687,23 @@ async function usageRows(env) {
   }
 }
 
+// 最近 7 天里，每天“和现在同一时段的 12 小时”各有多少条快讯、多少条重要（看板的“比平常热不热”用）
+async function statsData(env) {
+  const now = Date.now();
+  const windows = (
+    await env.DB.prepare(
+      `SELECT CAST((?1 - ts) / 86400000 AS INTEGER) AS k, COUNT(*) AS n,
+              SUM(CASE WHEN important = 1 AND dup_of IS NULL THEN 1 ELSE 0 END) AS imp
+       FROM items WHERE ts <= ?1 AND ts > ?1 - 604800000 AND ((?1 - ts) % 86400000) < 43200000 GROUP BY k ORDER BY k`
+    )
+      .bind(now)
+      .all()
+  ).results;
+  // 用最早的抓取时间（seen_at）而不是发布时间：有些源会带很久以前的发布日期
+  const oldest = (await env.DB.prepare('SELECT MIN(seen_at) AS t FROM items').first())?.t || now;
+  return { now, oldest, windows };
+}
+
 export default {
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(runOnce(env));
@@ -704,10 +721,16 @@ export default {
     }
 
     switch (url.pathname) {
-      case '/':
-        return new Response(renderPage({ key: url.searchParams.get('key') || '' }), {
-          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+      case '/': {
+        // 首屏数据直接写进网页，省掉一次往返；数据库慢的时候不等它，网页照常先出来
+        const boot = await Promise.race([
+          Promise.all([listItems(env, { limit: 400 }), statsData(env)]).then(([items, stats]) => ({ now: Date.now(), items, stats })).catch(() => null),
+          new Promise((r) => setTimeout(() => r(null), 900)),
+        ]);
+        return new Response(renderPage({ key: url.searchParams.get('key') || '', boot }), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-HW-Build': BUILD },
         });
+      }
 
       case '/api/items': {
         const items = await listItems(env, {
@@ -716,25 +739,11 @@ export default {
           since: Number(url.searchParams.get('since') || 0),
           before: Number(url.searchParams.get('before') || 0),
         });
-        return json({ now: Date.now(), items });
+        return json({ now: Date.now(), build: BUILD, items });
       }
 
-      case '/api/stats': {
-        // 最近 7 天里，每天“和现在同一时段的 12 小时”各有多少条快讯、多少条重要（看板的“比平常热不热”用）
-        const now = Date.now();
-        const windows = (
-          await env.DB.prepare(
-            `SELECT CAST((?1 - ts) / 86400000 AS INTEGER) AS k, COUNT(*) AS n,
-                    SUM(CASE WHEN important = 1 AND dup_of IS NULL THEN 1 ELSE 0 END) AS imp
-             FROM items WHERE ts <= ?1 AND ts > ?1 - 604800000 AND ((?1 - ts) % 86400000) < 43200000 GROUP BY k ORDER BY k`
-          )
-            .bind(now)
-            .all()
-        ).results;
-        // 用最早的抓取时间（seen_at）而不是发布时间：有些源会带很久以前的发布日期
-        const oldest = (await env.DB.prepare('SELECT MIN(seen_at) AS t FROM items').first())?.t || now;
-        return json({ now, oldest, windows });
-      }
+      case '/api/stats':
+        return json(await statsData(env));
 
       case '/api/status': {
         const cfg = config(env);

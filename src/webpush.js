@@ -289,6 +289,24 @@ export async function dailyCounts(env, now = Date.now()) {
 export const SW_JS = `
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
+// 网页外壳：先给上次存下的版本（刷新不用等网络），同时在后台取新的存起来；没存过就走网络
+self.addEventListener('fetch', function (e) {
+  var r = e.request;
+  if (r.method !== 'GET' || r.mode !== 'navigate') return;
+  var u = new URL(r.url);
+  if (u.origin !== self.location.origin || u.pathname !== '/') return;
+  e.respondWith(caches.open('hw-shell').then(function (c) {
+    return c.match(r.url).then(function (hit) {
+      var net = fetch(r).then(function (res) {
+        if (res && res.ok) return c.put(r.url, res.clone()).then(function () { return res; });
+        return res;
+      });
+      if (!hit) return net;
+      e.waitUntil(net.catch(function () {}));
+      return hit;
+    });
+  }));
+});
 self.addEventListener('push', function (e) {
   var d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: e.data ? e.data.text() : 'Headline Watch' }; }
