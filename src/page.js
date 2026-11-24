@@ -8,7 +8,7 @@
 const CSS = String.raw`
 :root{
   --bg:#f5f0e6;--bg2:#ece5d7;--ink:#1a1714;--ink2:#4a433b;--ink3:#7a7065;--ink4:#a79c8d;--rule:#d9d0c0;--rule2:#c7bca9;
-  --red:#c8371d;--red-soft:rgba(200,55,29,.1);--amber:#c98a1a;--ok:#2f8f5b;
+  --red:#c8371d;--on-red:#fff;--red-soft:rgba(200,55,29,.1);--amber:#c98a1a;--ok:#2f8f5b;
   --glass:rgba(255,255,255,.52);--glass2:rgba(255,255,255,.72);--glass-line:rgba(255,255,255,.85);--glass-edge:rgba(26,23,20,.07);
   --bar:rgba(245,240,230,.78);--shadow:0 1px 1px rgba(60,40,20,.04),0 12px 34px rgba(60,40,20,.08);--shadow2:0 30px 80px rgba(40,25,10,.28);
   --blob1:rgba(200,55,29,.13);--blob2:rgba(201,138,26,.16);--blob3:rgba(120,90,60,.1);--mark:rgba(201,138,26,.3);
@@ -19,14 +19,14 @@ const CSS = String.raw`
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#12100d;--bg2:#1a1713;--ink:#f3ecdf;--ink2:#cfc6b7;--ink3:#978d7f;--ink4:#6a6156;--rule:#2d2822;--rule2:#40392f;
-  --red:#ff6b4a;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
+  --red:#ff6b4a;--on-red:#1c0b06;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
   --glass:rgba(255,255,255,.045);--glass2:rgba(255,255,255,.08);--glass-line:rgba(255,255,255,.1);--glass-edge:rgba(0,0,0,.4);
   --bar:rgba(18,16,13,.74);--shadow:0 1px 1px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.35);--shadow2:0 30px 90px rgba(0,0,0,.7);
   --blob1:rgba(255,107,74,.16);--blob2:rgba(227,167,67,.1);--blob3:rgba(140,110,80,.12);--mark:rgba(227,167,67,.32);
 }}
 :root[data-theme=dark]{
   --bg:#12100d;--bg2:#1a1713;--ink:#f3ecdf;--ink2:#cfc6b7;--ink3:#978d7f;--ink4:#6a6156;--rule:#2d2822;--rule2:#40392f;
-  --red:#ff6b4a;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
+  --red:#ff6b4a;--on-red:#1c0b06;--red-soft:rgba(255,107,74,.13);--amber:#e3a743;--ok:#5fcf95;
   --glass:rgba(255,255,255,.045);--glass2:rgba(255,255,255,.08);--glass-line:rgba(255,255,255,.1);--glass-edge:rgba(0,0,0,.4);
   --bar:rgba(18,16,13,.74);--shadow:0 1px 1px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.35);--shadow2:0 30px 90px rgba(0,0,0,.7);
   --blob1:rgba(255,107,74,.16);--blob2:rgba(227,167,67,.1);--blob3:rgba(140,110,80,.12);--mark:rgba(227,167,67,.32);
@@ -127,15 +127,31 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 /* ---------- 通用小件 ---------- */
 .kick{font-size:11.5px;font-weight:700;letter-spacing:.14em;color:var(--red);margin-bottom:14px;display:flex;align-items:center;gap:10px}
 .sec{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;letter-spacing:.14em;font-weight:700;border-top:3px solid var(--ink);padding-top:10px;margin-bottom:4px}
-.sec button{font-size:12px;letter-spacing:0;color:var(--red);font-weight:600}
-.by{font-size:12.5px;color:var(--ink3);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.sec button{flex:none;font-size:12px;letter-spacing:0;color:var(--ink2);font-weight:600}.sec button:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.sec small,.rank h3 small{font-size:11.5px;font-weight:400;letter-spacing:0;color:var(--ink3);margin-inline-start:10px}
+.sec span{min-width:0}
+/* 标记体系（全站统一）：
+   1 评分 .sc —— 重要程度，只有它和头条用朱红：8 分以上红底，6 分以上黑框，其余灰字；
+   2 署名 .by —— 来源（黑）+ 时间（灰），后面跟类型标签 .tg（深度）、译、自选/收藏（琥珀色）；
+   3 关联 .rc —— 同一形状的小胶囊，各带一个图标：来源证实 / 同一事件 / 深度解读 / 关联快讯 / 已合并。 */
+.meta{min-width:0}
+.by{font-size:12.5px;color:var(--ink3);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
 .by b{color:var(--ink);font-weight:600}
-.sc{display:inline-block;min-width:30px;text-align:center;font:700 12px/1 var(--mono);letter-spacing:-.03em;padding:5px 6px;border-radius:3px;color:var(--ink4)}
-.sc.s2{color:var(--ink2);box-shadow:inset 0 0 0 1px var(--rule2)}
-.sc.s3{background:var(--ink);color:var(--bg)}
-.cf{color:var(--red);font-weight:600;white-space:nowrap}
+.sc{display:inline-block;flex:none;min-width:30px;text-align:center;font:700 12px/1 var(--mono);letter-spacing:-.03em;padding:5px 6px;border-radius:4px;color:var(--ink3)}
+.sc.s2{color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink2)}
+.sc.s3{background:var(--red);color:var(--on-red)}
+.tg{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--bg);background:var(--ink2);border-radius:3px;padding:0 5px;line-height:16px;white-space:nowrap}
+.rels{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rc{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;line-height:1;color:var(--ink2);white-space:nowrap;padding:4px 9px;padding-inline-start:7px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--rule2)}
+.rc svg{width:12px;height:12px;flex:none;color:var(--ink3)}
+.rc b{font-weight:700;color:var(--ink)}
+.rc.cfm svg{color:var(--ok)}
+button.rc{transition:background .15s,box-shadow .15s}
+button.rc::after{content:"";width:5px;height:5px;border-top:1.5px solid var(--ink3);border-inline-end:1.5px solid var(--ink3);transform:rotate(45deg);margin-inline-start:1px}
+[dir=rtl] button.rc::after{transform:rotate(-45deg)}
+button.rc:hover{background:var(--glass2);box-shadow:inset 0 0 0 1px var(--ink3)}
 .hit{font:500 11px/1 var(--mono);letter-spacing:-.02em;padding:4px 6px;border-radius:3px;color:var(--ink3);box-shadow:inset 0 0 0 1px var(--rule2);white-space:nowrap}
-.wh{color:var(--red);font-size:11.5px;font-weight:600;white-space:nowrap}
+.wh{color:var(--amber);font-size:11.5px;font-weight:600;white-space:nowrap}
 .tsep{width:1px;height:16px;background:var(--rule2);flex:none}
 .btn.on{color:var(--red);border-color:var(--red)}
 .li .sc{align-self:start}
@@ -151,8 +167,11 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .crumb{position:sticky;top:var(--top,92px);z-index:15;display:flex;align-items:center;gap:14px;margin:14px 0 4px;padding-block:8px;padding-inline:8px 14px;border:1px solid var(--rule);border-radius:999px;background:var(--bar);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);font-size:13px;color:var(--ink3);width:fit-content;max-width:100%;box-shadow:0 6px 20px -12px rgba(0,0,0,.35)}
 .crumb button{display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--bg);background:var(--ink);border-radius:999px;padding:6px 14px 6px 8px;white-space:nowrap}.crumb button svg{width:15px;height:15px}[dir=rtl] .crumb button svg{transform:scaleX(-1)}
 .crumb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rel{display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:var(--red);padding:2px 0;white-space:nowrap}.rel:hover{text-decoration:underline;text-underline-offset:3px}
-.hero .foot .rel{margin:0;margin-inline-start:auto}
+.also{margin-top:26px;max-width:40em}
+.also .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3);padding-bottom:8px}
+.also .hd button{font-size:12px;font-weight:600;letter-spacing:0;color:var(--ink2)}.also .hd button:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.also .li .lt{font-family:var(--serif);font-size:15.5px;-webkit-line-clamp:2}
+[dir=rtl] .also .hd{letter-spacing:0}
 .tkr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:8px 0;border:0;border-top:1px solid var(--rule);background:none;color:inherit;font:inherit;text-align:start;cursor:pointer}
 .tkr b{font:700 13px/1 var(--sans);letter-spacing:.02em;min-width:46px}.tkr span{font-size:12.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tkr em{font-style:normal;font-size:12.5px;font-weight:700}.tkr u{grid-column:1/-1;display:block;height:3px;border-radius:2px;background:var(--ink);opacity:.75;text-decoration:none;margin-top:-2px}.tkr.h u{background:var(--red);opacity:1}
@@ -184,18 +203,18 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 [dir=rtl] .show-bar i{transform-origin:100% 50%}
 .paused .show-bar i{animation-play-state:paused}
 @keyframes prog{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.dpb{font-size:10.5px;font-weight:600;letter-spacing:.04em;color:var(--red);border:1px solid currentColor;border-radius:3px;padding:0 4px;line-height:15px;white-space:nowrap}
-.dpn{font-size:10.5px;font-weight:600;color:var(--ink2);background:color-mix(in srgb,var(--ink) 7%,transparent);border-radius:3px;padding:0 5px;line-height:16px;white-space:nowrap}.dpn.dpd{color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent)}
 .d-rel{margin-top:18px;border-top:1px solid var(--rule2);padding-top:12px}
 .d-rel-h{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--ink3);margin-bottom:6px}
-.d-rel-a{display:block;padding:8px 0;border-bottom:1px solid var(--rule2);color:var(--ink);text-decoration:none}
+.d-rel-a{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--rule2);color:var(--ink);text-decoration:none}
 .d-rel-a:hover span{color:var(--red)}
+.d-rel-a .sc{margin-top:1px}
 .d-rel-a small{display:block;margin-top:2px;font-size:11px;color:var(--ink4)}
 .trb{font-size:10.5px;color:var(--ink4);border:1px solid var(--rule2);border-radius:3px;padding:0 4px;line-height:15px;white-space:nowrap}
 .ring{--p:80;position:relative;flex:none;width:68px;height:68px;border-radius:50%;background:conic-gradient(var(--red) calc(var(--p)*1%),var(--rule) 0);display:grid;place-items:center}
 .ring::before{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--bg)}
 .ring span{position:relative;font:700 23px/1 var(--serif);letter-spacing:-.03em}
-.ring.lo{background:conic-gradient(var(--ink3) calc(var(--p)*1%),var(--rule) 0)}
+.ring.mid{background:conic-gradient(var(--ink2) calc(var(--p)*1%),var(--rule) 0)}
+.ring.lo{background:conic-gradient(var(--ink4) calc(var(--p)*1%),var(--rule) 0)}.ring.lo span{color:var(--ink3)}
 [data-id]{cursor:pointer}
 
 /* ---------- 简报 ---------- */
@@ -203,7 +222,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .hero h2{margin:0 0 18px;font:700 52px/1.08 var(--serif);letter-spacing:-.025em;word-break:break-word}
 .hero h2.zh{font-size:44px;line-height:1.2;letter-spacing:0}
 .hero p{font:19px/1.6 var(--serif);color:var(--ink2);margin:0 0 22px;max-width:34em;overflow-wrap:anywhere}
-.hero .foot{display:flex;align-items:center;gap:16px}
+.hero .foot{display:flex;align-items:center;gap:16px}.hero .foot .by{font-size:13.5px}
 @media (hover:hover){.hero:hover h2,.rk:hover h4,.card:hover h4,.w:hover .wt,.li:hover .lt{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}}
 .rank{border-inline-start:1px solid var(--rule);padding-inline-start:36px}
 .rank h3{margin:0 0 4px;font-size:11.5px;letter-spacing:.14em;color:var(--ink3);font-weight:700}
@@ -225,11 +244,13 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .low{display:grid;grid-template-columns:1.55fr 1fr;gap:44px;padding-bottom:60px}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 28px}
 .card{padding:16px 0;border-bottom:1px solid var(--rule)}
-.card h4{margin:0 0 8px;font:700 18px/1.32 var(--serif)}
-.card p{margin:0 0 10px;font-size:13.5px;color:var(--ink2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card h4{margin:0 0 8px;font:700 17.5px/1.34 var(--serif);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.card p{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--ink3);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .wire{padding-inline-start:36px;border-inline-start:1px solid var(--rule)}
-.w{display:grid;grid-template-columns:46px 1fr;gap:10px;padding:10px 0;border-bottom:1px dotted var(--rule2);font-size:14px;line-height:1.45}
-.w time{color:var(--red);font-size:12.5px;padding-top:1px}
+.w{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-bottom:1px dotted var(--rule2);font-size:14px;line-height:1.45}
+.w time{color:var(--ink3);font-size:12.5px;padding-top:1px}
+.w .sc{margin-top:-1px}
+.w .tg{margin-inline-start:6px;vertical-align:1px}
 .w.h .wt{font-weight:700}
 .w small{display:block;color:var(--ink3);font-size:11.5px;margin-top:2px}
 
@@ -242,8 +263,8 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .row .h{font:400 16.5px/1.42 var(--serif);color:var(--ink2);word-break:break-word}
 .row.m .h{color:var(--ink)}
 .row.imp .h{color:var(--ink);font-weight:700;font-size:18px}
-.row.imp .t{color:var(--red)}
-.row .x{display:inline-flex;gap:8px;margin-inline-start:10px;vertical-align:2px;font-size:12px;align-items:center}
+.row .x{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center}
+.row .xi{display:inline-flex;gap:8px;margin-inline-start:10px;vertical-align:2px;align-items:center}
 .row .src{font-size:12px;color:var(--ink3);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
 .row.sel{background:var(--red-soft);box-shadow:-12px 0 0 var(--red-soft),12px 0 0 var(--red-soft)}
 @media (hover:hover){.row:hover .h{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}}
@@ -278,6 +299,14 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .d-body{font:16.5px/1.7 var(--serif);color:var(--ink2);word-break:break-word}
 .d-body p{margin:0 0 12px}
 .d-none{font-size:13px;color:var(--ink4)}
+.d .rels{margin:-6px 0 16px}
+.d-facts{margin:0 0 16px;border-top:1px solid var(--rule);font-size:12.5px}
+.d-facts div{display:grid;grid-template-columns:84px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.d-facts dt,.d-facts div>span:first-child{color:var(--ink3)}
+.d-facts div>span:last-child{color:var(--ink);display:flex;flex-wrap:wrap;gap:4px 6px;min-width:0}
+.legend{display:grid;gap:9px;font-size:12.5px;color:var(--ink2);padding:4px 26px 8px}
+.legend>div{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center}
+.legend>div>span:first-child{display:flex;gap:4px;align-items:center}
 .orig{margin-top:18px;padding-top:14px;border-top:1px dotted var(--rule2);font-size:13px;color:var(--ink3);line-height:1.55}
 .orig b{display:block;font-size:11px;letter-spacing:.1em;color:var(--ink4);margin-bottom:4px}
 .d-act{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap}
@@ -371,7 +400,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
   .row{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"t src s" "c c c";column-gap:10px;row-gap:6px;padding:13px 0;align-items:center}
   .row .t{grid-area:t}.row .src{grid-area:src;max-width:none}.row .sc{grid-area:s;justify-self:end}.row .c{grid-area:c}
   .row .h{font-size:17px}.row.imp .h{font-size:18.5px}
-  .row .x{display:flex;margin:6px 0 0}
+  .row .x{margin:7px 0 0}
   .panel{top:auto;bottom:0;inset-inline:0;width:auto;max-height:86vh;max-height:86dvh;border-radius:22px 22px 0 0;transform:translateY(105%);padding-bottom:env(safe-area-inset-bottom)}
   [dir=rtl] .panel{transform:translateY(105%)}
   .keysec{display:none}
@@ -384,21 +413,21 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 
 const JS = String.raw`
 var I18N={
-zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',nextDay:'下一交易日 {0}',yourT:'你的时间 {0}',backTo:'返回{0}',crumbQ:'正在看：{0}',crumbN:'{0} 条',related:'同一事件还有 {0} 条 →',staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
- search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',deep:'深度',deepB:'深度',nDeep:'深度解读 {0} 篇',nFlash:'关联快讯 {0} 条',lvDeep:'深度文章',byDeep:'解读和评论，不打分、不推送',relArts:'深度解读',relFlash:'关联快讯',
+zh:{thisDay:'今日交易日 {0}',lPre:'盘前',lOpen:'开盘',lClose:'收盘',nextDay:'下一交易日 {0}',yourT:'你的时间 {0}',backTo:'返回{0}',crumbQ:'正在看：{0}',crumbN:'{0} 条',related:'同一事件还有 {0} 条',alsoH:'同一事件',alsoAll:'查看全部 {0} 条 →',topSub:'按评分排序，同一事件只列一条',moreSub:'8 分以上，最新在前',wireSub:'全部来源，最新在前',cfBy:'证实来源',hitL:'命中规则',noBodyArt:'这篇文章只抓到了标题，点「打开原文」读全文。',lgT:'标记说明',lg3:'8 分以上，重要',lg2:'6 到 8 分，值得关注',lg1:'6 分以下，常规消息',lgDeep:'解读文章，不是快讯',lgCf:'多家来源报了同一条',lgEv:'同一件事的其他快讯',lgDp:'有相关的深度文章',lgMine:'命中你的自选词 / 已收藏',staleAt:'连接中断，上次更新 {0}',refreshTip:'点击立即刷新',refreshed:'已是最新',sOpen:'开盘中',sPre:'盘前交易',sPost:'盘后交易',sClosed:'休市',nClose:'{0}后收盘',nOpen:'{0}后开盘',nEnd:'{0}后结束',early:'今日提前至 13:00 收盘',dD:'{0} 天 {1} 小时',dH:'{0} 小时 {1} 分',dM:'{0} 分钟',nowL:'现在',yourTime:'刻度为你的本地时间',mAll:'全部市场',mUS:'美股',mSA:'沙特',vsAll:'与平常的对比只在「全部市场」下显示',tag:'美国股市 · 沙特股市　实时要闻',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
+ search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',deep:'深度',deepB:'深度',flashB:'快讯',nDeep:'深度解读 {0} 篇',nFlash:'关联快讯 {0} 条',lvDeep:'深度文章',byDeep:'解读和评论，不打分、不推送',relArts:'深度解读',relFlash:'关联快讯',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
  lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiAi:'由 AI 逐条判断',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',
  topic:'话题',topicCnt:'{0} 条快讯 · {1} 条重要',timeline:'时间线 →',more:'更多重要快讯',wire:'实时快讯',viewAll:'查看全部 →',
  nSrc:'{0} 个来源证实',merged:'同一事件已合并',pts:'{0} 分',today:'今天',yesterday:'昨天',items:'{0} 条',seenHere:'以上是你上次离开后的新快讯',
- lvHot:'重要快讯',lvNone:'尚未评分',lvHigh:'高分',lvMid:'一般关注',lvLow:'常规消息',byAi:'AI 评分',byRule:'规则评分',byWait:'等待评分',boost:'原始 {0}，多源证实加分',
+ lvHot:'重要快讯',lvNone:'尚未评分',lvHigh:'高分',lvMid:'值得关注',lvLow:'常规消息',byAi:'AI 评分',byRule:'规则评分',byWait:'等待评分',boost:'原始 {0}，多源证实加分',
  noBody:'这条快讯只有标题，没有摘要。',original:'原文',translated:'译',open:'打开原文',copy:'复制标题',copied:'已复制标题',copyFail:'复制失败，请手动选择文字',detail:'快讯详情',
  sources:'来源',selAll:'全选',only:'只看',fetchFail:'最近一次抓取失败：{0}',gFlash:'快讯',gWire:'通讯社与媒体',gCn:'中文快讯',gGulf:'沙特与海湾',gOff:'官方与公告',gOther:'其他',
  alerts:'提醒',sound:'提示音',soundD:'有重要快讯时响一声',notif:'桌面通知',notifD:'有重要快讯时弹出系统通知',notifNo:'这个浏览器不支持',notifDenied:'已被浏览器拒绝，需在浏览器设置里放行',
  look:'外观',theme:'主题',tAuto:'跟随系统',tDark:'深色',tLight:'浅色',keys:'快捷键',kMove:'上下条',kOpen:'打开原文',kSearch:'搜索',kView:'切换视图',kStar:'收藏',kShow:'展示模式',
  eNone:'还没有数据',eNoneD:'部署后等一两分钟，第一批快讯就会出现。',eFilter:'没有符合条件的快讯',eFilterD:'当前的来源筛选或搜索把结果都过滤掉了。',eScore:'暂时没有达到这个分数的快讯',eScoreD:'可以切到“全部”看所有快讯。',eConn:'连接失败',eConnD:'暂时读不到数据，页面会自动重试。',
  newHot:'↑ {0} 条新的重要快讯',newAll:'↑ {0} 条新快讯',trLoad:'翻译模型下载中 {0}%',trEnable:'点此启用快讯翻译',trNo:'此浏览器不支持网页内翻译，快讯显示原文（电脑版 Chrome 可用）',watch:'自选',star:'收藏',wTitle:'自选关注',wPh:'如 NVDA、Aramco、美联储',add:'添加',wHint:'命中这些词的快讯会标出来，并汇总在“自选”一栏',wEmpty:'还没有自选关注',wEmptyD:'在右上角“来源与设置”里添加股票代码或关键词。',wNone:'暂时没有命中自选的快讯',sEmpty:'还没有收藏',sEmptyD:'打开一条快讯，点“收藏”就会出现在这里。',save:'收藏',saved:'已收藏',share:'复制分享文本',shared:'已复制，可直接粘贴',present:'展示模式',pHint:'← → 切换 · 空格暂停 · Esc 退出',pEmpty:'暂时没有重要快讯',src:'来源',loadMore:'加载更早的快讯',loading:'加载中…',noMore:'没有更早的快讯了（数据库保留最近 7 天）',loaded:'已载入 {0} 条 · 每分钟抓取',days:'日一二三四五六',dateFmt:'{0}月{1}日 星期{2}'},
-en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextDay:'Next session {0}',yourT:'{0} your time',backTo:'Back to {0}',crumbQ:'Showing: {0}',crumbN:'{0} items',related:'{0} more on this story →',staleAt:'Connection lost, last update {0}',refreshTip:'Click to refresh now',refreshed:'Up to date',sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKETS · LIVE WIRE',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
- search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',deep:'In depth',deepB:'IN DEPTH',nDeep:'{0} in-depth',nFlash:'{0} linked flashes',lvDeep:'In-depth article',byDeep:'Analysis and commentary, not scored or pushed',relArts:'In-depth coverage',relFlash:'Linked flashes',
+en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextDay:'Next session {0}',yourT:'{0} your time',backTo:'Back to {0}',crumbQ:'Showing: {0}',crumbN:'{0} items',related:'{0} more on this story',alsoH:'SAME STORY',alsoAll:'View all {0} →',topSub:'Ranked by score, one per story',moreSub:'Score 8+, newest first',wireSub:'All sources, newest first',cfBy:'Confirmed by',hitL:'Rule hits',noBodyArt:'Only the headline was captured. Use Open original to read the article.',lgT:'Legend',lg3:'8 and above: important',lg2:'6 to 8: worth a look',lg1:'Below 6: routine',lgDeep:'Analysis article, not a flash',lgCf:'Several sources ran the same item',lgEv:'More flashes on the same story',lgDp:'Has related in-depth articles',lgMine:'Matches your watchlist / saved',staleAt:'Connection lost, last update {0}',refreshTip:'Click to refresh now',refreshed:'Up to date',sOpen:'Open',sPre:'Pre-market',sPost:'After hours',sClosed:'Closed',nClose:'closes in {0}',nOpen:'opens in {0}',nEnd:'ends in {0}',early:'Early close today at 13:00',dD:'{0}d {1}h',dH:'{0}h {1}m',dM:'{0} min',nowL:'now',yourTime:'Axis shows your local time',mAll:'All markets',mUS:'US',mSA:'Saudi',vsAll:'The comparison with usual is shown for All markets only',tag:'US & SAUDI MARKETS · LIVE WIRE',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
+ search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',deep:'In depth',deepB:'IN DEPTH',flashB:'FLASH',nDeep:'{0} in-depth',nFlash:'{0} linked flashes',lvDeep:'In-depth article',byDeep:'Analysis and commentary, not scored or pushed',relArts:'In-depth coverage',relFlash:'Linked flashes',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
  lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiAi:'Judged per headline by AI',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',
  topic:'TOPIC',topicCnt:'{0} flashes · {1} important',timeline:'Timeline →',more:'MORE IMPORTANT',wire:'LIVE WIRE',viewAll:'View all →',
@@ -410,8 +439,8 @@ en:{thisDay:'Today’s session {0}',lPre:'pre',lOpen:'open',lClose:'close',nextD
  look:'APPEARANCE',theme:'Theme',tAuto:'System',tDark:'Dark',tLight:'Light',keys:'SHORTCUTS',kMove:'Next / previous',kOpen:'Open original',kSearch:'Search',kView:'Switch view',kStar:'Save',kShow:'Presentation',
  eNone:'No data yet',eNoneD:'The first flashes appear a minute or two after deployment.',eFilter:'Nothing matches',eFilterD:'The current source filter or search hides every flash.',eScore:'Nothing at this score yet',eScoreD:'Switch to "All" to see every flash.',eConn:'Connection failed',eConnD:'Data is unavailable right now. The page retries automatically.',
  newHot:'↑ {0} new important',newAll:'↑ {0} new flashes',trLoad:'Downloading translation model {0}%',trEnable:'Enable flash translation',trNo:'This browser cannot translate in-page, so flashes stay in their original language (desktop Chrome can)',watch:'Watchlist',star:'Saved',wTitle:'WATCHLIST',wPh:'e.g. NVDA, Aramco, Fed',add:'Add',wHint:'Flashes matching these terms are marked and collected under "Watchlist"',wEmpty:'No watchlist yet',wEmptyD:'Add tickers or keywords under "Sources & settings" at the top.',wNone:'No flashes match your watchlist right now',sEmpty:'Nothing saved yet',sEmptyD:'Open a flash and press "Save" to keep it here.',save:'Save',saved:'Saved',share:'Copy share text',shared:'Copied, ready to paste',present:'Presentation mode',pHint:'← → to move · Space to pause · Esc to exit',pEmpty:'No important flashes right now',src:'Source',loadMore:'Load earlier flashes',loading:'Loading…',noMore:'No earlier flashes (the database keeps the last 7 days)',loaded:'{0} loaded · fetched every minute',days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],dateFmt:'{2}, {3} {1}'},
-ar:{thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'الافتتاح',lClose:'الإغلاق',nextDay:'الجلسة التالية {0}',yourT:'{0} بتوقيتك',backTo:'العودة إلى {0}',crumbQ:'المعروض: {0}',crumbN:'{0} خبر',related:'{0} أخبار ذات صلة ←',staleAt:'انقطع الاتصال، آخر تحديث {0}',refreshTip:'انقر للتحديث الآن',refreshed:'محدَّث',sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'السوقان الأمريكي والسعودي · أخبار لحظية',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
- search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',deep:'تحليلات',deepB:'تحليل',nDeep:'{0} تحليل',nFlash:'{0} أخبار مرتبطة',lvDeep:'مقال تحليلي',byDeep:'تحليل وتعليق، بلا تقييم ولا إشعار',relArts:'مقالات تحليلية ذات صلة',relFlash:'الأخبار التي يتناولها المقال',
+ar:{thisDay:'جلسة اليوم {0}',lPre:'قبل الافتتاح',lOpen:'الافتتاح',lClose:'الإغلاق',nextDay:'الجلسة التالية {0}',yourT:'{0} بتوقيتك',backTo:'العودة إلى {0}',crumbQ:'المعروض: {0}',crumbN:'{0} خبر',related:'{0} أخبار ذات صلة',alsoH:'الخبر نفسه',alsoAll:'عرض الكل ({0}) ←',topSub:'مرتبة حسب التقييم، خبر واحد لكل حدث',moreSub:'تقييم 8 فأكثر، الأحدث أولًا',wireSub:'كل المصادر، الأحدث أولًا',cfBy:'أكدته',hitL:'القواعد المطابقة',noBodyArt:'لم يُلتقط سوى العنوان. استخدم «فتح المصدر» لقراءة المقال.',lgT:'دليل العلامات',lg3:'8 فأكثر: مهم',lg2:'من 6 إلى 8: جدير بالمتابعة',lg1:'أقل من 6: اعتيادي',lgDeep:'مقال تحليلي وليس خبرًا عاجلًا',lgCf:'نشرته عدة مصادر',lgEv:'أخبار أخرى عن الحدث نفسه',lgDp:'له مقالات تحليلية مرتبطة',lgMine:'يطابق قائمة متابعتك / محفوظ',staleAt:'انقطع الاتصال، آخر تحديث {0}',refreshTip:'انقر للتحديث الآن',refreshed:'محدَّث',sOpen:'مفتوح',sPre:'قبل الافتتاح',sPost:'بعد الإغلاق',sClosed:'مغلق',nClose:'يغلق بعد {0}',nOpen:'يفتح بعد {0}',nEnd:'ينتهي بعد {0}',early:'إغلاق مبكر اليوم 13:00',dD:'{0} ي {1} س',dH:'{0} س {1} د',dM:'{0} د',nowL:'الآن',yourTime:'المحور بتوقيتك المحلي',mAll:'كل الأسواق',mUS:'الأمريكي',mSA:'السعودي',vsAll:'المقارنة بالمعتاد تظهر لكل الأسواق فقط',tag:'السوقان الأمريكي والسعودي · أخبار لحظية',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
+ search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',deep:'تحليلات',deepB:'تحليل',flashB:'خبر',nDeep:'{0} تحليل',nFlash:'{0} أخبار مرتبطة',lvDeep:'مقال تحليلي',byDeep:'تحليل وتعليق، بلا تقييم ولا إشعار',relArts:'مقالات تحليلية ذات صلة',relFlash:'الأخبار التي يتناولها المقال',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
  lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiAi:'تقييم الذكاء الاصطناعي لكل عنوان',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',
  topic:'موضوع',topicCnt:'{0} خبر · {1} مهم',timeline:'التسلسل الزمني ←',more:'أخبار مهمة أخرى',wire:'الأخبار العاجلة',viewAll:'عرض الكل ←',
@@ -449,7 +478,7 @@ function dayKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+(d.getMonth()+
 function dateText(ts){var d=new Date(ts),dn=T('days')[d.getDay()],mn=(MONTHS[state.lang]||[])[d.getMonth()];return T('dateFmt',d.getMonth()+1,d.getDate(),dn,mn);}
 function dayLabel(ts){if(dayKey(ts)===dayKey(Date.now()))return [T('today'),dateText(ts)];if(dayKey(ts)===dayKey(Date.now()-864e5))return [T('yesterday'),dateText(ts)];return [dateText(ts),''];}
 function fmtScore(x){return x==null?'–':String(Math.round(x*10)/10)}
-function lvl(i){var s=i.score;if(s==null)return 0;if(s>=8)return 3;if(s>=5)return 2;return 1;}
+function lvl(i){var s=i.score;if(s==null)return 0;if(s>=8)return 3;if(s>=6)return 2;return 1;}
 function isHot(i){return !!(i.important&&!i.dup_of)}
 function isArt(i){return i.kind==='article'}
 var ENT={'&quot;':'"','&amp;':'&','&#39;':"'",'&apos;':"'",'&lt;':'<','&gt;':'>','&nbsp;':' '};
@@ -600,16 +629,30 @@ function topics(list){
 }
 
 /* ---------- 渲染：小件 ---------- */
-function chips(i,o){var h='';
-  if(isArt(i))h+='<span class="dpb">'+T('deepB')+'</span>'+(i.rel>0?'<span class="dpn">'+T('nFlash',i.rel)+'</span>':'');else if(i.rel>0)h+='<span class="dpn dpd">'+T('nDeep',i.rel)+'</span>';
-  if(i.confirms>0)h+='<span class="cf">'+T('nSrc',i.confirms+1)+'</span>';
+var IC={cf:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="4.9"/><path d="m3.8 6.2 1.5 1.5 2.9-3.2"/></svg>',
+  ev:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3h8M2 6h8M2 9h5"/></svg>',
+  dp:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 1.5h4.2L9.5 3.8v6.7H3z"/><path d="M5 6h2.6M5 8h2.6"/></svg>',
+  fl:'<svg viewBox="0 0 12 12" fill="currentColor"><path d="M6.9.8 2.4 6.9h2.9l-.6 4.3 4.9-6.3H6.5z"/></svg>',
+  mg:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5 6 6v4M9.5 2.5 6 6"/></svg>'};
+function nb(n){return '<b class="num">'+n+'</b>'}
+// 署名行里跟在来源、时间后面的小标记：类型（深度）、译、自选命中、已收藏
+function tags(i,o){var h='';
+  if(isArt(i))h+='<span class="tg">'+T('deepB')+'</span>';
   if(o&&o.tr)h+='<span class="trb">'+T('translated')+'</span>';
   var w=watchHit(i);if(w)h+='<span class="wh">◆ '+esc(w)+'</span>';
   if(state.stars[i.id])h+='<span class="wh">★</span>';
   return h;}
-function hits(i){var h='';if(i.hits)i.hits.split(' | ').forEach(function(x){if(x)h+='<span class="hit" dir="ltr">'+esc(x)+'</span>'});if(i.dup_of)h+='<span class="hit">'+T('merged')+'</span>';return h;}
-function byline(i,o,noScore){return '<div class="by">'+(noScore?'':'<span class="sc s'+lvl(i)+'">'+fmtScore(i.score)+'</span>')+'<b>'+esc(shortSrc(i.source))+'</b><span class="num">'+hm(i.ts)+'</span>'+chips(i,o)+'</div>';}
-function ring(i,cls){var s=i.score||0;return '<div class="ring'+(s>=8?'':' lo')+(cls||'')+'" style="--p:'+Math.round(s*10)+'"><span>'+fmtScore(i.score)+'</span></div>';}
+// 关联关系：统一的小胶囊。g 是简报里的事件分组（有就加“同一事件还有 N 条”，点了进时间线）
+function rels(i,g){var h='';
+  if(i.confirms>0)h+='<span class="rc cfm">'+IC.cf+'<span>'+T('nSrc',nb(i.confirms+1))+'</span></span>';
+  if(g){var n=g.items.length-1;if(n>0&&g.key){var q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;h+='<button class="rc" data-rel="'+esc(q)+'">'+IC.ev+'<span>'+T('related',nb(n))+'</span></button>';}}
+  if(i.rel>0)h+='<span class="rc">'+(isArt(i)?IC.fl:IC.dp)+'<span>'+T(isArt(i)?'nFlash':'nDeep',nb(i.rel))+'</span></span>';
+  if(i.dup_of)h+='<span class="rc">'+IC.mg+'<span>'+T('merged')+'</span></span>';
+  return h;}
+function hits(i){var h='';if(i.hits)i.hits.split(' | ').forEach(function(x){if(x)h+='<span class="hit" dir="ltr">'+esc(x)+'</span>'});return h;}
+function sc(i){return '<span class="sc s'+lvl(i)+'">'+fmtScore(i.score)+'</span>'}
+function byline(i,o,noScore,g,noRel){var r=noRel?'':rels(i,g);return '<div class="meta"><div class="by">'+(noScore?'':sc(i))+'<b>'+esc(shortSrc(i.source))+'</b><span class="num">'+hm(i.ts)+'</span>'+tags(i,o)+'</div>'+(r?'<div class="rels">'+r+'</div>':'')+'</div>';}
+function ring(i,cls){var s=i.score||0;return '<div class="ring'+(s>=8?'':s>=6?' mid':' lo')+(cls||'')+'" style="--p:'+Math.round(s*10)+'"><span>'+fmtScore(i.score)+'</span></div>';}
 function isZhText(s){return HAN.test(s)}
 
 /* ---------- 渲染：简报 ---------- */
@@ -635,7 +678,11 @@ function groupHot(hot){var gs=[],by={};
 // 有些来源（如 Bluesky 帖子）把整段话当标题：大标题位置只取第一句，太长就截断
 function headOf(t){if(t.length<=110)return t;var m=t.match(/^(.{24,110}?[.!?。！？])(\s|$)/);if(m)return m[1].replace(/[.。]$/,'');
   var c=t.slice(0,104),k=c.lastIndexOf(' ');return (k>60?c.slice(0,k):c).replace(/[,，;；:：\s]+$/,'')+'…';}
-function relChip(g){var n=g.items.length-1;if(n<1||!g.key)return '';var q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;return '<button class="rel" data-rel="'+esc(q)+'">'+T('related',n)+'</button>';}
+// 头条下面：同一件事的其他重要快讯（最多 3 条），让“同一事件”的关系直接看得见
+function alsoHtml(g,hero){var L=g.items.filter(function(i){return i.id!==hero.id});if(!L.length||!g.key)return '';
+  var q=g.key.charAt(0)==='#'&&g.rep.topic?'#'+g.rep.topic:g.key;
+  return '<div class="also"><div class="hd"><span>'+T('alsoH')+'</span><button data-rel="'+esc(q)+'">'+T('alsoAll',g.items.length)+'</button></div>'+L.slice(0,3).map(function(i){var o=tx(i);
+    return '<div class="li" data-id="'+esc(i.id)+'">'+sc(i)+'<div><span class="lt" dir="auto">'+esc(headOf(o.t))+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';}
 function briefHtml(b){
   var now=Date.now(),hot=hotList(b);
   if(!hot.length)return '';
@@ -644,10 +691,10 @@ function briefHtml(b){
   // 事件不够 4 组时，用剩下分数最高的补满
   var fill=hot.filter(function(i){return !used[i.id]});while(ranks.length<4&&fill.length){var f=fill.shift();used[f.id]=1;ranks.push({rep:f,items:[f],key:''});}
   var rest=hot.filter(function(i){return !used[i.id]}),ho=tx(hero,true),hb=ho.b!=null?ho.b:cleanBody(hero);
-  var h='<div class="top"><article class="hero" data-id="'+esc(hero.id)+'"><div class="kick">'+T('lead')+' · '+T('scoreN',fmtScore(hero.score))+'</div>'+
+  var h='<div class="top"><article class="hero" data-id="'+esc(hero.id)+'"><div class="kick">'+T('lead')+'</div>'+
     '<h2 dir="auto"'+(isZhText(ho.t)?' class="zh"':'')+'>'+hl(headOf(ho.t))+'</h2>'+(hb?'<p dir="auto">'+hl(hb.split('\n\n')[0])+'</p>':'')+
-    '<div class="foot">'+ring(hero)+byline(hero,ho,true)+relChip(g0)+'</div></article>'+
-    '<div class="rank"><h3>'+T('topToday')+'</h3>'+ranks.map(function(g,k){var i=g.rep,o=tx(i);return '<article class="rk" data-id="'+esc(i.id)+'"><em class="num">'+(k+2)+'</em><div><h4 dir="auto">'+hl(headOf(o.t))+'</h4>'+byline(i,o)+relChip(g)+'</div></article>'}).join('')+'</div></div>';
+    '<div class="foot">'+ring(hero)+byline(hero,ho,true)+'</div>'+alsoHtml(g0,hero)+'</article>'+
+    '<div class="rank"><h3>'+T('topToday')+'<small>'+T('topSub')+'</small></h3>'+ranks.map(function(g,k){var i=g.rep,o=tx(i);return '<article class="rk" data-id="'+esc(i.id)+'"><em class="num">'+(k+2)+'</em><div><h4 dir="auto">'+hl(headOf(o.t))+'</h4>'+byline(i,o,false,g)+'</div></article>'}).join('')+'</div></div>';
   // 12 小时统计：重要条数、和平常比、多空情绪、热门股票
   var win=dedupe(b.filter(function(i){return i.ts>now-12*36e5&&!i.dup_of})),tot=win.length,imp=win.filter(isHot).length,srcs={};win.forEach(function(i){srcs[i.source]=1});
   var st=state.mkt==='all'?state.stats:null,vs=state.mkt==='all'?'<div class="vs"><strong>'+T('vsNone')+'</strong><div class="gauge"></div></div>':'<div class="vs"><small>'+T('vsAll')+'</small></div>';
@@ -664,22 +711,22 @@ function briefHtml(b){
   topics(b.filter(function(i){return i.ts>now-18*36e5})).slice(0,2).forEach(function(tp){
     var L=dedupe(tp.items.slice().sort(function(x,y){return (y.score||0)-(x.score||0)||y.ts-x.ts}));
     h+='<div class="glass tile topic"><div class="lbl">'+T('topic')+'</div><h3 data-topic="'+esc((tp.tag?'#':'')+tp.name)+'" role="button" tabindex="0" style="cursor:pointer"><bdi>'+esc(tp.name)+'</bdi><span>'+T('timeline')+'</span></h3><div class="cnt">'+T('topicCnt',tp.items.length,tp.items.filter(isHot).length)+'</div>'+
-      L.slice(0,3).map(function(i){var o=tx(i);return '<div class="li" data-id="'+esc(i.id)+'"><span class="sc s'+lvl(i)+'">'+fmtScore(i.score)+'</span><div><span class="lt" dir="auto">'+esc(o.t)+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';});
+      L.slice(0,3).map(function(i){var o=tx(i);return '<div class="li" data-id="'+esc(i.id)+'">'+sc(i)+'<div><span class="lt" dir="auto">'+esc(o.t)+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';});
   h+='</div>';
   var more=rest.slice().sort(function(x,y){return y.ts-x.ts||(x.id<y.id?-1:1)}).slice(0,9),latest=b.slice(0,more.length>3?16:12);
-  h+='<div class="low"><div>'+(more.length?'<div class="sec"><span>'+T('more')+'</span><button data-go="hot">'+T('viewAll')+'</button></div><div class="g3">'+more.map(function(i){var o=tx(i),bb=o.b!=null?o.b:(o.tr?'':cleanBody(i));
+  h+='<div class="low"><div>'+(more.length?'<div class="sec"><span>'+T('more')+'<small>'+T('moreSub')+'</small></span><button data-go="hot">'+T('viewAll')+'</button></div><div class="g3">'+more.map(function(i){var o=tx(i),bb=o.b!=null?o.b:(o.tr?'':cleanBody(i));
       return '<article class="card" data-id="'+esc(i.id)+'"><h4 dir="auto">'+hl(o.t)+'</h4>'+(bb?'<p dir="auto">'+esc(bb)+'</p>':'')+byline(i,o)+'</article>'}).join('')+'</div>':'')+'</div>'+
-    '<div class="wire"><div class="sec"><span>'+T('wire')+'</span><button data-go="all">'+T('viewAll')+'</button></div>'+latest.map(function(i){var o=tx(i);
-      return '<div class="w'+(isHot(i)?' h':'')+'" data-id="'+esc(i.id)+'"><time class="num">'+hm(i.ts)+'</time><div><span class="wt" dir="auto">'+hl(o.t)+'</span><small>'+esc(shortSrc(i.source))+' · '+T('pts',fmtScore(i.score))+'</small></div></div>'}).join('')+'</div></div>';
+    '<div class="wire"><div class="sec"><span>'+T('wire')+'<small>'+T('wireSub')+'</small></span><button data-go="all">'+T('viewAll')+'</button></div>'+latest.map(function(i){var o=tx(i);
+      return '<div class="w'+(isHot(i)?' h':'')+'" data-id="'+esc(i.id)+'"><time class="num">'+hm(i.ts)+'</time><div><span class="wt" dir="auto">'+hl(o.t)+'</span><small>'+esc(shortSrc(i.source))+(isArt(i)?'<span class="tg">'+T('deepB')+'</span>':'')+'</small></div>'+sc(i)+'</div>'}).join('')+'</div></div>';
   return h;
 }
 
 /* ---------- 渲染：列表 ---------- */
 function rowHtml(i){
-  var L=lvl(i),hot=isHot(i),o=tx(i),x=chips(i,o)+hits(i);
+  var L=lvl(i),hot=isHot(i),o=tx(i),tg=tags(i,o),x=rels(i);
   return '<article class="row'+(hot?' imp':L>=2?' m':'')+(state.sel===i.id?' sel':'')+(state.newIds[i.id]?' new':'')+'" data-id="'+esc(i.id)+'">'+
-    '<time class="t num">'+hm(i.ts)+'</time><span class="sc s'+L+'">'+fmtScore(i.score)+'</span>'+
-    '<div class="c"><span class="h" dir="auto">'+hl(o.t)+'</span>'+(x?'<span class="x">'+x+'</span>':'')+'</div>'+
+    '<time class="t num">'+hm(i.ts)+'</time>'+sc(i)+
+    '<div class="c"><span class="h" dir="auto">'+hl(o.t)+'</span>'+(tg?'<span class="xi">'+tg+'</span>':'')+(x?'<div class="x">'+x+'</div>':'')+'</div>'+
     '<span class="src">'+esc(shortSrc(i.source))+'</span></article>';
 }
 function listHtml(v){
@@ -693,11 +740,13 @@ function listHtml(v){
 function detailHtml(i){
   var L=lvl(i),hot=isHot(i),u=fixUrl(i.url),o=tx(i,true),ob=cleanBody(i),b=o.b!=null?o.b:ob;
   var art=isArt(i)&&i.score==null;
-  var lv=art?T('lvDeep'):hot?T('lvHot'):i.score==null?T('lvNone'):i.score>=8?T('lvHigh'):i.score>=5?T('lvMid'):T('lvLow');
+  var lv=art?T('lvDeep'):hot?T('lvHot'):i.score==null?T('lvNone'):i.score>=8?T('lvHigh'):i.score>=6?T('lvMid'):T('lvLow');
   var by=art?T('byDeep'):i.score==null?T('byWait'):(i.score_by==='ai'?T('byAi'):T('byRule'))+(i.base_score!=null&&i.confirms>0&&i.base_score!==i.score?' · '+T('boost',fmtScore(i.base_score)):'');
-  var body=b?'<div class="d-body" dir="auto">'+b.split('\n\n').map(function(p){return '<p>'+hl(p).replace(/\n/g,'<br>')+'</p>'}).join('')+'</div>':'<div class="d-none">'+T('noBody')+'</div>';
+  var body=b?'<div class="d-body" dir="auto">'+b.split('\n\n').map(function(p){return '<p>'+hl(p).replace(/\n/g,'<br>')+'</p>'}).join('')+'</div>':'<div class="d-none">'+T(isArt(i)?'noBodyArt':'noBody')+'</div>';
+  var r=rels(i),hh=hits(i),cs={},cn=[];state.items.forEach(function(x){if(x.dup_of===i.id&&x.source!==i.source&&!cs[x.source]){cs[x.source]=1;cn.push(shortSrc(x.source))}});
+  var facts=(cn.length?'<div><span>'+T('cfBy')+'</span><span>'+esc(shortSrc(i.source)+' · '+cn.join(' · '))+'</span></div>':'')+(hh?'<div><span>'+T('hitL')+'</span><span>'+hh+'</span></div>':'');
   return '<div class="d"><div class="d-top">'+ring(i)+'<div><div class="d-lv'+(hot?' hot':'')+'">'+lv+'</div><div class="d-by">'+by+'</div></div></div>'+
-    '<h2 dir="auto">'+hl(o.t)+'</h2><div class="by"><b>'+esc(i.source)+'</b><span class="num" title="'+esc(new Date(i.ts).toLocaleString())+'">'+hm(i.ts)+'</span>'+chips(i,o)+hits(i)+'</div>'+body+
+    '<h2 dir="auto">'+hl(o.t)+'</h2><div class="by"><b>'+esc(i.source)+'</b><span class="num" title="'+esc(new Date(i.ts).toLocaleString())+'">'+hm(i.ts)+'</span>'+tags(i,o)+'</div>'+(r?'<div class="rels">'+r+'</div>':'')+(facts?'<div class="d-facts">'+facts+'</div>':'')+body+
     (o.tr?'<div class="orig" dir="auto"><b>'+T('original')+'</b>'+esc(cleanTitle(i.title))+'</div>':'')+relHtml(i)+
     '<div class="d-act">'+(u?'<a class="btn pri" href="'+esc(u)+'" target="_blank" rel="noopener">'+T('open')+EXT+'</a>':'')+'<button class="btn'+(state.stars[i.id]?' on':'')+'" data-star="'+esc(i.id)+'">'+(state.stars[i.id]?'★ '+T('saved'):'☆ '+T('save'))+'</button><button class="btn" data-copy="'+esc(i.id)+'">'+T('share')+'</button></div></div>';
 }
@@ -771,12 +820,13 @@ function render(soft,gesture){
   if(document.body.classList.contains('open-reader'))renderReader();
   setTop();if(want.length)pump(!!gesture);
 }
-function renderReader(){var i=state.sel&&byId(state.sel);if(i){$('rbody').innerHTML=detailHtml(i);loadRel(i);}}
+function renderReader(){var i=state.sel&&byId(state.sel);if(i){$('rbody').innerHTML=detailHtml(i);$('reader').querySelector('.px span').textContent=T(isArt(i)?'lvDeep':'detail');loadRel(i);}}
 /* 相关深度文章（快讯详情）/ 文章解读的快讯（文章详情）：打开详情时取一次，缓存 5 分钟 */
 var REL={};
 function relHtml(i){var c=REL[i.id];if(!c||!c.items||!c.items.length)return '';
   return '<div class="d-rel"><div class="d-rel-h">'+T(isArt(i)?'relFlash':'relArts')+' · <span class="num">'+c.items.length+'</span></div>'+c.items.map(function(r){var u=fixUrl(r.url),t=state.lang!=='zh'&&r.title_tr&&r.tr_lang===state.lang?r.title_tr:cleanTitle(r.title);
-    return '<a class="d-rel-a" href="'+esc(u||'#')+'" target="_blank" rel="noopener"><span dir="auto">'+esc(t)+'</span><small>'+esc(shortSrc(r.source))+' · <span class="num">'+hm(r.ts)+'</span></small></a>'}).join('')+'</div>';}
+    var k=byId(r.id);
+    return '<a class="d-rel-a" href="'+esc(u||'#')+'" target="_blank" rel="noopener">'+(isArt(i)&&k?sc(k):'<span class="tg" style="margin-top:3px">'+T(isArt(i)?'flashB':'deepB')+'</span>')+'<div><span dir="auto">'+esc(t)+'</span><small>'+esc(shortSrc(r.source))+' · <span class="num">'+hm(r.ts)+'</span></small></div></a>'}).join('')+'</div>';}
 async function loadRel(i){if(!isArt(i)&&!(i.rel>0)&&!i.dup_of)return;var c=REL[i.id];if(c&&Date.now()-c.at<3e5)return;REL[i.id]={at:Date.now(),items:c&&c.items||[]};
   try{var r=await fetch(api('/api/related?id='+encodeURIComponent(i.id)),{cache:'no-store'});if(!r.ok)return;var d=await r.json();REL[i.id]={at:Date.now(),items:d.items||[]};
     if(state.sel===i.id&&d.items&&d.items.length)$('rbody').innerHTML=detailHtml(i);}catch(e){}}
@@ -1095,6 +1145,17 @@ const BODY = `
   <div class="set"><div><span data-i="notif"></span><small id="ntHint"></small></div><button class="sw" id="swNotify" data-ia="notif" aria-pressed="false"></button></div>
   <div class="sh"><span data-i="look"></span></div>
   <div class="set"><div data-i="theme"></div><div class="seg" id="theme"><button data-t="auto" data-i="tAuto"></button><button data-t="dark" data-i="tDark"></button><button data-t="light" data-i="tLight"></button></div></div>
+  <div class="sh"><span data-i="lgT"></span></div>
+  <div class="legend">
+    <div><span><span class="sc s3">8.5</span></span><span data-i="lg3"></span></div>
+    <div><span><span class="sc s2">6.5</span></span><span data-i="lg2"></span></div>
+    <div><span><span class="sc s1">3</span></span><span data-i="lg1"></span></div>
+    <div><span><span class="tg" data-i="deepB"></span></span><span data-i="lgDeep"></span></div>
+    <div><span><span class="rc cfm"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="4.9"/><path d="m3.8 6.2 1.5 1.5 2.9-3.2"/></svg><b class="num">3</b></span></span><span data-i="lgCf"></span></div>
+    <div><span><span class="rc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3h8M2 6h8M2 9h5"/></svg><b class="num">2</b></span></span><span data-i="lgEv"></span></div>
+    <div><span><span class="rc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 1.5h4.2L9.5 3.8v6.7H3z"/><path d="M5 6h2.6M5 8h2.6"/></svg><b class="num">1</b></span></span><span data-i="lgDp"></span></div>
+    <div><span><span class="wh">◆ ★</span></span><span data-i="lgMine"></span></div>
+  </div>
   <div class="keysec"><div class="sh"><span data-i="keys"></span></div>
   <div class="keys"><span><kbd>J</kbd><kbd>K</kbd><span data-i="kMove"></span></span><span><kbd>Enter</kbd><span data-i="kOpen"></span></span><span><kbd>/</kbd><span data-i="kSearch"></span></span><span><kbd>1</kbd>–<kbd>6</kbd><span data-i="kView"></span></span><span><kbd>S</kbd><span data-i="kStar"></span></span><span><kbd>P</kbd><span data-i="kShow"></span></span></div></div>
 </aside>
