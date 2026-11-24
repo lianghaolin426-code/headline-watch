@@ -45,6 +45,12 @@ function config(env) {
     trMax: Number(env.MAX_TRANSLATE_PER_RUN || 8),
     trProvider: env.TRANSLATE_PROVIDER || 'ai',
     trAiMin: Number(env.TRANSLATE_AI_FALLBACK_MIN || 0),
+    // 深度文章（来源配置里 "kind": "article"）：不算多源确认、不推送，只挂到同一件事的快讯下面
+    articles: new Set(sources.filter((s) => s.kind === 'article').map((s) => s.name)),
+    artAi: env.ARTICLE_AI_SCORING === 'true', // 额度宽裕时可开：深度文章也让 AI 打分（仍不推送）
+    relHours: Number(env.RELATED_HOURS || 12), // 文章和多久以内的快讯比对
+    relSameVec: env.RELATED_SAME_LANG_VEC === 'true', // 额度宽裕时可开：同语言之间也用向量模型匹配（默认只用词重合）
+    relSameMin: Number(env.RELATED_SAME_LANG_MIN || 0.8),
   };
 }
 
@@ -152,7 +158,7 @@ async function findConfirmations(env, cfg, fresh, now) {
     )
       .bind(now - 3 * 3_600_000)
       .all()
-  ).results.filter((r) => !freshIds.has(r.id));
+  ).results.filter((r) => !freshIds.has(r.id) && !cfg.articles.has(r.source));
   for (const r of recent) r.tok = tokens(r.title);
   for (const f of fresh) f.tok = tokens(f.title);
   const W = idfWeights([...recent, ...fresh].map((x) => x.tok));
@@ -209,6 +215,82 @@ async function crossLanguage(env, cfg, fresh, now) {
     for (const r of f.zh ? enRows : zhRows) if (cos(f.vec, r.v) >= cfg.xlangMin) f.xl.add(r.id);
     for (const g of fresh) if (g.zh !== f.zh && cos(f.vec, g.vec) >= cfg.xlangMin) f.xlFresh.add(g);
   }
+}
+
+/** 深度文章：默认不调 AI（解读和评论不是突发快讯，省额度给快讯）；无论怎么打分都不算重要、不推送 */
+async function scoreArticles(env, cfg, arts, report) {
+  if (cfg.artAi && cfg.aiOn) {
+    await scoreItems(env, { ...cfg, threshold: Infinity }, arts.map((a) => Object.assign(a, { confirms: 0 })), report);
+    return;
+  }
+  await env.DB.batch(
+    arts.map((a) => env.DB.prepare("UPDATE items SET score = NULL, base_score = NULL, important = 0, score_by = 'article' WHERE id = ?").bind(a.id))
+  );
+}
+
+async function safeRelate(env, cfg, opts, report) {
+  try {
+    const n = await relate(env, cfg, opts);
+    if (n && report) report.related = (report.related || 0) + n;
+  } catch (e) {
+    console.warn('relate skipped (run migrate-v7.sql?)', e?.message || e);
+  }
+}
+
+/**
+ * 把深度文章挂到同一件事的快讯下面（写进 related 表，快讯一律记到这件事最早那条上）。
+ * 判断“同一件事”：中文之间、英文之间按标题用词重合（纯规则，不花额度）；
+ * 中英文之间用向量（很便宜，额度用光时这一层自动跳过）。
+ * arts：新来的文章，和最近 relHours 小时的快讯比；flashes：新来的快讯，和最近的文章比。
+ */
+export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now() }) {
+  if (!arts.length && !flashes.length) return 0;
+  const rows = (
+    await env.DB.prepare('SELECT id, source, title, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()
+  ).results;
+  const newIds = new Set([...arts, ...flashes].map((x) => x.id));
+  const oldArts = rows.filter((r) => cfg.articles.has(r.source) && !newIds.has(r.id));
+  const oldFlashes = rows.filter((r) => !cfg.articles.has(r.source) && !newIds.has(r.id));
+  const all = [...rows.filter((r) => !newIds.has(r.id)), ...arts, ...flashes];
+  for (const x of all) x.tok = x.tok || tokens(x.title);
+  const W = idfWeights(all.map((x) => x.tok));
+
+  // 向量：新文章求一次存起来；其余从 vecs 表读（快讯的向量打分时已经存过）
+  const vec = new Map();
+  if (cfg.xlangOn) {
+    const need = arts.filter((a) => !a.vec);
+    if (need.length) {
+      const v = await embed(env, need.map((a) => a.title));
+      if (v) {
+        need.forEach((a, i) => (a.vec = pack(v[i])));
+        await env.DB.batch(need.map((a) => env.DB.prepare('INSERT OR REPLACE INTO vecs (id, ts, zh, v) VALUES (?, ?, ?, ?)').bind(a.id, now, isZh(a.title) ? 1 : 0, new Uint8Array(a.vec.buffer))));
+      }
+    }
+    for (const x of [...arts, ...flashes]) if (x.vec) vec.set(x.id, x.vec);
+    const vr = (await env.DB.prepare('SELECT id, v FROM vecs WHERE ts > ?').bind(now - 6 * 3_600_000).all()).results;
+    for (const r of vr) if (!vec.has(r.id)) vec.set(r.id, unpack(r.v));
+  }
+  const same = (a, f) => {
+    const va = vec.get(a.id), vf = vec.get(f.id);
+    const cross = isZh(a.title) !== isZh(f.title);
+    if (va && vf && (cross || cfg.relSameVec)) {
+      if (cos(va, vf) >= (cross ? cfg.xlangMin : cfg.relSameMin)) return true;
+    }
+    return !cross && sameStory(a.tok, f.tok, W);
+  };
+  const pairs = new Map(); // "head|article" → true
+  const add = (f, a) => {
+    const head = f.dupOf || f.dup_of || f.id;
+    pairs.set(`${head}|${a.id}`, [head, a.id]);
+  };
+  for (const a of arts) {
+    let n = 0;
+    for (const f of [...flashes, ...oldFlashes]) if (n < 12 && same(a, f)) (add(f, a), n++);
+  }
+  for (const f of flashes) for (const a of oldArts) if (same(a, f)) add(f, a);
+  if (!pairs.size) return 0;
+  await env.DB.batch([...pairs.values()].map(([h, a]) => env.DB.prepare('INSERT OR IGNORE INTO related (flash_id, article_id, ts) VALUES (?, ?, ?)').bind(h, a, now)));
+  return pairs.size;
 }
 
 async function fetchSource(src, env = {}) {
@@ -323,6 +405,10 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       .run();
   }
 
+  // 深度文章单独处理：不进攒批、不参与多源确认和推送
+  const arts = fresh.filter((it) => cfg.articles.has(it.source));
+  if (arts.length) for (let k = fresh.length - 1; k >= 0; k--) if (cfg.articles.has(fresh[k].source)) fresh.splice(k, 1);
+
   // ---- 攒批：每次调用 AI 都要带上一大段固定提示词，一两条就调一次很浪费额度。
   // 规则命中的、高权重来源的快讯照旧马上打分；其余的先记为 wait，攒够 aiBatchSize 条或等满 aiWaitMin 分钟再一起打分。
   if (cfg.aiOn && env.AI && cfg.aiWaitMin > 0 && !inputs) {
@@ -334,7 +420,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       const freshIds = new Set(fresh.map((f) => f.id));
       const pend = (
         await db.prepare("SELECT id, source, title, body, url, ts, seen_at FROM items WHERE score_by = 'wait' AND seen_at > ? ORDER BY seen_at LIMIT 60").bind(now - 30 * 60_000).all()
-      ).results.filter((r) => !freshIds.has(r.id));
+      ).results.filter((r) => !freshIds.has(r.id) && !cfg.articles.has(r.source));
       const waiting = fresh.filter((it) => !now0(it)).length + pend.length;
       const go =
         fresh.some(now0) ||
@@ -373,6 +459,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
     const dupUpd = fresh.filter((it) => it.dupOf).map((it) => env.DB.prepare('UPDATE items SET dup_of = ? WHERE id = ?').bind(it.dupOf, it.id));
     if (dupUpd.length) await env.DB.batch(dupUpd);
+    if (cfg.articles.size) await safeRelate(env, cfg, { flashes: fresh, now }, report);
 
     for (const it of fresh) {
       if (it.important) report.matched++;
@@ -394,6 +481,15 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       }
     }
     if (upd.length) await env.DB.batch(upd);
+  }
+
+  if (arts.length) {
+    try {
+      await scoreArticles(env, cfg, arts, report);
+    } catch (e) {
+      report.errors.push(`深度文章打分出错: ${e?.message || e}`);
+    }
+    await safeRelate(env, cfg, { arts, now }, report);
   }
 
   if (notify && toNotify.length && enabledChannels(env).length) {
@@ -426,6 +522,9 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   if (!inputs && new Date(now).getUTCMinutes() === 0) {
     await db.prepare('DELETE FROM items WHERE seen_at < ?').bind(now - cfg.keepDays * 86_400_000).run();
     await db.prepare('DELETE FROM vecs WHERE ts < ?').bind(now - 6 * 3_600_000).run();
+    try {
+      await db.prepare('DELETE FROM related WHERE ts < ?').bind(now - cfg.keepDays * 86_400_000).run();
+    } catch {}
   }
 
   if (report.errors.length) console.warn('run errors', report.errors);
@@ -451,14 +550,21 @@ function escapeXml(s) {
   return String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
 }
 
-async function listItems(env, { limit = 200, matched = false, since = 0, before = 0 }) {
-  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''} FROM items
+async function listItems(env, opts) {
+  const arts = config(env).articles;
+  const rows = await listRows(env, opts);
+  for (const r of rows) if (arts.has(r.source)) r.kind = 'article';
+  return rows;
+}
+
+async function listRows(env, { limit = 200, matched = false, since = 0, before = 0 }) {
+  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id) AS rel' : ''} FROM items
                WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ORDER BY ts DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
   const args = before > 0 ? [since, before, Math.min(limit, 500)] : [since, Math.min(limit, 500)];
   // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
-  for (const level of [2, 1]) {
+  for (const level of [3, 2, 1]) {
     try {
       return (await env.DB.prepare(sql(level)).bind(...args).all()).results;
     } catch {}
@@ -487,7 +593,7 @@ export default {
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
     // 这样看板公开分享给别人也不会被人乱触发推送。
-    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore' || url.pathname === '/api/xlang') {
+    if (url.pathname === '/api/run' || url.pathname === '/api/test-notify' || url.pathname === '/api/rescore' || url.pathname === '/api/xlang' || url.pathname === '/api/relink') {
       if (env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY) {
         return new Response('需要 ?admin=管理密码', { status: 403 });
       }
@@ -555,6 +661,39 @@ export default {
         items.forEach((i) => (i.source = src.name));
         const input = items.length ? { src, items } : { src, error: `页面里没有解析到消息（${html.length} 字节）` };
         return json(await runOnce(env, { inputs: [input] }));
+      }
+
+      case '/api/related': {
+        // 详情面板用：快讯 → 同一件事的深度文章；文章 → 它解读的快讯
+        const id = url.searchParams.get('id') || '';
+        const cfg = config(env);
+        const it = await env.DB.prepare('SELECT id, source, dup_of FROM items WHERE id = ?').bind(id).first();
+        if (!it) return json({ items: [] });
+        const cols = 'i.id, i.source, i.title, i.title_tr, i.tr_lang, i.url, i.ts';
+        try {
+          if (cfg.articles.has(it.source)) {
+            const r = await env.DB.prepare(`SELECT ${cols} FROM related r JOIN items i ON i.id = r.flash_id WHERE r.article_id = ? ORDER BY i.ts DESC LIMIT 8`).bind(id).all();
+            return json({ kind: 'flashes', items: r.results });
+          }
+          const head = it.dup_of || it.id;
+          const r = await env.DB.prepare(
+            `SELECT DISTINCT ${cols} FROM related r JOIN items i ON i.id = r.article_id
+             WHERE r.flash_id = ?1 OR r.flash_id IN (SELECT id FROM items WHERE dup_of = ?1) ORDER BY i.ts DESC LIMIT 6`
+          ).bind(head).all();
+          return json({ kind: 'articles', items: r.results });
+        } catch {
+          return json({ items: [] }); // 还没跑 migrate-v7.sql
+        }
+      }
+
+      case '/api/relink': {
+        // 补挂：把最近 N 小时的深度文章重新和快讯比对一遍（改了匹配规则后用）
+        const cfg = config(env);
+        const hours = Math.min(Number(url.searchParams.get('hours') || 12), 48);
+        const now = Date.now();
+        const arts = (await env.DB.prepare('SELECT id, source, title FROM items WHERE ts > ?').bind(now - hours * 3_600_000).all()).results.filter((r) => cfg.articles.has(r.source));
+        const n = await relate(env, { ...cfg, relHours: hours + cfg.relHours }, { arts, now });
+        return json({ articles: arts.length, links: n });
       }
 
       case '/api/xlang': {

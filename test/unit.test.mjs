@@ -177,3 +177,28 @@ test('wallstreetcn information-flow: keep articles only, unwrap resource', async
   assert.equal(out[0].title, '华尔街看黄仁勋回归：卖方狂欢，买方困惑');
   assert.equal(out[0].url, 'https://wallstreetcn.com/articles/3');
 });
+
+test('relate links in-depth articles to the earliest flash of the same story', async () => {
+  const { relate } = await import('../src/index.js');
+  const rows = [
+    { id: 'wscn:1', source: '华尔街见闻', title: '英伟达宣布黄仁勋回归担任CEO 股价盘前大涨', dup_of: null },
+    { id: 'gl:2', source: '格隆汇', title: '黄仁勋回归英伟达担任CEO 英伟达盘前大涨', dup_of: 'wscn:1' },
+    { id: 'wscn:3', source: '华尔街见闻', title: '美联储维持利率不变 鲍威尔称通胀仍偏高', dup_of: null },
+  ];
+  const written = [];
+  const stmt = (sql) => ({
+    sql,
+    args: [],
+    bind(...a) { this.args = a; return this; },
+    async all() { return { results: sql.includes('FROM items') ? rows : [] }; },
+  });
+  const env = { DB: { prepare: stmt, async batch(list) { written.push(...list.map((s) => s.args)); } } };
+  const cfg = { articles: new Set(['华尔街见闻文章']), relHours: 12, xlangOn: false, relSameVec: false, relSameMin: 0.8, xlangMin: 0.65 };
+  const art = { id: 'wscnArticle:9', source: '华尔街见闻文章', title: '黄仁勋回归英伟达CEO引爆美股，英伟达盘前大涨，华尔街怎么看' };
+  const n = await relate(env, cfg, { arts: [art], now: Date.now() });
+  assert.ok(n >= 1);
+  const heads = written.map((a) => a[0]);
+  assert.ok(heads.includes('wscn:1'));
+  assert.ok(!heads.includes('gl:2'), 'duplicates are stored under their story head');
+  assert.ok(!heads.includes('wscn:3'));
+});
