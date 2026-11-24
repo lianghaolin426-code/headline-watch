@@ -311,9 +311,9 @@ test('claudeRelate maps the numbers Claude returns back to candidate flashes', a
   claudeReset();
   let prompt = '';
   const env = {
-    CLAUDE_CLIENT: { messages: { create: async (req) => { prompt = req.messages[0].content; return { stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 3 }, content: [{ type: 'text', text: '[2, 9, 2]' }] }; } } },
+    CLAUDE_CLIENT: { messages: { create: async (req) => { prompt = req.messages[0].content; const pick = /Flashes:/.test(prompt); return { stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 3 }, content: [{ type: 'text', text: pick ? '{"subject": "英伟达 (Nvidia)", "ids": [2, 9, 2, 3]}' : 'Nvidia reinstates Huang as CEO' }] }; } } },
   };
-  const cands = [{ id: 'a', title: 'Fed holds rates' }, { id: 'b', title: 'Nvidia reinstates Jensen Huang as CEO' }];
+  const cands = [{ id: 'a', title: 'Fed holds rates' }, { id: 'b', title: 'Nvidia reinstates Jensen Huang as CEO' }, { id: 'c', title: 'Sanofi strikes $41bn deal' }];
   const hit = await claudeRelate(env, { title: '黄仁勋回归引爆美股', body: '' }, cands);
   assert.deepEqual(hit.map((f) => f.id), ['b']);
   assert.match(prompt, /2\. Nvidia reinstates/);

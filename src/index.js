@@ -230,7 +230,8 @@ async function crossLanguage(env, cfg, fresh, now) {
 /** 深度文章：默认不调 AI（解读和评论不是突发快讯，省额度给快讯）；无论怎么打分都不算重要、不推送 */
 async function scoreArticles(env, cfg, arts, report) {
   if (cfg.artAi && cfg.aiOn) {
-    await scoreItems(env, { ...cfg, threshold: Infinity }, arts.map((a) => Object.assign(a, { confirms: 0 })), report);
+    const list = arts.map((a) => Object.assign(a, { confirms: 0 }));
+    for (let i = 0; i < list.length; i += cfg.maxAi) await scoreItems(env, { ...cfg, threshold: Infinity }, list.slice(i, i + cfg.maxAi), report);
     return;
   }
   await env.DB.batch(
@@ -256,7 +257,7 @@ async function safeRelate(env, cfg, opts, report) {
 export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now() }) {
   if (!arts.length && !flashes.length) return 0;
   const rows = (
-    await env.DB.prepare('SELECT id, source, title, body, score, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()
+    await env.DB.prepare('SELECT id, source, title, body, score, ts, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()
   ).results;
   const newIds = new Set([...arts, ...flashes].map((x) => x.id));
   const oldArts = rows.filter((r) => cfg.articles.has(r.source) && !newIds.has(r.id));
@@ -311,36 +312,70 @@ export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now
   return pairs.size;
 }
 
-/** 候选快讯：和文章用词有重合的、分数高的排前面，最多 60 条（英文快讯靠分数进候选） */
-function candidatesFor(a, heads, W) {
-  const rank = (f) => {
+/**
+ * 候选快讯（只取文章发出前 12 小时到发出后 1 小时的）：
+ * 和文章用词重合最多的 30 条（中文快讯主要靠这个），加上分数 7 以上的重要快讯（英文快讯和中文标题没有共同用词，靠这个进候选），
+ * 标题几乎一样的只留一条，最多 120 条。
+ */
+export function candidatesFor(a, heads, W) {
+  const t = a.ts || Date.now();
+  const near = heads.filter((f) => !f.ts || (f.ts > t - 12 * 3_600_000 && f.ts < t + 3_600_000));
+  const overlap = (f) => {
     let wi = 0;
     for (const w of a.tok) if (f.tok.has(w)) wi += W(w);
-    return wi + (f.score || 0) * 0.6;
+    return wi;
   };
-  return heads
-    .filter((f) => (f.score || 0) >= 5 || [...a.tok].some((w) => f.tok.has(w)))
-    .map((f) => [rank(f), f])
-    .sort((x, y) => y[0] - x[0])
-    .slice(0, 60)
-    .map((x) => x[1]);
+  const byWords = near.map((f) => [overlap(f), f]).filter((x) => x[0] > 0).sort((x, y) => y[0] - x[0]).slice(0, 30).map((x) => x[1]);
+  const byScore = near.filter((f) => (f.score || 0) >= 7).sort((x, y) => y.score - x.score || y.ts - x.ts);
+  const seen = new Set();
+  const out = [];
+  for (const f of [...byWords, ...byScore]) {
+    const k = String(f.title).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '').slice(0, 40);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(f);
+    if (out.length >= 120) break;
+  }
+  return out;
 }
 
-const RELATE_SYSTEM = `You link an in-depth financial article to short news flashes about the same specific event.
-You get the article title and summary, then numbered flash headlines (Chinese or English).
-Reply with a JSON array of the numbers of flashes that report the specific event or development the article is mainly about, e.g. [3,17]. At most 6.
-Do not include flashes that only share a company, person or broad theme with the article. Reply [] if none fit. Output only the array.`;
+// 分两步问：先只看文章说出它围绕的新闻事件（不给快讯列表，免得被满屏的大新闻带偏），再拿这个事件去挑快讯
+const EVENT_SYSTEM = `You read the title and summary of an in-depth financial article and name the one concrete news event it is built around, in a short sentence in the article's language.
+Most such articles are macro outlooks, strategy or theme pieces, or explainers with no single recent news event: answer exactly none for those.
+Reply with the event sentence or none, nothing else.`;
+
+const SUBJECT_STOP = new Set(['the', 'and', 'ceo', 'inc', 'corp', 'stock', 'shares', 'deal', 'reinstatement', 'us', 'u.s.', '美国', '公司', '股价']);
+const PICK_SYSTEM = `You get a news event and numbered news flashes (Chinese or English).
+First name the event's main subject (the company, person, central bank, asset or deal it is about).
+A flash qualifies only if it is about that same subject AND reports this event or a direct development of it (the announcement, official statements about it, the market or stock reaction to it, investigations about it).
+Flashes about other subjects never qualify, however big the news. Often no flash qualifies.
+Reply with JSON only: {"subject": "...", "ids": [numbers]}, at most 8 ids, most direct first, [] if none.`;
 
 /** 让 Claude 挑出和文章说同一件事的快讯；失败或没有就返回 [] */
 export async function claudeRelate(env, a, cands) {
   if (!cands.length) return [];
+  const e = await claudeText(env, { system: EVENT_SYSTEM, user: `Title: ${a.title}\nSummary: ${String(a.body || '').slice(0, 400)}`, maxTokens: 80, kind: 'relate' });
+  const ev = (e?.text || '').trim().replace(/^["'“]|["'”]$/g, '');
+  if (env.RELATE_DEBUG) env.RELATE_DEBUG.push({ article: a.title.slice(0, 40), event: ev });
+  if (!ev || /^none\b/i.test(ev)) return [];
   const list = cands.map((f, i) => `${i + 1}. ${String(f.title).slice(0, 160)}`).join('\n');
-  const user = `Article: ${a.title}\nSummary: ${String(a.body || '').slice(0, 400)}\n\nFlashes:\n${list}`;
-  const r = await claudeText(env, { system: RELATE_SYSTEM, user, maxTokens: 60, kind: 'relate' });
-  const m = r?.text.match(/\[[\d,\s]*\]/);
+  const r = await claudeText(env, { system: PICK_SYSTEM, user: `Event: ${ev}\n\nFlashes:\n${list}`, maxTokens: 100, kind: 'relate' });
+  const m = r?.text.match(/"ids"\s*:\s*(\[[\d,\s]*\])/) || r?.text.match(/\[[\d,\s]*\]/);
+  if (env.RELATE_DEBUG) env.RELATE_DEBUG[env.RELATE_DEBUG.length - 1].pick = (r?.text || '').slice(0, 120);
   if (!m) return [];
   try {
-    return [...new Set(JSON.parse(m[0]))].filter((n) => Number.isInteger(n) && n >= 1 && n <= cands.length).slice(0, 6).map((n) => cands[n - 1]);
+    // 防止模型写错编号：挑中的快讯标题里至少要出现主体里的一个词（公司名、人名等），对不上的丢掉
+    const subject = r.text.match(/"subject"\s*:\s*"([^"]*)"/)?.[1] || '';
+    const terms = subject
+      .toLowerCase()
+      .split(/[\/()（）,，、;；|\s]+/)
+      .filter((w) => (/[a-z]/.test(w) ? w.length >= 3 : w.length >= 2) && !SUBJECT_STOP.has(w));
+    const ok = (f) => !terms.length || terms.some((w) => String(f.title).toLowerCase().includes(w));
+    return [...new Set(JSON.parse(m[1] || m[0]))]
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= cands.length)
+      .map((n) => cands[n - 1])
+      .filter(ok)
+      .slice(0, 8);
   } catch {
     return [];
   }
@@ -752,8 +787,9 @@ export default {
         const report = { errors: [] };
         const unscored = arts.filter((a) => a.score_by !== 'ai').map((a) => enrich({ ...a }, cfg));
         if (url.searchParams.get('score') !== '0' && cfg.artAi && unscored.length) await scoreArticles(env, cfg, unscored, report);
-        const n = await relate(env, { ...cfg, relHours: hours + cfg.relHours }, { arts, now });
-        return json({ articles: arts.length, scored: cfg.artAi ? unscored.length : 0, links: n, errors: report.errors });
+        const dbg = url.searchParams.has('debug') ? [] : null;
+        const n = await relate(dbg ? { ...env, RELATE_DEBUG: dbg } : env, { ...cfg, relHours: hours + cfg.relHours }, { arts, now });
+        return json({ debug: dbg || undefined, articles: arts.length, scored: cfg.artAi ? unscored.length : 0, links: n, errors: report.errors });
       }
 
       case '/api/xlang': {
