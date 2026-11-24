@@ -78,8 +78,8 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 #sbtn,.cancel{display:none}
 
 /* ---------- 报头与视图切换 ---------- */
-.mast{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:end;gap:40px;padding-block:26px 20px}
-.mc{text-align:center;grid-column:2}
+.mast{display:grid;grid-template-columns:minmax(0,330px) minmax(0,auto) minmax(0,330px);justify-content:space-between;align-items:end;gap:32px;padding-block:26px 20px;overflow-x:clip}
+.mc{text-align:center;grid-column:2;min-width:0}
 .mkick{font-size:11px;font-weight:700;letter-spacing:.22em;color:var(--red)}
 /* 报头专用字体：Playfair Display ExtraBold（SIL OFL 许可），只保留 Headline Watch 用到的字母，内嵌在页面里，所有设备上长得一样 */
 @font-face{font-family:HWMast;font-weight:800;font-display:swap;src:url(data:font/woff2;base64,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) format('woff2')}
@@ -96,7 +96,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .ear .eh{display:flex;align-items:baseline;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3)}
 .ear .eh b{font:700 21px/1 var(--serif);letter-spacing:-.01em;color:var(--ink);margin-inline-start:auto}
 .ear .eh small{font-size:10.5px;font-weight:500;letter-spacing:.04em;color:var(--ink4)}
-.ear .es{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12.5px;color:var(--ink3);white-space:nowrap;overflow:hidden}
+.ear .es{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 7px;margin-top:7px;font-size:12.5px;color:var(--ink3);line-height:1.45}.ear .es u{align-self:center}.ear .es strong{white-space:nowrap}
 .ear .es strong{color:var(--ink);font-weight:600}
 .ear .es u{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ink4);text-decoration:none}
 .ear .es u.open{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
@@ -109,7 +109,7 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .rail.idle{opacity:.6}
 .rax{position:relative;height:28px;margin-top:6px;font-size:10px;color:var(--ink4);line-height:1.3}
 .rax span{position:absolute;transform:translateX(-50%);white-space:nowrap;text-align:center}[dir=rtl] .rax span{transform:translateX(50%)}
-.rax span.a0{transform:none;text-align:start}.rax span.a1{transform:translateX(-100%);text-align:end}[dir=rtl] .rax span.a1{transform:translateX(100%)}
+.rax span.a0{transform:none;text-align:start}.rax span.a1,[dir=rtl] .rax span.a1{transform:none;inset-inline-start:auto!important;inset-inline-end:0;text-align:end}
 .rax b{display:block;font-weight:500;color:var(--ink3)}.rax i{display:block;font-style:normal}
 .rnote{font-size:10.5px;color:var(--ink4);margin-top:2px}
 [dir=rtl] .mast p,[dir=rtl] .mkick,[dir=rtl] .ear .eh,[dir=rtl] .kick,[dir=rtl] .sec,[dir=rtl] .lbl{letter-spacing:0}
@@ -318,10 +318,13 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .tip{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);font-size:13px;padding:9px 15px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:88vw;text-align:center}
 .tip.show{opacity:1}
 
+/* ---------- 窄一些的电脑窗口和平板：两个市场排到标题下面，各占一半 ---------- */
+@media (max-width:1240px){
+  .mast{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px 28px;align-items:start}.mc{grid-column:1/-1;grid-row:1}.ear{max-width:none}
+}
 /* ---------- 平板 ---------- */
 @media (max-width:1080px){
   .wrap{padding-inline:26px}
-  .mast{grid-template-columns:1fr 1fr;gap:18px 28px;align-items:start}.mc{grid-column:1/-1;grid-row:1}.ear{max-width:none}
   .top,.low{grid-template-columns:1fr;gap:0}
   .rank,.wire{border:0;padding:0;margin-top:26px}
   .rank h3{border-top:3px solid var(--ink);padding-top:10px;color:var(--ink)}
