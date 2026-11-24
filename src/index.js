@@ -34,6 +34,7 @@ function config(env) {
     aiTags: env.AI_TAGS !== 'false',
     aiWaitMin: Number(env.AI_BATCH_WAIT_MIN ?? 5),
     aiBatchSize: Number(env.AI_BATCH_SIZE || 8),
+    aiUrgent: new Set(String(env.AI_URGENT_SOURCES || '').split(',').map((x) => x.trim()).filter(Boolean)),
     maxAi: Number(env.MAX_AI_PER_RUN || 15),
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
     xlangOn: env.CROSS_LANGUAGE !== 'false',
@@ -323,7 +324,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // 规则命中的、高权重来源的快讯照旧马上打分；其余的先记为 wait，攒够 aiBatchSize 条或等满 aiWaitMin 分钟再一起打分。
   if (cfg.aiOn && env.AI && cfg.aiWaitMin > 0 && !inputs) {
     try {
-      const urgent = (it) => it.hits.length > 0 || it.weight >= 1 || it.firstRun;
+      const urgent = (it) => it.hits.length > 0 || it.weight >= 1 || it.firstRun || cfg.aiUrgent.has(it.source);
       const freshIds = new Set(fresh.map((f) => f.id));
       const pend = (
         await db.prepare("SELECT id, source, title, body, url, ts, seen_at FROM items WHERE score_by = 'wait' AND seen_at > ? ORDER BY seen_at LIMIT 60").bind(now - 30 * 60_000).all()
@@ -332,6 +333,8 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       const go = fresh.some(urgent) || waiting >= cfg.aiBatchSize || (pend.length > 0 && now - pend[0].seen_at >= cfg.aiWaitMin * 60_000);
       if (go) {
         // 等得最久的先打分；一轮装不下的留到下一轮
+        // 等了半小时还没轮到的（极少见），不再等 AI，交给规则，免得一直显示“待评分”
+        await db.prepare("UPDATE items SET score_by = NULL WHERE score_by = 'wait' AND seen_at <= ?").bind(now - 30 * 60_000).run();
         const room = Math.max(0, cfg.maxAi - fresh.length);
         for (const r of pend.slice(0, room)) fresh.push(Object.assign(enrich(r, cfg), { firstRun: false }));
       } else if (fresh.length) {

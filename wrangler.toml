@@ -57,6 +57,8 @@ AI_TAGS = "true"
 # AI_BATCH_WAIT_MIN = "0" 表示不攒批，每分钟有新快讯就打分。
 AI_BATCH_WAIT_MIN = "5"
 AI_BATCH_SIZE = "8"
+# 这些快讯源以快为主，不攒批，一到就打分（逗号分隔，名字和 SOURCES 里的一致）
+AI_URGENT_SOURCES = "Reuters (Bluesky),Bloomberg (Bluesky),FinancialJuice,First Squawk,Walter Bloomberg,investingLive"
 
 # AI 打分开关；关掉则只用规则（关键词或 >= BIG_NUMBER_MIN_BILLION 十亿美元的金额 = 8 分）
 AI_SCORING = "true"
