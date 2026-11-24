@@ -422,6 +422,22 @@ export default {
         return json({ now: Date.now(), items });
       }
 
+      case '/api/stats': {
+        // 最近 7 天里，每天“和现在同一时段的 12 小时”各有多少条快讯、多少条重要（看板的“比平常热不热”用）
+        const now = Date.now();
+        const windows = (
+          await env.DB.prepare(
+            `SELECT CAST((?1 - ts) / 86400000 AS INTEGER) AS k, COUNT(*) AS n,
+                    SUM(CASE WHEN important = 1 AND dup_of IS NULL THEN 1 ELSE 0 END) AS imp
+             FROM items WHERE ts <= ?1 AND ts > ?1 - 604800000 AND ((?1 - ts) % 86400000) < 43200000 GROUP BY k ORDER BY k`
+          )
+            .bind(now)
+            .all()
+        ).results;
+        const oldest = (await env.DB.prepare('SELECT MIN(ts) AS t FROM items').first())?.t || now;
+        return json({ now, oldest, windows });
+      }
+
       case '/api/status': {
         const cfg = config(env);
         // 只显示当前配置里的源（已删掉的源不再列出）；外部推送进来的（如 Telegram）照常显示

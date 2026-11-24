@@ -110,7 +110,19 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .tsep{width:1px;height:16px;background:var(--rule2);flex:none}
 .btn.on{color:var(--red);border-color:var(--red)}
 .li .sc{align-self:start}
-.stat{display:flex;flex-direction:column}.stat .bars{margin-top:auto;padding-top:16px;height:60px}
+.stat{display:flex;flex-direction:column}
+.vs{margin-top:16px}.vs strong{display:block;font-size:13.5px;font-weight:700}.vs strong.up{color:var(--red)}.vs small,.sen small,.tk .sub{display:block;font-size:11.5px;color:var(--ink3);margin-top:5px;line-height:1.45}
+.gauge{position:relative;height:6px;border-radius:3px;background:var(--rule2);margin-top:10px}
+.gauge:before{content:'';position:absolute;inset-inline-start:50%;top:-4px;width:1px;height:14px;background:var(--ink3)}
+.gauge i{position:absolute;top:-3px;width:12px;height:12px;margin-inline-start:-6px;border-radius:50%;background:var(--ink);border:2px solid var(--bg);transition:inset-inline-start .6s cubic-bezier(.2,.7,.2,1)}
+.gauge i.up{background:var(--red)}
+.sen{margin-top:auto;padding-top:18px}.sen .hd{display:flex;justify-content:space-between;font-size:12px;font-weight:700}.sen .hd .sbu{color:var(--ok)}.sen .hd .sbe{color:var(--red)}
+.split{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--rule2);margin-top:7px;gap:2px}.split i{display:block;transition:flex-grow .6s cubic-bezier(.2,.7,.2,1)}.split .sbu{background:var(--ok)}.split .sne{background:var(--rule2)}.split .sbe{background:var(--red)}
+.tk .sub{margin:-4px 0 8px}
+.tkr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:8px 0;border:0;border-top:1px solid var(--rule);background:none;color:inherit;font:inherit;text-align:start;cursor:pointer}
+.tkr b{font:700 13px/1 var(--sans);letter-spacing:.02em;min-width:46px}.tkr span{font-size:12.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkr em{font-style:normal;font-size:12.5px;font-weight:700}.tkr u{grid-column:1/-1;display:block;height:3px;border-radius:2px;background:var(--ink);opacity:.75;text-decoration:none;margin-top:-2px}.tkr.h u{background:var(--red);opacity:1}
+.tkr:hover b{color:var(--red)}
 .wform{display:flex;gap:8px;padding:4px 26px 0}
 .wform input{flex:1;min-width:0;height:38px;border:1px solid var(--rule2);background:var(--glass);border-radius:999px;padding-inline:14px;font-size:14px}
 .wform input:focus{border-color:var(--ink3)}
@@ -163,10 +175,6 @@ button.trs{text-decoration:underline;text-underline-offset:3px}
 .lbl{font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink3);margin-bottom:10px}
 .stat b{display:block;font:700 58px/1 var(--serif);letter-spacing:-.04em}
 .stat p{margin:8px 0 0;font-size:13px;color:var(--ink3);line-height:1.5}
-.bars{display:flex;align-items:flex-end;gap:4px;height:44px;margin-top:16px}
-.bars i{flex:1;background:var(--rule2);border-radius:2px;min-height:3px}
-.bars i.h{background:var(--amber)}
-.axis{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink4);margin-top:5px}
 .topic h3{margin:0;font:700 25px/1.15 var(--serif);letter-spacing:-.02em;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .topic h3 span{font:500 12px/1 var(--sans);letter-spacing:0;color:var(--red);white-space:nowrap}
 .topic .cnt{font-size:12.5px;color:var(--ink3);margin:3px 0 8px}
@@ -334,7 +342,7 @@ var I18N={
 zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',fail:'连接失败，自动重试中',ny:'纽约',ry:'利雅得',mOpen:'开盘',mClosed:'休市',mPre:'盘前',mPost:'盘后',mNote:'按常规交易时段判断，不含节假日',
  search:'搜索标题和摘要',cancel:'取消',settings:'来源与设置',brief:'简报',hot:'重要',mid:'6 分以上',all:'全部',
  total:'共 {0} 条 · 每分钟抓取',hidden:'已隐藏 {0} 个来源',searching:'搜索“{0}”',clear:'清除筛选',sinceVisit:'上次查看后新增 <b>{0}</b> 条重要',
- lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',hAgo:'{0} 小时前',nowL:'现在',
+ lead:'头条',scoreN:'评分 {0}',topToday:'今日要闻',vsUp:'比平常多 {0}%',vsDown:'比平常少 {0}%',vsFlat:'和平常差不多',vsNone:'对比数据积累中，满一天后显示',vsNote:'对比过去 {0} 天同一时段的平均 {1} 条',senti:'多空情绪',bull:'利好 {0}',bear:'利空 {0}',sentiNote:'按标题关键词估算',sentiNone:'暂无明显多空信号',tkTitle:'热门股票',tkNone:'过去 12 小时没有被多次提到的股票',tkSub:'过去 12 小时被提到的次数，点击筛选',last12:'过去 12 小时',statLine:'条重要快讯，共 {0} 条，来自 {1} 个来源',hAgo:'{0} 小时前',nowL:'现在',
  topic:'话题',topicCnt:'{0} 条快讯 · {1} 条重要',timeline:'时间线 →',more:'更多重要快讯',wire:'实时快讯',viewAll:'查看全部 →',
  nSrc:'{0} 个来源证实',merged:'同一事件已合并',pts:'{0} 分',today:'今天',yesterday:'昨天',items:'{0} 条',seenHere:'上次看到这里',
  lvHot:'重要快讯',lvNone:'尚未评分',lvHigh:'高分',lvMid:'一般关注',lvLow:'常规消息',byAi:'AI 评分',byRule:'规则评分',byWait:'等待评分',boost:'原始 {0}，多源证实加分',
@@ -347,7 +355,7 @@ zh:{tag:'美股与沙特市场快讯',live:'实时更新',updated:'{0} 更新',f
 en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Connection lost, retrying',ny:'New York',ry:'Riyadh',mOpen:'Open',mClosed:'Closed',mPre:'Pre-market',mPost:'After hours',mNote:'Regular session hours; holidays not included',
  search:'Search headlines and summaries',cancel:'Cancel',settings:'Sources & settings',brief:'Briefing',hot:'Important',mid:'Score 6+',all:'All',
  total:'{0} items · fetched every minute',hidden:'{0} sources hidden',searching:'Search "{0}"',clear:'Clear filters',sinceVisit:'<b>{0}</b> important since your last visit',
- lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',hAgo:'{0}h ago',nowL:'now',
+ lead:'LEAD STORY',scoreN:'SCORE {0}',topToday:'TOP STORIES',vsUp:'{0}% busier than usual',vsDown:'{0}% quieter than usual',vsFlat:'About as busy as usual',vsNone:'Comparison appears after a full day of history',vsNote:'vs. an average of {1} in the same hours over the past {0} days',senti:'SENTIMENT',bull:'Bullish {0}',bear:'Bearish {0}',sentiNote:'Estimated from headline keywords',sentiNone:'No clear signal yet',tkTitle:'MOST MENTIONED STOCKS',tkNone:'No stock mentioned more than once in the last 12 hours',tkSub:'Mentions in the last 12 hours. Click to filter',last12:'LAST 12 HOURS',statLine:'important flashes out of {0}, from {1} sources',hAgo:'{0}h ago',nowL:'now',
  topic:'TOPIC',topicCnt:'{0} flashes · {1} important',timeline:'Timeline →',more:'MORE IMPORTANT',wire:'LIVE WIRE',viewAll:'View all →',
  nSrc:'{0} sources confirm',merged:'Merged with same story',pts:'{0}',today:'Today',yesterday:'Yesterday',items:'{0} items',seenHere:'YOU LEFT OFF HERE',
  lvHot:'Important',lvNone:'Not scored yet',lvHigh:'High score',lvMid:'Worth a look',lvLow:'Routine',byAi:'AI score',byRule:'Rule score',byWait:'Awaiting score',boost:'base {0}, raised by multi-source confirmation',
@@ -360,7 +368,7 @@ en:{tag:'US & SAUDI MARKET FLASHES',live:'Live',updated:'updated {0}',fail:'Conn
 ar:{tag:'أخبار عاجلة للسوقين الأمريكي والسعودي',live:'مباشر',updated:'آخر تحديث {0}',fail:'انقطع الاتصال، جارٍ إعادة المحاولة',ny:'نيويورك',ry:'الرياض',mOpen:'مفتوح',mClosed:'مغلق',mPre:'قبل الافتتاح',mPost:'بعد الإغلاق',mNote:'وفق ساعات التداول الاعتيادية، دون العطل',
  search:'ابحث في العناوين والملخصات',cancel:'إلغاء',settings:'المصادر والإعدادات',brief:'الموجز',hot:'المهم',mid:'6 فأكثر',all:'الكل',
  total:'{0} خبر · تحديث كل دقيقة',hidden:'{0} مصادر مخفية',searching:'بحث «{0}»',clear:'مسح التصفية',sinceVisit:'<b>{0}</b> أخبار مهمة منذ زيارتك الأخيرة',
- lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',hAgo:'قبل {0} س',nowL:'الآن',
+ lead:'الخبر الرئيسي',scoreN:'التقييم {0}',topToday:'أبرز أخبار اليوم',vsUp:'أكثر نشاطًا من المعتاد بنسبة {0}%',vsDown:'أهدأ من المعتاد بنسبة {0}%',vsFlat:'قريب من المعتاد',vsNone:'تظهر المقارنة بعد يوم كامل من البيانات',vsNote:'مقارنة بمتوسط {1} في الساعات نفسها خلال {0} أيام',senti:'معنويات السوق',bull:'إيجابي {0}',bear:'سلبي {0}',sentiNote:'تقدير من كلمات العناوين',sentiNone:'لا إشارة واضحة بعد',tkTitle:'الأسهم الأكثر ذكرًا',tkNone:'لا سهم ذُكر أكثر من مرة في آخر 12 ساعة',tkSub:'عدد مرات الذكر في آخر 12 ساعة. انقر للتصفية',last12:'آخر 12 ساعة',statLine:'خبرًا مهمًا من أصل {0}، من {1} مصدرًا',hAgo:'قبل {0} س',nowL:'الآن',
  topic:'موضوع',topicCnt:'{0} خبر · {1} مهم',timeline:'التسلسل الزمني ←',more:'أخبار مهمة أخرى',wire:'الأخبار العاجلة',viewAll:'عرض الكل ←',
  nSrc:'أكدته {0} مصادر',merged:'مدمج مع الخبر نفسه',pts:'{0}',today:'اليوم',yesterday:'أمس',items:'{0} خبر',seenHere:'توقفت هنا في آخر زيارة',
  lvHot:'خبر مهم',lvNone:'لم يُقيَّم بعد',lvHigh:'تقييم مرتفع',lvMid:'جدير بالمتابعة',lvLow:'خبر اعتيادي',byAi:'تقييم الذكاء الاصطناعي',byRule:'تقييم القواعد',byWait:'بانتظار التقييم',boost:'الأساس {0}، ورُفع لتأكيد عدة مصادر',
@@ -486,9 +494,9 @@ async function pump(gesture){
 function softRender(){clearTimeout(trTimer);trTimer=setTimeout(function(){render(true);if(show.on){var k=show.k;showRender();show.k=k;}},120);}
 
 /* ---------- 筛选 ---------- */
-function base(){var k=state.q.toLowerCase();
+function base(){var k=state.q.toLowerCase(),tk=/^\$[A-Za-z0-9.]{1,6}$/.test(state.q)?tkRe(state.q.slice(1).toUpperCase()):null;
   return state.items.filter(function(i){if(state.off[i.source])return false;
-    if(k){var c=TR[i.id];if((i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase().indexOf(k)<0)return false;}return true;});}
+    if(tk){if(!tk.test(i.title+' '+(i.title_tr||'')))return false;}else if(k){var c=TR[i.id];if((i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase().indexOf(k)<0)return false;}return true;});}
 function watchHit(i){if(!state.watch.length)return '';var c=TR[i.id],t=(i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase();
   for(var k=0;k<state.watch.length;k++){var w=state.watch[k].toLowerCase();if(/^[a-z0-9.]{1,5}$/.test(w)){if(new RegExp('(^|[^a-z0-9])'+w.replace(/\./g,'\\.')+'($|[^a-z0-9])').test(t))return state.watch[k];}else if(t.indexOf(w)>=0)return state.watch[k];}return '';}
 function inView(i,v){if(v==='watch')return !!watchHit(i);if(v==='hot')return isHot(i);if(v==='mid')return (i.score||0)>=6&&!i.dup_of;return true;}
@@ -497,6 +505,29 @@ function visible(){return state.view==='star'?starList():base().filter(function(
 function byId(id){for(var k=0;k<state.items.length;k++)if(state.items[k].id===id)return state.items[k];return state.stars[id]||null;}
 function offCount(){return Object.keys(state.off).length}
 function dedupe(list){var s={};return list.filter(function(i){var k=squash(cleanTitle(i.title)).slice(0,30);if(s[k])return false;s[k]=1;return true});}
+
+/* ---------- 热门股票与多空情绪：都在浏览器里按标题算，不用 AI ---------- */
+var TK=[['NVDA','Nvidia','nvidia|英伟达'],['AAPL','Apple','apple|苹果'],['MSFT','Microsoft','microsoft|微软'],['GOOGL','Alphabet','alphabet|google|谷歌'],['AMZN','Amazon','amazon|亚马逊'],
+ ['META','Meta','\\bMeta\\b|Facebook|脸书',1],['TSLA','Tesla','tesla|特斯拉'],['AVGO','Broadcom','broadcom|博通'],['AMD','AMD','\\bAMD\\b|超威半导体',1],['INTC','Intel','\\bintel\\b|英特尔'],
+ ['TSM','TSMC','tsmc|台积电'],['NFLX','Netflix','netflix|奈飞|网飞'],['ORCL','Oracle','oracle|甲骨文'],['PLTR','Palantir','palantir'],['JPM','JPMorgan','jpmorgan|jp morgan|摩根大通|小摩'],
+ ['GS','Goldman Sachs','goldman|高盛'],['MS','Morgan Stanley','morgan stanley|摩根士丹利|大摩'],['BAC','Bank of America','bank of america|美国银行'],['BRK','Berkshire','berkshire|伯克希尔'],
+ ['BA','Boeing','boeing|波音'],['XOM','Exxon','exxon|埃克森'],['CVX','Chevron','chevron|雪佛龙'],['WMT','Walmart','walmart|沃尔玛'],['DIS','Disney','disney|迪士尼'],['LLY','Eli Lilly','eli lilly|礼来'],
+ ['PFE','Pfizer','pfizer|辉瑞'],['COIN','Coinbase','coinbase'],['MU','Micron','micron|美光'],['QCOM','Qualcomm','qualcomm|高通'],['SMCI','Super Micro','super micro|supermicro|超微电脑'],
+ ['UBER','Uber','\\buber\\b|优步'],['SNY','Sanofi','sanofi|赛诺菲'],['INSM','Insmed','insmed'],
+ ['2222','Aramco','aramco|沙特阿美|أرامكو'],['2010','SABIC','\\bsabic\\b|沙特基础工业|سابك'],['1120','Al Rajhi','al rajhi|alrajhi|الراجحي'],['7010','stc','\\bstc\\b|saudi telecom|الاتصالات السعودية'],
+ ['1211','Maaden','ma.?aden|معادن'],['2082','ACWA Power','acwa|أكوا'],['1180','SNB','saudi national bank|\\bSNB\\b|البنك الأهلي']];
+var TKX={};TK.forEach(function(t){t.re=new RegExp('(?:'+t[2]+')|\\$'+t[0]+'\\b|[(:]\\s*'+t[0]+'\\)',t[3]?'':'i');TKX[t[0]]=t;});
+var CASH=/\$([A-Z]{2,5})\b|\((?:NASDAQ|NYSE|Nasdaq|NYSE American|TADAWUL)\s*:\s*([A-Z0-9.]{1,6})\)/g;
+function tkRe(sym){return TKX[sym]?TKX[sym].re:new RegExp('\\$'+sym.replace(/\./g,'\\.')+'\\b|[(:]\\s*'+sym.replace(/\./g,'\\.')+'\\)');}
+function tickers(list){var m={};
+  list.forEach(function(i){var t=cleanTitle(i.title),u={};
+    TK.forEach(function(k){if(k.re.test(t))u[k[0]]=k[1];});
+    var x;CASH.lastIndex=0;while((x=CASH.exec(t))){var s=x[1]||x[2];if(!u[s]&&!TKX[s]&&!/^(USD|EUR|GBP|JPY|CNY|SAR|BTC|ETH|GDP|CPI|ETF|IPO|CEO)$/.test(s))u[s]='';}
+    Object.keys(u).forEach(function(s){var o=m[s]=m[s]||{sym:s,name:u[s],n:0,hot:0};o.n++;if(isHot(i))o.hot++;});});
+  return Object.keys(m).map(function(s){return m[s]}).filter(function(o){return o.n>=2}).sort(function(a,b){return b.n-a.n||b.hot-a.hot||(a.sym<b.sym?-1:1)}).slice(0,6);}
+var BULL=/\b(surg\w+|soar\w*|jump\w*|rall(?:y|ies|ied)|gains?|rises?|rose|climb\w*|record high|beats?|upgrade[sd]?|boost\w*|rebound\w*|skyrocket\w*|buyback|tops|approv\w+|wins?|raises? (?:guidance|forecast|outlook|dividend))\b|大涨|上涨|飙升|暴涨|走高|新高|反弹|超预期|上调|回购|获批|利好|拉升|涨超|涨逾|涨近/gi;
+var BEAR=/\b(plung\w+|slump\w*|tumbl\w+|falls?|fell|drops?|dropped|slid\w*|sinks?|sank|crash\w*|sell-?off|miss(?:es|ed)?|downgrade[sd]?|warn\w*|loss(?:es)?|layoffs?|bankrupt\w*|defaults?|probe|investigat\w+|lawsuit|sanction\w*|tariffs?|blacklist\w*|halt\w*|recall\w*|fraud|short sellers?|lows?|weak\w*|fears?|slash\w*|cuts? (?:guidance|forecast|outlook|jobs))\b|大跌|下跌|暴跌|跳水|走低|新低|下调|不及预期|裁员|破产|违约|调查|制裁|关税|黑名单|利空|跌超|跌逾|跌近|亏损|警告|做空/gi;
+function mood(i){var t=cleanTitle(i.title),a=(t.match(BULL)||[]).length,b=(t.match(BEAR)||[]).length;return a>b?1:b>a?-1:0;}
 
 /* ---------- 话题：统计标题里反复出现的专有名词 ---------- */
 var STOP={};('the this that after with from will says new its and for not how why what but are has can could may over more here amid into than who was were his her their our your you they them just still also when where while about against between during before under near per via ' +
@@ -545,12 +576,20 @@ function briefHtml(b){
     '<h2 dir="auto"'+(isZhText(ho.t)?' class="zh"':'')+'>'+hl(ho.t)+'</h2>'+(hb?'<p dir="auto">'+hl(hb.split('\n\n')[0])+'</p>':'')+
     '<div class="foot">'+ring(hero)+byline(hero,ho,true)+'</div></article>'+
     '<div class="rank"><h3>'+T('topToday')+'</h3>'+rest.slice(0,4).map(function(i,k){var o=tx(i);return '<article class="rk" data-id="'+esc(i.id)+'"><em class="num">'+(k+2)+'</em><div><h4 dir="auto">'+hl(o.t)+'</h4>'+byline(i,o)+'</div></article>'}).join('')+'</div></div>';
-  // 12 小时统计
-  var hrs=[],mx=1,tot=0,imp=0,srcs={};
-  for(var k=11;k>=0;k--){var t0=now-(k+1)*36e5,t1=t0+36e5,its=b.filter(function(i){return i.ts>=t0&&i.ts<t1});hrs.push(its);mx=Math.max(mx,its.length);tot+=its.length;its.forEach(function(i){srcs[i.source]=1;if(isHot(i))imp++;});}
-  h+='<div class="now"><div class="glass tile stat"><div class="lbl">'+T('last12')+'</div><b>'+imp+'</b><p>'+T('statLine',tot,Object.keys(srcs).length)+'</p><div class="bars">'+
-    hrs.map(function(x){return '<i'+(x.some(isHot)?' class="h"':'')+' style="height:'+Math.round(x.length/mx*100)+'%" title="'+x.length+'"></i>'}).join('')+'</div><div class="axis"><span>'+T('hAgo',12)+'</span><span>'+T('nowL')+'</span></div></div>';
-  topics(b.filter(function(i){return i.ts>now-18*36e5})).forEach(function(tp){
+  // 12 小时统计：重要条数、和平常比、多空情绪、热门股票
+  var win=dedupe(b.filter(function(i){return i.ts>now-12*36e5&&!i.dup_of})),tot=win.length,imp=win.filter(isHot).length,srcs={};win.forEach(function(i){srcs[i.source]=1});
+  var st=state.stats,vs='<div class="vs"><strong>'+T('vsNone')+'</strong><div class="gauge"></div></div>';
+  if(st&&st.windows){var w0=null,past=[];st.windows.forEach(function(w){if(w.k===0)w0=w;else if(st.now-w.k*864e5-432e5>=st.oldest)past.push(w.imp||0);});
+    if(w0){imp=w0.imp||0;tot=Math.max(tot,w0.n||0);}
+    if(past.length){var avg=past.reduce(function(x,y){return x+y},0)/past.length,r=avg>0?imp/avg:(imp?2:1),pc=Math.round(Math.abs(r-1)*100),up=r>=1.1,dn=r<=.9;
+      vs='<div class="vs"><strong'+(up?' class="up"':'')+'>'+(up?T('vsUp',pc):dn?T('vsDown',pc):T('vsFlat'))+'</strong><div class="gauge"><i'+(up?' class="up"':'')+' style="inset-inline-start:'+Math.round(Math.max(0,Math.min(1,r/2))*100)+'%"></i></div><small>'+T('vsNote',past.length,Math.round(avg*10)/10)+'</small></div>';}}
+  var ms=win.filter(function(i){return (i.score||0)>=5}).map(mood),bu=ms.filter(function(x){return x>0}).length,be=ms.filter(function(x){return x<0}).length,ne=ms.length-bu-be;
+  var sen='<div class="sen"><div class="lbl" style="margin-bottom:8px">'+T('senti')+'</div>'+(bu+be?'<div class="hd"><span class="sbu">'+T('bull',bu)+'</span><span class="sbe">'+T('bear',be)+'</span></div><div class="split"><i class="sbu" style="flex-grow:'+bu+'"></i><i class="sne" style="flex-grow:'+Math.round(ne/4)+'"></i><i class="sbe" style="flex-grow:'+be+'"></i></div><small>'+T('sentiNote')+'</small>':'<small>'+T('sentiNone')+'</small>')+'</div>';
+  h+='<div class="now"><div class="glass tile stat"><div class="lbl">'+T('last12')+'</div><b>'+imp+'</b><p>'+T('statLine',tot,Object.keys(srcs).length)+'</p>'+vs+sen+'</div>';
+  var tks=tickers(win),tmx=tks.length?tks[0].n:1;
+  h+='<div class="glass tile tk"><div class="lbl">'+T('tkTitle')+'</div>'+(tks.length?'<div class="sub">'+T('tkSub')+'</div>'+tks.map(function(o){
+    return '<button class="tkr'+(o.hot?' h':'')+'" data-tk="'+esc(o.sym)+'"><b dir="ltr">'+esc(o.sym)+'</b><span dir="ltr">'+esc(o.name)+'</span><em class="num">'+o.n+'</em><u style="width:'+Math.max(8,Math.round(o.n/tmx*100))+'%"></u></button>'}).join(''):'<div class="sub" style="margin:0">'+T('tkNone')+'</div>')+'</div>';
+  topics(b.filter(function(i){return i.ts>now-18*36e5})).slice(0,2).forEach(function(tp){
     var L=dedupe(tp.items.slice().sort(function(x,y){return (y.score||0)-(x.score||0)||y.ts-x.ts}));
     h+='<div class="glass tile topic"><div class="lbl">'+T('topic')+'</div><h3 data-topic="'+esc(tp.name)+'" role="button" tabindex="0" style="cursor:pointer"><bdi>'+esc(tp.name)+'</bdi><span>'+T('timeline')+'</span></h3><div class="cnt">'+T('topicCnt',tp.items.length,tp.items.filter(isHot).length)+'</div>'+
       L.slice(0,3).map(function(i){var o=tx(i);return '<div class="li" data-id="'+esc(i.id)+'"><span class="sc s'+lvl(i)+'">'+fmtScore(i.score)+'</span><div><span class="lt" dir="auto">'+esc(o.t)+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';});
@@ -725,6 +764,15 @@ async function load(){
     $('live').classList.remove('err');$('liveTxt').textContent=T('updated',hm(Date.now()));
   }catch(e){$('live').classList.add('err');$('liveTxt').textContent=T('fail');if(!state.loaded&&!state.items.length){$('main').innerHTML='<div class="empty"><b>'+T('eConn')+'</b>'+T('eConnD')+'</div>';}}
 }
+async function loadStats(){
+  try{var r=await fetch(api('/api/stats'),{cache:'no-store'});if(!r.ok)return;state.stats=await r.json();if(state.view==='brief')render(true);}catch(e){}
+}
+// 第一次载入的 400 条不够覆盖 12 小时时，悄悄再取一页，让统计磁贴的数字是完整的
+async function backfill(){
+  if(state.filled||state.items.length<400)return;state.filled=true;var min=state.items[state.items.length-1].ts;if(min<Date.now()-12*36e5)return;
+  try{var r=await fetch(api('/api/items?limit=500&before='+min),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),have={};state.items.forEach(function(i){have[i.id]=1});
+    state.items=state.items.concat((d.items||[]).filter(function(i){return !have[i.id]})).sort(function(a,b){return b.ts-a.ts}).slice(0,6000);render(true);}catch(e){}
+}
 async function loadHealth(){
   try{var r=await fetch(api('/api/status'),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),h={};
     (d.sources||[]).forEach(function(s){if(s.last_error&&s.last_error_at&&(!s.last_ok||s.last_error_at>s.last_ok)){h[String(s.key).replace(/^[a-z]+:/,'')]=s.last_error;}});
@@ -774,6 +822,7 @@ $('main').addEventListener('click',function(e){
   if(e.target.id==='moreBtn')return loadOlder();
   if(e.target.id==='wgo'){panel('side',true);return $('winp').focus();}
   var go=e.target.closest('[data-go]');if(go)return setView(go.dataset.go);
+  var tkb=e.target.closest('[data-tk]');if(tkb){state.q='$'+tkb.dataset.tk;$('q').value=state.q;return setView('all');}
   var tp=e.target.closest('[data-topic]');if(tp){state.q=tp.dataset.topic;$('q').value=state.q;return setView('all');}
   if(window.getSelection&&String(window.getSelection()))return;
   var r=e.target.closest('[data-id]');if(r)openReader(r.dataset.id);});
@@ -841,7 +890,7 @@ $('show').addEventListener('click',function(e){if(e.target.closest('#showX'))ret
 document.addEventListener('fullscreenchange',function(){if(!document.fullscreenElement&&show.on)showClose();});
 document.addEventListener('visibilitychange',function(){if(!document.hidden){unread=0;document.title='Headline Watch';load();}});
 window.addEventListener('resize',setTop);
-trLoad();applyTheme();applyI18n();render();load();loadHealth();
+trLoad();applyTheme();applyI18n();render();load().then(backfill);loadHealth();loadStats();setInterval(loadStats,3e5);
 setInterval(load,15000);setInterval(renderClocks,20000);setInterval(loadHealth,300000);
 `;
 
