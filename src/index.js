@@ -179,6 +179,11 @@ async function fetchSource(src, env = {}) {
           ? parseCnJson(text, src.name, src.format)
           : parseFeed(text, src.name || url);
     if (src.name && src.type === 'telegram') items.forEach((i) => (i.source = src.name));
+    // 有的源把当地时间当成 UTC 写（如 Argaam 的利雅得时间 UTC+3）：配置 "tzHours": 3 修正
+    if (src.tzHours) items.forEach((i) => (i.ts -= src.tzHours * 3_600_000));
+    // 发布时间不可能晚于现在：未来时间一律按抓取时间算，免得一直顶在最上面
+    const now = Date.now();
+    items.forEach((i) => (i.ts = Math.min(i.ts, now)));
     return focusFilter(src, items);
   } finally {
     clearTimeout(timer);
