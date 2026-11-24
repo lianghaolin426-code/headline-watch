@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS items (
   notified INTEGER,           -- 推送时间，NULL 表示没推送
   score REAL,                 -- 重要性评分 0-10
   important INTEGER NOT NULL DEFAULT 0, -- 1 = 达到阈值，算重要快讯
-  score_by TEXT               -- ai 或 rule
+  score_by TEXT,              -- ai 或 rule
+  base_score REAL,            -- 互证加分前的分数
+  confirms INTEGER NOT NULL DEFAULT 0 -- 被几个其他来源报道
 );
 CREATE INDEX IF NOT EXISTS idx_items_ts ON items(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_items_seen ON items(seen_at);

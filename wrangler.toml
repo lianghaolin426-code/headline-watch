@@ -27,7 +27,17 @@ SOURCES = '''
   {"type": "rss", "name": "Seeking Alpha Currents", "url": "https://seekingalpha.com/market_currents.xml"},
   {"type": "rss", "name": "FinancialJuice", "url": "https://www.financialjuice.com/feed.ashx?xy=rss", "every": 5},
   {"type": "rss", "name": "Unusual Whales (Bluesky)", "url": "https://bsky.app/profile/unusualwhales.bsky.social/rss"},
-  {"type": "rss", "name": "WSJ (Bluesky)", "url": "https://bsky.app/profile/wsj.com/rss"}
+  {"type": "rss", "name": "WSJ (Bluesky)", "url": "https://bsky.app/profile/wsj.com/rss"},
+  {"type": "rss", "name": "Reuters (Bluesky)", "url": "https://bsky.app/profile/reuters.com/rss"},
+  {"type": "rss", "name": "Bloomberg (Bluesky)", "url": "https://bsky.app/profile/bloomberg.com/rss"},
+  {"type": "rss", "name": "AP (Bluesky)", "url": "https://bsky.app/profile/apnews.com/rss"},
+  {"type": "rss", "name": "CNBC (Bluesky)", "url": "https://bsky.app/profile/cnbc.com/rss"},
+  {"type": "rss", "name": "FT (Bluesky)", "url": "https://bsky.app/profile/financialtimes.com/rss"},
+  {"type": "rss", "name": "Barron's (Bluesky)", "url": "https://bsky.app/profile/barrons.com/rss"},
+  {"type": "rss", "name": "Nasdaq", "url": "https://www.nasdaq.com/feed/rssoutbound?category=Markets"},
+  {"type": "rss", "name": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
+  {"type": "rss", "name": "Federal Reserve", "url": "https://www.federalreserve.gov/feeds/press_all.xml"},
+  {"type": "rss", "name": "PR Newswire", "url": "https://www.prnewswire.com/rss/news-releases-list.rss"}
 ]
 '''
 
@@ -41,8 +51,8 @@ AI_THRESHOLD = "8"
 AI_SCORING = "true"
 BIG_NUMBER_MIN_BILLION = "10"
 
-# 来源加权：加到 AI 分上。快讯类频道更可信、更快，加分
-SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5}'
+# 来源加权：加到 AI 分上。快讯类频道更快，加分；综合新闻账号（夹杂科普、生活类）减分，但它们仍可作为“多源互证”的佐证
+SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5, "WSJ (Bluesky)": -1, "AP (Bluesky)": -1, "CNBC (Bluesky)": -0.5, "BBC Business": -0.5}'
 
 # 是否把“含大数字”的快讯也算粗筛命中（如 $24 billion、2万亿美元）
 BIG_NUMBERS = "true"

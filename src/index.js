@@ -4,6 +4,7 @@
 import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty } from './score.js';
+import { tokens, sameStory, confirmBoost } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { renderPage } from './page.js';
 
@@ -75,13 +76,46 @@ async function scoreItems(env, cfg, list, report) {
       it.score = it.hits.length || it.weight >= 1 ? ruleScore(it, cfg) : 0;
       it.scoreBy = 'rule';
     }
+    it.base = it.score;
+    it.score = Math.min(10, it.base + confirmBoost(it.confirms || 0));
     it.important = it.score >= cfg.threshold;
     updates.push(
-      env.DB.prepare('UPDATE items SET score = ?, important = ?, score_by = ?, hits = ? WHERE id = ?').bind(
-        it.score || null, it.important ? 1 : 0, it.score ? it.scoreBy : null, it.hits.join(' | '), it.id)
+      env.DB.prepare('UPDATE items SET score = ?, base_score = ?, confirms = ?, important = ?, score_by = ?, hits = ? WHERE id = ?').bind(
+        it.score || null, it.base, it.confirms || 0, it.important ? 1 : 0, it.score ? it.scoreBy : null, it.hits.join(' | '), it.id)
     );
   }
   if (updates.length) await env.DB.batch(updates);
+}
+
+/**
+ * 多源互证：新快讯和最近 6 小时其他来源的快讯比对，说的是同一件事就互相加分。
+ * 先算新快讯被几个其他来源报道（写到 it.confirms，打分时加分），
+ * 返回需要更新的旧快讯（它们也因为新来源的报道而加分）。
+ */
+async function findConfirmations(env, cfg, fresh, now) {
+  const freshIds = new Set(fresh.map((f) => f.id));
+  const recent = (
+    await env.DB.prepare(
+      'SELECT id, source, title, url, ts, base_score, confirms, important, notified, score_by, hits FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 1500'
+    )
+      .bind(now - 6 * 3_600_000)
+      .all()
+  ).results.filter((r) => !freshIds.has(r.id));
+  for (const r of recent) r.tok = tokens(r.title);
+  for (const f of fresh) f.tok = tokens(f.title);
+  const bumped = new Map();
+  for (const f of fresh) {
+    const srcs = new Set();
+    for (const r of recent) {
+      if (r.source === f.source || !sameStory(f.tok, r.tok)) continue;
+      srcs.add(r.source);
+      if (!bumped.has(r.id)) bumped.set(r.id, { row: r, add: new Set() });
+      bumped.get(r.id).add.add(f.source);
+    }
+    for (const g of fresh) if (g !== f && g.source !== f.source && sameStory(f.tok, g.tok)) srcs.add(g.source);
+    f.confirms = srcs.size;
+  }
+  return [...bumped.values()];
 }
 
 async function fetchSource(src) {
@@ -166,7 +200,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     await db
       .prepare(
         `INSERT INTO source_state (key, runs, last_ok, last_count) VALUES (?, 1, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET runs = runs + 1, last_ok = excluded.last_ok, last_count = excluded.last_count`
+         ON CONFLICT(key) DO UPDATE SET runs = runs + 1, last_ok = excluded.last_ok, last_count = excluded.last_count, last_error = NULL`
       )
       .bind(key, now, items.length)
       .run();
@@ -174,7 +208,21 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
 
   // ---- 打分：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分 ----
   if (fresh.length) {
+    const bumps = await findConfirmations(env, cfg, fresh, now);
     await scoreItems(env, cfg, fresh, report);
+    // 旧快讯被新来源证实：加分，刚过阈值且还没推送过的补推
+    const upd = [];
+    for (const { row, add } of bumps) {
+      if (row.base_score == null) continue;
+      const confirms = (row.confirms || 0) + add.size;
+      const score = Math.min(10, row.base_score + confirmBoost(confirms));
+      const important = score >= cfg.threshold;
+      upd.push(env.DB.prepare('UPDATE items SET confirms = ?, score = ?, important = ? WHERE id = ?').bind(confirms, score, important ? 1 : 0, row.id));
+      if (important && !row.important && !row.notified && now - row.ts <= cfg.maxAgeMs && cfg.notifyMode !== 'off') {
+        toNotify.push({ id: row.id, title: row.title, source: row.source, url: row.url, ts: row.ts, score, scoreBy: row.score_by, hits: [`${confirms + 1} 个来源证实`] });
+      }
+    }
+    if (upd.length) await env.DB.batch(upd);
     for (const it of fresh) {
       if (it.important) report.matched++;
       const wanted = cfg.notifyMode === 'all' || (cfg.notifyMode === 'matched' && it.important);
@@ -228,7 +276,7 @@ function escapeXml(s) {
 }
 
 async function listItems(env, { limit = 200, matched = false, since = 0 }) {
-  const sql = `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by FROM items
+  const sql = `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, confirms FROM items
                WHERE seen_at > ? ${matched ? 'AND important = 1' : ''}
                ORDER BY ts DESC LIMIT ?`;
   return (await env.DB.prepare(sql).bind(since, Math.min(limit, 500)).all()).results;
@@ -266,8 +314,11 @@ export default {
       }
 
       case '/api/status': {
-        const sources = (await env.DB.prepare('SELECT * FROM source_state ORDER BY key').all()).results;
         const cfg = config(env);
+        // 只显示当前配置里的源（已删掉的源不再列出）；外部推送进来的（如 Telegram）照常显示
+        const keys = new Set(cfg.sources.map(sourceKey));
+        const sources = (await env.DB.prepare('SELECT * FROM source_state ORDER BY key').all()).results
+          .filter((r) => keys.has(r.key) || !r.key.startsWith('rss:'));
         return json({
           channels: enabledChannels(env),
           keywords: cfg.rules.keywords,
@@ -298,7 +349,7 @@ export default {
         const cfg = config(env);
         const hours = Math.min(Number(url.searchParams.get('hours') || 6), 72);
         const rows = (
-          await env.DB.prepare('SELECT id, source, title, body, ts FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 200')
+          await env.DB.prepare('SELECT id, source, title, body, ts, confirms FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 200')
             .bind(Date.now() - hours * 3_600_000)
             .all()
         ).results.map((r) => enrich(r, cfg));

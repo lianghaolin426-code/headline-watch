@@ -77,3 +77,13 @@ test('rss without title uses description (Bluesky)', () => {
   const [it] = parseFeed(xml, 'bsky');
   assert.equal(it.title, 'BREAKING: Something big happened');
 });
+
+import { sameStory } from '../src/similar.js';
+
+test('same story detection across sources', () => {
+  assert.equal(sameStory('Jensen Huang reinstated as Nvidia CEO. Stock skyrockets 31%', 'BREAKING: $NVDA reinstates Jensen Huang as President and CEO'), true);
+  assert.equal(sameStory('CrowdStrike to buy Zscaler in $44 billion deal as AI supercharges cyberattacks', 'FinancialJuice: CROWDSTRIKE AGREES TO ACQUIRE ZSCALER FOR $44 BILLION'), true);
+  assert.equal(sameStory('Nvidia short sellers reap US$24 billion as stock extends slide', 'NVIDIA SHORT SELLERS REAP $24 BILLION AS STOCK EXTENDS SLIDE: S3'), true);
+  assert.equal(sameStory('Jensen Huang reinstated as Nvidia CEO', 'Asian chip stocks soar tracking Nvidia rally; S.Korea, Taiwan lead'), false);
+  assert.equal(sameStory('Gold rises amid risk-on sentiment', 'Fed official says rates likely higher'), false);
+});

@@ -81,6 +81,7 @@ main{max-width:920px;margin:0 auto;padding:6px 16px 80px}
 .tag{font:600 11px/1 var(--mono);padding:4px 6px;border-radius:6px;background:var(--bg2);border:1px solid var(--line);color:var(--fg2)}
 .sc{font:700 11px/1 var(--mono);padding:4px 6px;border-radius:6px;color:var(--muted);border:1px solid var(--line)}
 .sc.ai{color:var(--ai);border-color:color-mix(in srgb,var(--ai) 35%,transparent)}
+.cf{font:600 11px/1 var(--sans);padding:4px 7px;border-radius:6px;color:var(--up);background:color-mix(in srgb,var(--up) 12%,transparent)}
 .more{cursor:pointer;color:var(--muted);border-bottom:1px dashed var(--line2)}
 .body{display:none;margin-top:8px;font-size:13.5px;color:var(--muted);white-space:pre-wrap;border-left:2px solid var(--line2);padding-left:10px}
 .it.open .body{display:block}
@@ -173,7 +174,8 @@ function itemHtml(i){
   return '<article class="it'+(hot?' hot':'')+(state.newIds[i.id]?' new':'')+'" data-id="'+esc(i.id)+'">'+
     '<div class="tm" title="'+esc(new Date(i.ts).toLocaleString('zh-CN',{hour12:false}))+'">'+hm(i.ts)+'</div>'+
     '<div class="main"><div class="ttl"><a href="'+esc(i.url)+'" target="_blank" rel="noopener">'+esc(i.title)+'</a></div>'+
-    '<div class="meta"><span class="src"><i style="background:'+srcColor(i.source)+'"></i>'+esc(i.source)+'</span><span>'+ago(i.ts)+'</span>'+sc+tags+
+    '<div class="meta"><span class="src"><i style="background:'+srcColor(i.source)+'"></i>'+esc(i.source)+'</span><span>'+ago(i.ts)+'</span>'+sc+
+    (i.confirms>0?'<span class="cf" title="其他来源也报道了这条">'+(i.confirms+1)+' 个来源证实</span>':'')+tags+
     (i.body?'<span class="more">展开</span>':'')+'</div>'+
     (i.body?'<div class="body">'+esc(i.body)+'</div>':'')+'</div>'+
     (hot?'<div class="big"><b>'+fmtScore(i.score)+'</b><small>'+(i.score_by==='ai'?'AI 评分':'规则')+'</small></div>':'')+
