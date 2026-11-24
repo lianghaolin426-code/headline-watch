@@ -140,25 +140,30 @@ export async function myMemoryTranslate(env, title, lang, fetcher = fetch) {
  * tr_lang 记录译文语言；翻不出来的条目记为空串，避免每分钟重试同一条。
  * provider: 'ai' 用 Workers AI（标题和摘要），'mymemory' 用 MyMemory（只翻标题）。
  */
-export async function translatePending(env, { now = Date.now(), minScore = 6, max = 8, provider = 'ai', fetcher } = {}) {
+export async function translatePending(env, { now = Date.now(), minScore = 6, max = 8, provider = 'ai', aiMin = 0, fetcher } = {}) {
   if (max <= 0 || (provider === 'ai' && !env.AI)) return 0;
   const rows = (
     await env.DB.prepare(
-      'SELECT id, title, body FROM items WHERE title_tr IS NULL AND score >= ? AND ts > ? ORDER BY important DESC, score DESC, ts DESC LIMIT ?'
+      'SELECT id, title, body, score FROM items WHERE title_tr IS NULL AND score >= ? AND ts > ? ORDER BY important DESC, score DESC, ts DESC LIMIT ?'
     )
       .bind(minScore, now - 86_400_000, max)
       .all()
   ).results;
   let done = 0;
   if (provider === 'mymemory') {
+    let left = rows.slice();
     for (const r of rows) {
       const lang = targetLang(r.title);
       const t = await myMemoryTranslate(env, r.title, lang, fetcher);
       if (t === false || t === undefined) break; // 额度用完或网络不通：这一轮到此为止
       await env.DB.prepare('UPDATE items SET title_tr = ?, body_tr = ?, tr_lang = ? WHERE id = ?').bind(t || '', '', lang, r.id).run();
+      left = left.filter((x) => x !== r);
       if (t) done++;
     }
-    return done;
+    // MyMemory 翻不动时，分数达到 aiMin 的快讯交给 Workers AI（aiMin 为 0 表示不兜底）
+    rows.length = 0;
+    if (aiMin > 0 && env.AI) rows.push(...left.filter((r) => r.score >= aiMin));
+    if (!rows.length) return done;
   }
   for (const lang of ['zh', 'en']) {
     const batch = rows.filter((r) => targetLang(r.title) === lang);

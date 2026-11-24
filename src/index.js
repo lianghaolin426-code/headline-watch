@@ -39,6 +39,7 @@ function config(env) {
     trMin: Number(env.TRANSLATE_MIN_SCORE || 6),
     trMax: Number(env.MAX_TRANSLATE_PER_RUN || 8),
     trProvider: env.TRANSLATE_PROVIDER || 'ai',
+    trAiMin: Number(env.TRANSLATE_AI_FALLBACK_MIN || 0),
   };
 }
 
@@ -339,7 +340,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // 中英互译：每轮翻一小批分数够高的快讯（旧库还没加译文列时跳过，不影响抓取）
   if (cfg.trOn && !inputs) {
     try {
-      report.translated = await translatePending(env, { now, minScore: cfg.trMin, max: cfg.trMax, provider: cfg.trProvider });
+      report.translated = await translatePending(env, { now, minScore: cfg.trMin, max: cfg.trMax, provider: cfg.trProvider, aiMin: cfg.trAiMin });
     } catch (e) {
       console.warn('translate skipped', e?.message || e);
     }
