@@ -638,7 +638,10 @@ function base(all){if(state.only&&!all){var on=state.only.ids;return state.items
     if(tk){if(!(i.tickers!=null&&i.dir!=null?(','+i.tickers+',').indexOf(','+sym+',')>=0:tk.test(i.title+' '+(i.title_tr||''))))return false;}else if(tpc&&i.topic&&i.topic.toLowerCase()===tpc){}else if(k){var c=TR[i.id];if((i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase().indexOf(k)<0)return false;}return true;});}
 function watchHit(i){if(!state.watch.length)return '';var c=TR[i.id],t=(i.title+' '+(i.body||'')+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase();
   for(var k=0;k<state.watch.length;k++){var w=state.watch[k].toLowerCase();if(/^[a-z0-9.]{1,5}$/.test(w)){if(new RegExp('(^|[^a-z0-9])'+w.replace(/\./g,'\\.')+'($|[^a-z0-9])').test(t))return state.watch[k];}else if(t.indexOf(w)>=0)return state.watch[k];}return '';}
-function inView(i,v){if(v==='watch')return !!watchHit(i);if(v==='hot')return isHot(i);if(v==='mid')return (i.score||0)>=6&&!i.dup_of;if(v==='deep')return isArt(i);return true;}
+// state.contig：这个时间之后的快讯是完整的；更早的只有“6 分以上”和深度文章（首屏数据带来的）。
+// 所以“全部”和“自选”只列完整的那一段，免得看起来中间没有别的快讯；搜索、钻取、重要、6 分以上、深度不受影响
+function whole(i){return !state.contig||i.ts>=state.contig||!!state.only||!!state.q;}
+function inView(i,v){if(v==='watch')return whole(i)&&!!watchHit(i);if(v==='hot')return isHot(i);if(v==='mid')return (i.score||0)>=6&&!i.dup_of;if(v==='deep')return isArt(i);return whole(i);}
 function starList(){var k=state.q.toLowerCase();return Object.keys(state.stars).map(function(id){return byId(id)||state.stars[id]}).filter(function(i){return !k||(i.title+' '+(i.body||'')).toLowerCase().indexOf(k)>=0}).sort(function(a,b){return b.ts-a.ts});}
 function visible(){return state.view==='star'?starList():base().filter(function(i){return inView(i,state.view)});}
 function byId(id){for(var k=0;k<state.items.length;k++)if(state.items[k].id===id)return state.items[k];return state.stars[id]||null;}
@@ -835,7 +838,7 @@ function detailHtml(i){
   var art=isArt(i)&&i.score==null;
   var lv=art?T('lvDeep'):hot?T('lvHot'):i.score==null?T('lvNone'):i.score>=8?T('lvHigh'):i.score>=6?T('lvMid'):T('lvLow');
   var by=art?T('byDeep'):i.score==null?T('byWait'):(i.score_by==='ai'?T('byAi'):T('byRule'))+(i.base_score!=null&&i.confirms>0&&i.base_score!==i.score?' · '+T('boost',fmtScore(i.base_score)):'');
-  var body=b?'<div class="d-body" dir="auto">'+b.split('\n\n').map(function(p){return '<p>'+hl(p).replace(/\n/g,'<br>')+'</p>'}).join('')+'</div>':'<div class="d-none">'+T(isArt(i)?'noBodyArt':'noBody')+'</div>';
+  var body=b?'<div class="d-body" dir="auto">'+b.split('\n\n').map(function(p){return '<p>'+hl(p).replace(/\n/g,'<br>')+'</p>'}).join('')+'</div>':i.lite?'<div class="sk" style="width:86%"></div><div class="sk" style="width:62%"></div>':'<div class="d-none">'+T(isArt(i)?'noBodyArt':'noBody')+'</div>';
   var r=rels(i),hh=hits(i),cs={},cn=[];state.items.forEach(function(x){if(x.dup_of===i.id&&x.source!==i.source&&!cs[x.source]){cs[x.source]=1;cn.push(shortSrc(x.source))}});
   var tkc='';(i.tickers||'').split(',').forEach(function(x){if(x)tkc+='<button class="chipb" data-tk="'+esc(x)+'" dir="ltr">$'+esc(x)+'</button>'});
   if(!tkc){var ct=cleanTitle(i.title),nk=0;TK.forEach(function(k){if(nk<3&&k.re.test(ct)){nk++;tkc+='<button class="chipb" data-tk="'+esc(k[0])+'" dir="ltr">$'+esc(k[0])+'</button>'}});}
@@ -870,7 +873,7 @@ function renderSide(){
   $('wchips').innerHTML=state.watch.map(function(w,k){return '<button class="wc" data-w="'+k+'"><bdi>'+esc(w)+'</bdi> ×</button>'}).join('');
 }
 function renderTabs(b){
-  var n={hot:0,mid:0,all:b.length};b.forEach(function(i){if(inView(i,'hot'))n.hot++;if(inView(i,'mid'))n.mid++;});
+  var n={hot:0,mid:0,all:0};b.forEach(function(i){if(inView(i,'hot'))n.hot++;if(inView(i,'mid'))n.mid++;if(inView(i,'all'))n.all++;});
   tick($('nHot'),n.hot);tick($('nMid'),n.mid);tick($('nAll'),n.all);tick($('nDeep'),b.filter(isArt).length||'');
   tick($('nWatch'),state.watch.length?b.filter(function(i){return inView(i,'watch')}).length:'');tick($('nStar'),Object.keys(state.stars).length||'');
   [].forEach.call(document.querySelectorAll('.tab'),function(t){var on=t.dataset.v===state.view;t.classList.toggle('on',on);t.setAttribute('aria-selected',on?'true':'false')});inkSync();
@@ -967,7 +970,7 @@ function render(soft,gesture){
   if(document.body.classList.contains('open-reader'))renderReader();
   setTop();if(want.length)pump(!!gesture);
 }
-function renderReader(){var i=state.sel&&byId(state.sel);if(i){$('rbody').innerHTML=detailHtml(i);$('reader').querySelector('.px span').textContent=T(isArt(i)?'lvDeep':'detail');loadRel(i);}}
+function renderReader(){var i=state.sel&&byId(state.sel);if(i){if(i.lite)fillOne(i.id);$('rbody').innerHTML=detailHtml(i);$('reader').querySelector('.px span').textContent=T(isArt(i)?'lvDeep':'detail');loadRel(i);}}
 /* 相关深度文章（快讯详情）/ 文章解读的快讯（文章详情）：打开详情时取一次，缓存 5 分钟 */
 var REL={};
 function relHtml(i){var c=REL[i.id];if(!c||!c.items||!c.items.length)return '';
@@ -1068,7 +1071,7 @@ async function load(manual){
     if(!r.ok)throw new Error('HTTP '+r.status);
     var d=await r.json(),known={},changed=!state.loaded;
     // 用本机快照先显示的：如果离开太久、中间隔了不止一页，就丢掉快照，只用新数据，避免中间缺一段
-    if(state.first&&state.bootAt&&d.items.length>=400){state.items=[];changed=true;}
+    if(state.first&&state.bootAt&&d.items.length>=400){state.items=[];state.contig=0;changed=true;}
     if(d.build)newBuild(d.build);
     state.items.forEach(function(x){known[x.id]=1});state.pending.forEach(function(x){known[x.id]=1});
     var fresh=d.items.filter(function(i){return !known[i.id]});
@@ -1103,7 +1106,7 @@ async function loadStats(){
 }
 // 第一次载入的 400 条不够覆盖 12 小时时，悄悄再取一页，让统计磁贴的数字是完整的
 async function backfill(){
-  if(state.filled||state.items.length<400)return;state.filled=true;var min=state.items[state.items.length-1].ts;if(min<Date.now()-12*36e5)return;
+  if(state.filled||state.contig||state.items.length<400)return;state.filled=true;var min=state.items[state.items.length-1].ts;if(min<Date.now()-12*36e5)return;
   try{var r=await fetch(api('/api/items?limit=500&before='+min),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),have={};state.items.forEach(function(i){have[i.id]=1});
     state.items=state.items.concat((d.items||[]).filter(function(i){return !have[i.id]})).sort(function(a,b){return b.ts-a.ts}).slice(0,6000);render(true);}catch(e){}
 }
@@ -1123,12 +1126,14 @@ async function loadOlder(){
   if(state.noMore||!state.items.length)return;
   state.older=true;render(true);
   try{
-    var min=state.items[state.items.length-1].ts,r=await fetch(api('/api/items?limit=400&before='+min),{cache:'no-store'});
+    var min=state.contig||state.items[state.items.length-1].ts,r=await fetch(api('/api/items?limit=400&before='+min),{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
-    var d=await r.json(),known={};state.items.forEach(function(x){known[x.id]=1});
+    var d=await r.json(),known={},got={};state.items.forEach(function(x){known[x.id]=1});d.items.forEach(function(i){got[i.id]=i});
     var add=d.items.filter(function(i){return !known[i.id]});
-    if(d.items.length<400)state.noMore=true;
-    if(add.length){state.items=state.items.concat(add).sort(function(a,b){return b.ts-a.ts}).slice(0,6000);state.shown+=400;}
+    state.items=state.items.map(function(x){return x.lite&&got[x.id]?got[x.id]:x});
+    if(state.contig)state.contig=d.items.length?d.items[d.items.length-1].ts:state.contig;
+    if(d.items.length<400){state.noMore=true;state.contig=0;}
+    if(add.length)state.items=state.items.concat(add).sort(function(a,b){return b.ts-a.ts}).slice(0,6000);if(d.items.length)state.shown+=400;
   }catch(e){tip(T('fail'));}
   state.older=false;render(true);
 }
@@ -1327,8 +1332,10 @@ if(hashId){try{history.replaceState(history.state,'',location.href.split('#')[0]
 /* ---------- 秒开：先用现成的数据把页面画出来，再去拿更新 ----------
    两个来源取较新的一个：服务器写进网页的首屏数据（BOOT），和本机上次看到的快照（刷新、断网时用）。
    超过 12 小时的旧数据不用，照常显示骨架等网络。 */
-var SNAP='hw-snap',snapT=0;
-function snapSave(){try{if(state.loaded&&!state.lite&&state.items.length)localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),stats:state.stats,items:state.items.slice(0,400)}))}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
+var SNAP='hw-snap2',snapT=0;try{localStorage.removeItem('hw-snap')}catch(e){}
+function snapSave(){try{if(state.loaded&&!state.lite&&state.items.length){var top=state.items.filter(function(i){return !state.contig||i.ts>=state.contig}).slice(0,400),cg=top.length>=400?top[top.length-1].ts:0,t18=Date.now()-18*36e5;
+    var old=cg?state.items.filter(function(i){return i.ts<cg&&i.ts>t18&&((i.score||0)>=6||isArt(i))}).slice(0,700):[];
+    localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),contig:cg,stats:state.stats,items:top.concat(old)}));}}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
 function snapSoon(){clearTimeout(snapT);snapT=setTimeout(function(){(window.requestIdleCallback||setTimeout)(snapSave)},1500);}
 window.addEventListener('pagehide',snapSave);
 function bootData(){var b=BOOT,c=null,at=0;try{c=JSON.parse(localStorage.getItem(SNAP)||'null')}catch(e){}
@@ -1339,14 +1346,19 @@ function bootData(){var b=BOOT,c=null,at=0;try{c=JSON.parse(localStorage.getItem
   if(b&&c){// 网页自带的数据更新，但只有标题；正文从本机快照里补
     var m={};c.items.forEach(function(i){m[i.id]=i});at=c.now;
     b.items=b.items.map(function(i){var o=i.lite&&m[i.id];if(!o)return i;o=Object.assign({},o,i);delete o.lite;return o;});}
-  var src=b||c;state.items=src.items;state.stats=src.stats||null;state.bootAt=at||src.now;state.loaded=true;
-  state.lite=state.items.some(function(i){return i.lite});
+  var src=b||c;state.items=src.items.slice().sort(function(x,y){return y.ts-x.ts});state.contig=src.contig||0;state.stats=src.stats||null;state.bootAt=at||src.now;state.loaded=true;
+  state.lite=state.items.some(function(i){return i.lite&&(!state.contig||i.ts>=state.contig)});
   state.items.forEach(function(i){if(i.seen_at>state.lastSeen)state.lastSeen=i.seen_at});
   return Math.abs(Date.now()-src.now)<2e4;}
 // 轻量条目补全文：取一次完整的最新 400 条，按 id 补上正文和链接
+// 更早的轻量条目点开时再单独取全文
+var ONE={};
+async function fillOne(id){var x=byId(id);if(!x||!x.lite||ONE[id])return;ONE[id]=1;
+  try{var r=await fetch(api('/api/item?id='+encodeURIComponent(id)),{cache:'no-store'});if(!r.ok)throw 0;var d=await r.json(),u=d.items&&d.items[0];if(!u)throw 0;
+    state.items=state.items.map(function(y){return y.id===id?u:y});if(state.sel===id&&document.body.classList.contains('open-reader'))renderReader();}catch(e){ONE[id]=0;}}
 async function fillLite(){if(!state.lite)return;
   try{var r=await fetch(api('/api/items?limit=400&since=0'),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),u={};d.items.forEach(function(i){u[i.id]=i});
-    state.items=state.items.map(function(x){if(!x.lite)return x;if(u[x.id])return u[x.id];x=Object.assign({},x);delete x.lite;return x;});
+    state.items=state.items.map(function(x){return x.lite&&u[x.id]?u[x.id]:x});
     state.lite=false;if(document.body.classList.contains('open-reader'))renderReader();snapSoon();}catch(e){}}
 /* 新版本：服务器的版本号和这张网页不一样时，先把新网页存好。刚打开、还没动过就悄悄换上；已经在用了就只提示，不打断 */
 var touched=false,buildSeen='';
@@ -1362,7 +1374,7 @@ var freshBoot=bootData();instant=state.loaded;
 trLoad();applyTheme();applyI18n();render();
 if(freshBoot){state.first=false;state.okAt=Date.now();$('liveTxt').textContent=T('updated',hm(Date.now()));if(state.lastSeen>state.topSeen)state.topSeen=state.lastSeen;save();snapSoon();if(hashId)openFromPush(hashId);fillLite().then(backfill);}
 else{load().then(function(){if(hashId)openFromPush(hashId);}).then(fillLite).then(backfill);}
-if(!state.stats)loadStats();
+if(!state.stats||!freshBoot)loadStats();
 pushInit();(window.requestIdleCallback||setTimeout)(loadHealth);setInterval(loadStats,3e5);
 setInterval(load,15000);setInterval(renderClocks,20000);setInterval(loadHealth,300000);
 `;

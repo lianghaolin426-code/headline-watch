@@ -661,12 +661,13 @@ async function listItems(env, opts) {
   return rows;
 }
 
-async function listRows(env, { limit = 200, matched = false, since = 0, before = 0 }) {
+async function listRows(env, { limit = 200, matched = false, since = 0, before = 0, after = 0, keep = null, ids = null, cap = 500 }) {
   const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''} FROM items
-               WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
+               WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${after > 0 ? 'AND ts > ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
+               ${keep ? `AND (score >= 6 OR source IN (${keep.map(() => '?').join(',') || "''"}))` : ''} ${ids ? `AND id IN (${ids.map(() => '?').join(',')})` : ''}
                ORDER BY ts DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
-  const args = before > 0 ? [since, before, Math.min(limit, 500)] : [since, Math.min(limit, 500)];
+  const args = [since, ...(before > 0 ? [before] : []), ...(after > 0 ? [after] : []), ...(keep || []), ...(ids || []), Math.min(limit, cap)];
   // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
   for (const level of [3, 2, 1]) {
     try {
@@ -705,6 +706,21 @@ async function statsData(env) {
 }
 
 // 写进网页的首屏数据用“轻量版”：重要快讯保留全文，其余只留标题和标签（正文、链接等网页打开后再补齐），网页能小四成
+// 首屏数据：最新的 400 条，加上 18 小时内更早的“6 分以上”和深度文章。
+// 这样头条、今日要闻、各标签的条数一打开就是最终结果，不用等后面再补一页数据才变（以前会先显示 9 分的头条再跳成 10 分的）。
+async function bootData(env) {
+  const now = Date.now();
+  const [items, stats] = await Promise.all([listItems(env, { limit: 400 }), statsData(env)]);
+  let contig = 0;
+  if (items.length >= 400) {
+    contig = items[items.length - 1].ts;
+    const extra = await listItems(env, { limit: 700, cap: 700, before: contig, after: now - 18 * 3_600_000, keep: [...config(env).articles] });
+    const have = new Set(items.map((x) => x.id));
+    for (const x of extra) if (!have.has(x.id)) items.push(x);
+  }
+  return { now, contig, items: items.map(liteItem), stats };
+}
+
 function liteItem(it) {
   if (it.important && !it.dup_of) return it;
   const { body, body_tr, url, hits, ...rest } = it;
@@ -731,7 +747,7 @@ export default {
       case '/': {
         // 首屏数据直接写进网页，省掉一次往返；数据库慢的时候不等它，网页照常先出来
         const boot = await Promise.race([
-          Promise.all([listItems(env, { limit: 400 }), statsData(env)]).then(([items, stats]) => ({ now: Date.now(), items: items.map(liteItem), stats })).catch(() => null),
+          bootData(env).catch(() => null),
           new Promise((r) => setTimeout(() => r(null), 900)),
         ]);
         return new Response(renderPage({ key: url.searchParams.get('key') || '', boot }), {
@@ -747,6 +763,12 @@ export default {
           before: Number(url.searchParams.get('before') || 0),
         });
         return json({ now: Date.now(), build: BUILD, items });
+      }
+
+      case '/api/item': {
+        // 单条全文：首屏里只带标题的条目，点开时补正文和链接
+        const id = url.searchParams.get('id') || '';
+        return json({ items: id ? await listItems(env, { ids: [id], limit: 1 }) : [] });
       }
 
       case '/api/stats':
