@@ -34,6 +34,7 @@ function config(env) {
     aiTags: env.AI_TAGS !== 'false',
     aiWaitMin: Number(env.AI_BATCH_WAIT_MIN ?? 5),
     aiBatchSize: Number(env.AI_BATCH_SIZE || 8),
+    aiUrgentWaitMin: Number(env.AI_URGENT_WAIT_MIN ?? 3),
     aiUrgent: new Set(String(env.AI_URGENT_SOURCES || '').split(',').map((x) => x.trim()).filter(Boolean)),
     maxAi: Number(env.MAX_AI_PER_RUN || 15),
     weights: safeJson(env.SOURCE_WEIGHTS, {}),
@@ -324,13 +325,20 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // 规则命中的、高权重来源的快讯照旧马上打分；其余的先记为 wait，攒够 aiBatchSize 条或等满 aiWaitMin 分钟再一起打分。
   if (cfg.aiOn && env.AI && cfg.aiWaitMin > 0 && !inputs) {
     try {
-      const urgent = (it) => it.hits.length > 0 || it.weight >= 1 || it.firstRun || cfg.aiUrgent.has(it.source);
+      // 三档：规则命中的（关键词、大金额）马上打分；快讯源最多等 aiUrgentWaitMin 分钟；其余最多等 aiWaitMin 分钟。
+      // 每次调用的固定开销远大于每条快讯的开销，所以尽量让一次调用多带几条。
+      const now0 = (it) => it.hits.length > 0 || it.weight >= 1 || it.firstRun;
+      const limit = (src) => (cfg.aiUrgent.has(src) ? cfg.aiUrgentWaitMin : cfg.aiWaitMin) * 60_000;
       const freshIds = new Set(fresh.map((f) => f.id));
       const pend = (
         await db.prepare("SELECT id, source, title, body, url, ts, seen_at FROM items WHERE score_by = 'wait' AND seen_at > ? ORDER BY seen_at LIMIT 60").bind(now - 30 * 60_000).all()
       ).results.filter((r) => !freshIds.has(r.id));
-      const waiting = fresh.filter((it) => !urgent(it)).length + pend.length;
-      const go = fresh.some(urgent) || waiting >= cfg.aiBatchSize || (pend.length > 0 && now - pend[0].seen_at >= cfg.aiWaitMin * 60_000);
+      const waiting = fresh.filter((it) => !now0(it)).length + pend.length;
+      const go =
+        fresh.some(now0) ||
+        waiting >= cfg.aiBatchSize ||
+        pend.some((r) => now - r.seen_at >= limit(r.source)) ||
+        fresh.some((it) => limit(it.source) <= 0);
       if (go) {
         // 等得最久的先打分；一轮装不下的留到下一轮
         // 等了半小时还没轮到的（极少见），不再等 AI，交给规则，免得一直显示“待评分”
