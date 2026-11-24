@@ -1067,7 +1067,7 @@ async function load(manual){
     var fresh=d.items.filter(function(i){return !known[i.id]});
     // 已有条目可能后来被打分：用新数据覆盖
     var upd={};d.items.forEach(function(i){upd[i.id]=i});
-    state.items=state.items.map(function(x){var u=upd[x.id];if(u&&(u.score!==x.score||u.important!==x.important||u.confirms!==x.confirms||u.dup_of!==x.dup_of||u.title_tr!==x.title_tr||u.topic!==x.topic)){changed=true;if(isHot(u)&&!isHot(x)&&!state.first&&state.sound)beep();return u;}return x;});
+    state.items=state.items.map(function(x){var u=upd[x.id];if(u&&(x.lite||u.score!==x.score||u.important!==x.important||u.confirms!==x.confirms||u.dup_of!==x.dup_of||u.title_tr!==x.title_tr||u.topic!==x.topic)){changed=true;if(isHot(u)&&!isHot(x)&&!state.first&&state.sound)beep();return u;}return x;});
     state.pending=state.pending.map(function(x){return upd[x.id]||x});
     if(fresh.length){
       fresh.forEach(function(i){state.lastSeen=Math.max(state.lastSeen,i.seen_at)});
@@ -1321,15 +1321,26 @@ if(hashId){try{history.replaceState(history.state,'',location.href.split('#')[0]
    两个来源取较新的一个：服务器写进网页的首屏数据（BOOT），和本机上次看到的快照（刷新、断网时用）。
    超过 12 小时的旧数据不用，照常显示骨架等网络。 */
 var SNAP='hw-snap',snapT=0;
-function snapSave(){try{if(state.loaded&&state.items.length)localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),stats:state.stats,items:state.items.slice(0,400)}))}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
+function snapSave(){try{if(state.loaded&&!state.lite&&state.items.length)localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),stats:state.stats,items:state.items.slice(0,400)}))}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
 function snapSoon(){clearTimeout(snapT);snapT=setTimeout(function(){(window.requestIdleCallback||setTimeout)(snapSave)},1500);}
 window.addEventListener('pagehide',snapSave);
-function bootData(){var b=BOOT,c=null;try{c=JSON.parse(localStorage.getItem(SNAP)||'null')}catch(e){}
-  if(!b||!b.items||(c&&c.items&&c.now>b.now))b=c;
-  if(!b||!b.items||!b.items.length||Date.now()-b.now>432e5)return false;
-  state.items=b.items;state.stats=b.stats||null;state.bootAt=b.now;state.loaded=true;
-  b.items.forEach(function(i){if(i.seen_at>state.lastSeen)state.lastSeen=i.seen_at});
-  return Math.abs(Date.now()-b.now)<2e4;}
+function bootData(){var b=BOOT,c=null,at=0;try{c=JSON.parse(localStorage.getItem(SNAP)||'null')}catch(e){}
+  if(c&&(!c.items||!c.items.length||Date.now()-c.now>432e5))c=null;
+  if(!b||!b.items||!b.items.length||Date.now()-b.now>432e5)b=null;
+  if(b&&c&&c.now>b.now)b=null;
+  if(!b&&!c)return false;
+  if(b&&c){// 网页自带的数据更新，但只有标题；正文从本机快照里补
+    var m={};c.items.forEach(function(i){m[i.id]=i});at=c.now;
+    b.items=b.items.map(function(i){var o=i.lite&&m[i.id];if(!o)return i;o=Object.assign({},o,i);delete o.lite;return o;});}
+  var src=b||c;state.items=src.items;state.stats=src.stats||null;state.bootAt=at||src.now;state.loaded=true;
+  state.lite=state.items.some(function(i){return i.lite});
+  state.items.forEach(function(i){if(i.seen_at>state.lastSeen)state.lastSeen=i.seen_at});
+  return Math.abs(Date.now()-src.now)<2e4;}
+// 轻量条目补全文：取一次完整的最新 400 条，按 id 补上正文和链接
+async function fillLite(){if(!state.lite)return;
+  try{var r=await fetch(api('/api/items?limit=400&since=0'),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),u={};d.items.forEach(function(i){u[i.id]=i});
+    state.items=state.items.map(function(x){if(!x.lite)return x;if(u[x.id])return u[x.id];x=Object.assign({},x);delete x.lite;return x;});
+    state.lite=false;if(document.body.classList.contains('open-reader'))renderReader();snapSoon();}catch(e){}}
 /* 新版本：服务器的版本号和这张网页不一样时，先把新网页存好。刚打开、还没动过就悄悄换上；已经在用了就只提示，不打断 */
 var touched=false,buildSeen='';
 ['pointerdown','keydown','wheel','touchstart'].forEach(function(n){window.addEventListener(n,function(){touched=true},{passive:true,capture:true})});
@@ -1342,8 +1353,8 @@ async function newBuild(b){if(!b||b===BUILD||b===buildSeen)return;buildSeen=b;
 if('serviceWorker' in navigator)navigator.serviceWorker.register(api('/sw.js')).catch(function(){});
 var freshBoot=bootData();
 trLoad();applyTheme();applyI18n();render();
-if(freshBoot){state.first=false;state.okAt=Date.now();$('liveTxt').textContent=T('updated',hm(Date.now()));if(state.lastSeen>state.topSeen)state.topSeen=state.lastSeen;save();snapSoon();if(hashId)openFromPush(hashId);(window.requestIdleCallback||setTimeout)(backfill);}
-else{load().then(function(){if(hashId)openFromPush(hashId);}).then(backfill);}
+if(freshBoot){state.first=false;state.okAt=Date.now();$('liveTxt').textContent=T('updated',hm(Date.now()));if(state.lastSeen>state.topSeen)state.topSeen=state.lastSeen;save();snapSoon();if(hashId)openFromPush(hashId);fillLite().then(backfill);}
+else{load().then(function(){if(hashId)openFromPush(hashId);}).then(fillLite).then(backfill);}
 if(!state.stats)loadStats();
 pushInit();(window.requestIdleCallback||setTimeout)(loadHealth);setInterval(loadStats,3e5);
 setInterval(load,15000);setInterval(renderClocks,20000);setInterval(loadHealth,300000);
