@@ -434,8 +434,10 @@ function trSave(){try{var ks=Object.keys(TR);if(ks.length>700){var o={};ks.slice
 function tx(i,needBody){
   var o={t:cleanTitle(i.title),b:null,tr:false};
   if(itemLang(i)===state.lang)return o;
-  if(i.tr_lang===state.lang&&i.title_tr){o.t=cleanTitle(i.title_tr);o.b=i.body_tr||null;o.tr=true;return o;}
   var c=TR[i.id];
+  if(i.tr_lang===state.lang&&i.title_tr){o.t=cleanTitle(i.title_tr);o.tr=true;
+    if(i.body_tr)o.b=i.body_tr;else if(c&&c.b)o.b=c.b;else if(needBody&&!(c&&c.nb)){wantBody[i.id]=1;want.push(i.id);}
+    return o;}
   if(c&&c.t){o.t=c.t;o.tr=true;if(c.b)o.b=c.b;}
   if(!c||(!c.t&&!c.x))want.push(i.id);
   if(needBody&&!(c&&(c.b||c.nb))){wantBody[i.id]=1;want.push(i.id);}

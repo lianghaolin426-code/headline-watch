@@ -78,8 +78,12 @@ MAX_AGE_MINUTES = "30"
 #   WEBHOOK_URL      任意 webhook
 #   ACCESS_KEY       设了之后，网页需要 ?key=这个密码 才能打开
 
-# 服务器端中英互译，默认关闭：看板的翻译改在访问者浏览器里做，不占额度。想让手机上也有译文时可设为 "true"，
-# 它和评分共用 Workers AI 免费额度，只翻评分达到下面分数的快讯，额度用完时显示原文。可用 TRANSLATE_MODEL 换模型。
-TRANSLATE = "false"
+# 服务器端中英互译：让手机和非 Chrome 浏览器也有译文（电脑 Chrome 仍可在浏览器里自己翻）。
+# TRANSLATE_PROVIDER = "mymemory"：免费公共接口 MyMemory，只翻标题，不占 Workers AI 额度；
+#   邮箱放在机密变量 MYMEMORY_EMAIL 里（wrangler secret put MYMEMORY_EMAIL），带邮箱每天约 5 万字符。
+# TRANSLATE_PROVIDER = "ai"：Workers AI，标题和摘要都翻，和评分共用免费额度。可用 TRANSLATE_MODEL 换模型。
+# 只翻评分达到 TRANSLATE_MIN_SCORE 的快讯，额度用完时显示原文。
+TRANSLATE = "true"
+TRANSLATE_PROVIDER = "mymemory"
 TRANSLATE_MIN_SCORE = "6"
-MAX_TRANSLATE_PER_RUN = "8"
+MAX_TRANSLATE_PER_RUN = "5"

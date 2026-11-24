@@ -134,3 +134,17 @@ test('translation helpers', async () => {
   assert.deepEqual(out[1], { t: 'A 收购 B', b: '交易对 B 估值 50 亿美元。' });
   assert.equal(parseTranslations('sorry', 2), null);
 });
+
+test('mymemory helpers', async () => {
+  const { clipBytes, readMyMemory, myMemoryTranslate } = await import('../src/translate.js');
+  assert.equal(clipBytes('abc', 10), 'abc');
+  assert.ok(new TextEncoder().encode(clipBytes('美联储'.repeat(200), 480)).length <= 480);
+  assert.equal(readMyMemory({ responseStatus: 200, responseData: { translatedText: '美联储加息' } }, 'zh'), '美联储加息');
+  assert.equal(readMyMemory({ responseStatus: 200, responseData: { translatedText: 'Fed hikes' } }, 'zh'), null);
+  assert.equal(readMyMemory({ responseStatus: '429', responseData: { translatedText: 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY' } }, 'en'), false);
+  let seen;
+  const fetcher = async (u) => { seen = u; return { status: 200, json: async () => ({ responseStatus: 200, responseData: { translatedText: 'Fed raises rates' } }) }; };
+  assert.equal(await myMemoryTranslate({ MYMEMORY_EMAIL: 'a@b.c' }, '美联储加息', 'en', fetcher), 'Fed raises rates');
+  assert.equal(seen.searchParams.get('langpair'), 'zh-CN|en');
+  assert.equal(seen.searchParams.get('de'), 'a@b.c');
+});

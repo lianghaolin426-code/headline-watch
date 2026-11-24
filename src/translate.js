@@ -86,12 +86,61 @@ export async function translateBatch(env, items, lang) {
   }
 }
 
+// ---------- MyMemory（免费公共翻译接口，不占 Workers AI 额度） ----------
+// 不带邮箱每天约 5000 字符，带邮箱（机密变量 MYMEMORY_EMAIL）每天约 5 万字符。一次请求翻一条标题，最长 500 字节。
+
+const MM_LANG = { zh: 'zh-CN', en: 'en', ar: 'ar' };
+const sourceLang = (title) => (isZh(title) ? 'zh' : /\p{Script=Arabic}/u.test(title) ? 'ar' : 'en');
+
+/** 按 UTF-8 字节数截断，不切坏字符 */
+export function clipBytes(s, max) {
+  const enc = new TextEncoder();
+  if (enc.encode(s).length <= max) return s;
+  let out = '';
+  let n = 0;
+  for (const ch of s) {
+    n += enc.encode(ch).length;
+    if (n > max - 3) break;
+    out += ch;
+  }
+  return out + '…';
+}
+
+/** 检查 MyMemory 的回复；可用返回译文，额度用完返回 false，其它问题返回 null */
+export function readMyMemory(data, lang) {
+  const text = String(data?.responseData?.translatedText || '').trim();
+  if (data?.quotaFinished || Number(data?.responseStatus) === 429 || /^MYMEMORY WARNING/i.test(text)) return false;
+  if (Number(data?.responseStatus) !== 200 || !text || /QUERY LENGTH LIMIT|INVALID (SOURCE|TARGET) LANGUAGE/i.test(text)) return null;
+  if (lang === 'zh' && !isZh(text)) return null; // 说是译成中文却没有汉字
+  return text;
+}
+
+export async function myMemoryTranslate(env, title, lang, fetcher = fetch) {
+  const q = clipBytes(tidy(title, 400), 480);
+  const u = new URL('https://api.mymemory.translated.net/get');
+  u.searchParams.set('q', q);
+  u.searchParams.set('langpair', MM_LANG[sourceLang(title)] + '|' + MM_LANG[lang]);
+  if (env.MYMEMORY_EMAIL) u.searchParams.set('de', env.MYMEMORY_EMAIL);
+  try {
+    const res = await fetcher(u, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json().catch(() => null);
+    if (res.status === 429) return false;
+    const out = readMyMemory(data, lang);
+    if (out === null) console.warn('mymemory reply not usable', res.status, JSON.stringify(data).slice(0, 200));
+    return out;
+  } catch (e) {
+    console.warn('mymemory failed', e?.message || e);
+    return undefined; // 网络问题，下一轮再试
+  }
+}
+
 /**
  * 每轮抓取后调用：挑最近 24 小时里分数够高、还没翻过的快讯，翻一小批。
- * tr_lang 记录译文语言；模型漏掉的条目记为空串，避免每分钟重试同一条。
+ * tr_lang 记录译文语言；翻不出来的条目记为空串，避免每分钟重试同一条。
+ * provider: 'ai' 用 Workers AI（标题和摘要），'mymemory' 用 MyMemory（只翻标题）。
  */
-export async function translatePending(env, { now = Date.now(), minScore = 6, max = 8 } = {}) {
-  if (!env.AI || max <= 0) return 0;
+export async function translatePending(env, { now = Date.now(), minScore = 6, max = 8, provider = 'ai', fetcher } = {}) {
+  if (max <= 0 || (provider === 'ai' && !env.AI)) return 0;
   const rows = (
     await env.DB.prepare(
       'SELECT id, title, body FROM items WHERE title_tr IS NULL AND score >= ? AND ts > ? ORDER BY important DESC, score DESC, ts DESC LIMIT ?'
@@ -100,6 +149,16 @@ export async function translatePending(env, { now = Date.now(), minScore = 6, ma
       .all()
   ).results;
   let done = 0;
+  if (provider === 'mymemory') {
+    for (const r of rows) {
+      const lang = targetLang(r.title);
+      const t = await myMemoryTranslate(env, r.title, lang, fetcher);
+      if (t === false || t === undefined) break; // 额度用完或网络不通：这一轮到此为止
+      await env.DB.prepare('UPDATE items SET title_tr = ?, body_tr = ?, tr_lang = ? WHERE id = ?').bind(t || '', '', lang, r.id).run();
+      if (t) done++;
+    }
+    return done;
+  }
   for (const lang of ['zh', 'en']) {
     const batch = rows.filter((r) => targetLang(r.title) === lang);
     if (!batch.length) continue;
