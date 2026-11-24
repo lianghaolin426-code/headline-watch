@@ -157,9 +157,10 @@ export async function translatePending(env, { now = Date.now(), minScore = 6, ma
   if (max <= 0 || (provider === 'ai' && !env.AI)) return 0;
   let rows = (
     await env.DB.prepare(
-      'SELECT id, title, body, score FROM items WHERE title_tr IS NULL AND score >= ? AND ts > ? ORDER BY important DESC, score DESC, ts DESC LIMIT ?'
+      // 分数线直接写进语句（不用 ?），这样能用上 migrate-v11 的部分索引 idx_items_tr（只含还没翻译、6 分以上的），不用把 24 小时的快讯全扫一遍
+      `SELECT id, title, body, score FROM items WHERE title_tr IS NULL AND score >= ${Number(minScore) || 0} AND ts > ? ORDER BY important DESC, score DESC, ts DESC LIMIT ?`
     )
-      .bind(minScore, now - 86_400_000, max)
+      .bind(now - 86_400_000, max)
       .all()
   ).results;
   let done = 0;

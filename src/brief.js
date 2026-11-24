@@ -199,8 +199,9 @@ async function spentToday(env, now) {
 
 async function loadEvents(env, c, now, articles) {
   const rows = (
-    await env.DB.prepare('SELECT id, source, title, body, url, ts, score, confirms, tickers, topic FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ? ORDER BY ts DESC LIMIT 1500')
-      .bind(now - c.windowH * H, c.minScore)
+    // 分数线直接写进语句，这样能用上部分索引 idx_items_brief（只含 5 分以上、不是重复的快讯）
+    await env.DB.prepare(`SELECT id, source, title, body, url, ts, score, confirms, tickers, topic FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ${Number(c.minScore) || 0} ORDER BY ts DESC LIMIT 1500`)
+      .bind(now - c.windowH * H)
       .all()
   ).results;
   return groupEvents(rows.filter((r) => !articles.has(r.source)));

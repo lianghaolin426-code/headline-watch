@@ -13,6 +13,7 @@ import { pushToSubscribers, saveSubscription, removeSubscription, getSubscriptio
 import { renderPage, BUILD } from './page.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs } from './brief.js';
+import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, LEVELS } from './dbguard.js';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -197,6 +198,7 @@ async function findConfirmations(env, cfg, fresh, now) {
     }
     f.confirms = srcs.size;
   }
+  fresh.recent = recent; // relate() 拿去当词频参照，不用再查一遍
   return [...bumped.values()];
 }
 
@@ -258,9 +260,20 @@ async function safeRelate(env, cfg, opts, report) {
  */
 export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now() }) {
   if (!arts.length && !flashes.length) return 0;
-  const rows = (
-    await env.DB.prepare('SELECT id, source, title, body, score, ts, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()
-  ).results;
+  // 只有新快讯（每分钟都有）时只需要最近的深度文章：按来源走索引，几十行；
+  // 词频参照用打分时已经读过的最近 3 小时快讯（flashes.recent），不再把 12 小时的快讯全读一遍
+  const onlyFlashes = !arts.length && flashes.recent && cfg.articles.size;
+  const artList = [...cfg.articles];
+  const rows = onlyFlashes
+    ? [
+        ...(
+          await env.DB.prepare(`SELECT id, source, title, body, score, ts, dup_of FROM items WHERE source IN (${artList.map(() => '?').join(',')}) AND ts > ? ORDER BY ts DESC LIMIT 300`)
+            .bind(...artList, now - cfg.relHours * 3_600_000)
+            .all()
+        ).results,
+        ...flashes.recent,
+      ]
+    : (await env.DB.prepare('SELECT id, source, title, body, score, ts, dup_of FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 2000').bind(now - cfg.relHours * 3_600_000).all()).results;
   const newIds = new Set([...arts, ...flashes].map((x) => x.id));
   const oldArts = rows.filter((r) => cfg.articles.has(r.source) && !newIds.has(r.id));
   const oldFlashes = rows.filter((r) => !cfg.articles.has(r.source) && !newIds.has(r.id));
@@ -280,7 +293,13 @@ export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now
       }
     }
     for (const x of [...arts, ...flashes]) if (x.vec) vec.set(x.id, x.vec);
-    const vr = (await env.DB.prepare('SELECT id, v FROM vecs WHERE ts > ?').bind(now - 6 * 3_600_000).all()).results;
+    // 只有新快讯时，只要旧文章的向量（按主键取）；有新文章时才要最近 6 小时全部快讯的向量
+    const want = onlyFlashes ? oldArts.map((a) => a.id).filter((id) => !vec.has(id)).slice(0, 90) : null;
+    const vr = want
+      ? want.length
+        ? (await env.DB.prepare(`SELECT id, v FROM vecs WHERE id IN (${want.map(() => '?').join(',')})`).bind(...want).all()).results
+        : []
+      : (await env.DB.prepare('SELECT id, v FROM vecs WHERE ts > ?').bind(now - 6 * 3_600_000).all()).results;
     for (const r of vr) if (!vec.has(r.id)) vec.set(r.id, unpack(r.v));
   }
   const same = (a, f) => {
@@ -434,9 +453,17 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   const db = env.DB;
   const report = { fetched: 0, inserted: 0, matched: 0, notified: 0, errors: [] };
 
-  const states = new Map(
-    (await db.prepare('SELECT key, runs FROM source_state').all()).results.map((r) => [r.key, r.runs])
-  );
+  // last_ids：上一轮从这个源抓到的条目 id。源每次都返回最近 30 条左右，绝大多数上一轮已经入库，
+  // 先在内存里去掉，省得每条都去数据库 INSERT OR IGNORE（每条算 1 行读取，一天上百万行）
+  let stateRows;
+  try {
+    stateRows = (await db.prepare('SELECT key, runs, last_ids FROM source_state').all()).results;
+  } catch {
+    stateRows = (await db.prepare('SELECT key, runs FROM source_state').all()).results; // 还没加 last_ids 列
+  }
+  const states = new Map(stateRows.map((r) => [r.key, r.runs]));
+  const lastIds = new Map(stateRows.map((r) => [r.key, r.last_ids]));
+  const hasLastIds = stateRows.length === 0 || 'last_ids' in stateRows[0];
 
   // 有的源限制频率（every: 每隔几分钟抓一次），没到时间的这轮跳过
   const minute = Math.floor(now / 60_000);
@@ -468,8 +495,15 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     // 第一次抓某个源时，只入库不推送，避免一上来推几十条旧闻
     const firstRun = !states.get(key);
 
-    if (items.length) {
-      const stmts = items.map((it) => {
+    let prev;
+    try {
+      prev = new Set(JSON.parse(lastIds.get(key) || '[]'));
+    } catch {
+      prev = new Set();
+    }
+    const todo = items.filter((it) => !prev.has(it.id));
+    if (todo.length) {
+      const stmts = todo.map((it) => {
         enrich(it, cfg);
         it.firstRun = firstRun;
         return db
@@ -483,16 +517,24 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       results.forEach((r, j) => {
         if (!r.results?.length) return; // 已存在
         report.inserted++;
-        fresh.push(items[j]);
+        fresh.push(todo[j]);
       });
     }
-    await db
-      .prepare(
-        `INSERT INTO source_state (key, runs, last_ok, last_count) VALUES (?, 1, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET runs = runs + 1, last_ok = excluded.last_ok, last_count = excluded.last_count, last_error = NULL`
-      )
-      .bind(key, now, items.length)
-      .run();
+    const ids = JSON.stringify(items.map((it) => it.id).slice(0, 300));
+    await (hasLastIds
+      ? db
+          .prepare(
+            `INSERT INTO source_state (key, runs, last_ok, last_count, last_ids) VALUES (?, 1, ?, ?, ?)
+             ON CONFLICT(key) DO UPDATE SET runs = runs + 1, last_ok = excluded.last_ok, last_count = excluded.last_count, last_error = NULL, last_ids = excluded.last_ids`
+          )
+          .bind(key, now, items.length, ids)
+      : db
+          .prepare(
+            `INSERT INTO source_state (key, runs, last_ok, last_count) VALUES (?, 1, ?, ?)
+             ON CONFLICT(key) DO UPDATE SET runs = runs + 1, last_ok = excluded.last_ok, last_count = excluded.last_count, last_error = NULL`
+          )
+          .bind(key, now, items.length)
+    ).run();
   }
 
   // 深度文章单独处理：不进攒批、不参与多源确认和推送
@@ -522,7 +564,8 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       if (go) {
         // 等得最久的先打分；一轮装不下的留到下一轮
         // 等了半小时还没轮到的（极少见），不再等 AI，交给规则，免得一直显示“待评分”
-        await db.prepare("UPDATE items SET score_by = NULL WHERE score_by = 'wait' AND seen_at <= ?").bind(now - 30 * 60_000).run();
+        // 只看 30 分钟到 3 小时前的（不加下限会把整张表扫一遍）
+        await db.prepare("UPDATE items SET score_by = NULL WHERE seen_at > ? AND seen_at <= ? AND score_by = 'wait'").bind(now - 3 * 3_600_000, now - 30 * 60_000).run();
         const room = Math.max(0, cfg.maxAi - fresh.length);
         for (const r of pend.slice(0, room)) fresh.push(Object.assign(enrich(r, cfg), { firstRun: false }));
       } else if (fresh.length) {
@@ -551,7 +594,11 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
     const dupUpd = fresh.filter((it) => it.dupOf).map((it) => env.DB.prepare('UPDATE items SET dup_of = ? WHERE id = ?').bind(it.dupOf, it.id));
     if (dupUpd.length) await env.DB.batch(dupUpd);
-    if (cfg.articles.size) await safeRelate(env, cfg, { flashes: fresh, now }, report);
+    if (cfg.articles.size) {
+      const flashes = [...fresh];
+      flashes.recent = fresh.recent;
+      await safeRelate(env, cfg, { flashes, now }, report);
+    }
 
     for (const it of fresh) {
       if (it.important) report.matched++;
@@ -614,8 +661,13 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
   }
 
-  // 中英互译：每轮翻一小批分数够高的快讯（旧库还没加译文列时跳过，不影响抓取）
-  if (cfg.trOn && !inputs) {
+  // 读取额度快用完时，后台可选的活（翻译、简报、统计）少做或不做
+  const level = inputs ? 'ok' : (await budget(env, now)).level;
+  report.budget = level;
+  const scoredHigh = fresh.some((it) => it.score >= cfg.trMin);
+
+  // 中英互译：本轮有够分的新快讯时翻一小批；没有的话每 10 分钟看一次有没有漏的（旧库还没加译文列时跳过，不影响抓取）
+  if (cfg.trOn && !inputs && level !== 'critical' && (scoredHigh || minute % 10 === 0)) {
     try {
       report.translated = await translatePending(env, { now, minScore: cfg.trMin, max: cfg.trMax, provider: cfg.trProvider, fallback: cfg.trFallback, aiMin: cfg.trAiMin });
     } catch (e) {
@@ -624,13 +676,23 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   }
 
   // 事件简报：重要事件有新报道时滚动重写（每天有花费上限，出错不影响抓取）
-  // 为省数据库读取量，平时每 5 分钟看一次；本轮有新的重要快讯时立刻看
-  if (!inputs && (report.matched > 0 || new Date(now).getUTCMinutes() % 5 === 0)) {
+  // 为省数据库读取量，平时每 10 分钟看一次（省流时 30 分钟）；本轮有新的重要快讯时立刻看
+  const briefEvery = level === 'save' ? 30 : 10;
+  if (!inputs && level !== 'critical' && (report.matched > 0 || minute % briefEvery === 0)) {
     try {
       const b = await runBriefs(env, { now, articles: cfg.articles });
       if (b.written.length) report.briefs = b.written;
     } catch (e) {
       report.errors.push(`brief: ${e?.message || e}`);
+    }
+  }
+
+  // 统计磁贴用的每小时条数：每 10 分钟更新一次（网页读的是存好的结果，不再每次扫 7 天）
+  if (!inputs && level !== 'critical' && minute % 10 === 3) {
+    try {
+      await refreshHourStats(env, now);
+    } catch (e) {
+      report.errors.push(`stats: ${e?.message || e}`);
     }
   }
 
@@ -674,10 +736,13 @@ async function listItems(env, opts) {
 }
 
 async function listRows(env, { limit = 200, matched = false, since = 0, before = 0, after = 0, keep = null, ids = null, cap = 500 }) {
+  // since（轮询“最近抓到的”）走 seen_at 索引：ORDER BY 写成 +ts，免得数据库为了按 ts 排序而沿 ts 索引把整张表扫一遍
+  // （2026-11-24 每 15 秒一次的轮询就是这样一次读 1 万多行）
+  const ord = since > 0 && !before && !after && !ids ? '+ts' : 'ts';
   const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''} FROM items
                WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${after > 0 ? 'AND ts > ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ${keep ? `AND (score >= 6 OR source IN (${keep.map(() => '?').join(',') || "''"}))` : ''} ${ids ? `AND id IN (${ids.map(() => '?').join(',')})` : ''}
-               ORDER BY ts DESC LIMIT ?`;
+               ORDER BY ${ord} DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
   const args = [since, ...(before > 0 ? [before] : []), ...(after > 0 ? [after] : []), ...(keep || []), ...(ids || []), Math.min(limit, cap)];
   // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
@@ -700,21 +765,42 @@ async function usageRows(env) {
   }
 }
 
-// 最近 7 天里，每天“和现在同一时段的 12 小时”各有多少条快讯、多少条重要（看板的“比平常热不热”用）
+// 最近 7 天里，每天“和现在同一时段的 12 小时”各有多少条快讯、多少条重要（看板的“比平常热不热”用）。
+// 以前每次请求都把 7 天的快讯扫一遍（1 万多行）；现在 cron 每 10 分钟把“每小时条数”存进 meta 表，这里只读一行，
+// 再加上存完之后新来的几条。
+const HOUR = 3_600_000;
+const imp1 = 'SUM(CASE WHEN important = 1 AND dup_of IS NULL THEN 1 ELSE 0 END)';
+export async function refreshHourStats(env, now = Date.now()) {
+  const old = await metaGet(env, 'stats_hours');
+  const full = !old || !old.v?.h || now - (old.v.full || 0) > 24 * HOUR;
+  const from = full ? now - 8 * 86_400_000 : Math.floor((now - 3 * HOUR) / HOUR) * HOUR;
+  const rows = (await env.DB.prepare(`SELECT CAST(ts / ${HOUR} AS INTEGER) AS h, COUNT(*) AS n, ${imp1} AS imp FROM items WHERE ts >= ? AND ts <= ? GROUP BY h`).bind(from, now).all()).results;
+  const h = full ? {} : { ...old.v.h };
+  if (!full) for (const k of Object.keys(h)) if (Number(k) * HOUR >= from) delete h[k];
+  for (const r of rows) h[r.h] = [r.n, r.imp || 0];
+  for (const k of Object.keys(h)) if (Number(k) * HOUR < now - 8 * 86_400_000) delete h[k];
+  const oldest = (await env.DB.prepare('SELECT MIN(seen_at) AS t FROM items').all()).results?.[0]?.t || now;
+  const v = { h, built: now, full: full ? now : old.v.full, oldest };
+  await metaSet(env, 'stats_hours', v, now);
+  return v;
+}
+
 async function statsData(env) {
   const now = Date.now();
-  const windows = (
-    await env.DB.prepare(
-      `SELECT CAST((?1 - ts) / 86400000 AS INTEGER) AS k, COUNT(*) AS n,
-              SUM(CASE WHEN important = 1 AND dup_of IS NULL THEN 1 ELSE 0 END) AS imp
-       FROM items WHERE ts <= ?1 AND ts > ?1 - 604800000 AND ((?1 - ts) % 86400000) < 43200000 GROUP BY k ORDER BY k`
-    )
-      .bind(now)
-      .all()
-  ).results;
-  // 用最早的抓取时间（seen_at）而不是发布时间：有些源会带很久以前的发布日期
-  const oldest = (await env.DB.prepare('SELECT MIN(seen_at) AS t FROM items').first())?.t || now;
-  return { now, oldest, windows };
+  let st = (await metaGet(env, 'stats_hours'))?.v;
+  if (!st?.h || now - st.built > 2 * HOUR) st = await refreshHourStats(env, now);
+  const hours = Object.entries(st.h).map(([k, v]) => [Number(k) * HOUR, v]);
+  const windows = [];
+  for (let k = 0; k < 7; k++) {
+    const end = now - k * 86_400_000, start = end - 12 * HOUR;
+    let n = 0, imp = 0;
+    for (const [t, v] of hours) if (t >= Math.floor(start / HOUR) * HOUR && t < end) (n += v[0]), (imp += v[1]);
+    windows.push({ k, n, imp });
+  }
+  // 存完之后新来的（最多十来分钟的量）
+  const live = (await env.DB.prepare(`SELECT COUNT(*) AS n, ${imp1} AS imp FROM items WHERE ts > ? AND ts <= ?`).bind(st.built, now).all()).results?.[0];
+  if (live) (windows[0].n += live.n || 0), (windows[0].imp += live.imp || 0);
+  return { now, oldest: st.oldest || now, windows: windows.filter((w) => w.n > 0) };
 }
 
 // 写进网页的首屏数据用“轻量版”：重要快讯保留全文，其余只留标题和标签（正文、链接等网页打开后再补齐），网页能小四成
@@ -722,7 +808,11 @@ async function statsData(env) {
 // 这样头条、今日要闻、各标签的条数一打开就是最终结果，不用等后面再补一页数据才变（以前会先显示 9 分的头条再跳成 10 分的）。
 async function bootData(env) {
   const now = Date.now();
-  const [items, stats, briefs] = await Promise.all([listItems(env, { limit: 400 }), statsData(env), listBriefs(env).catch(() => null)]);
+  const [items, stats, briefs] = await Promise.all([
+    listItems(env, { limit: 400 }),
+    cached('stats', 120_000, () => statsData(env)).catch(() => null),
+    cached('briefs', 60_000, async () => ({ briefs: await listBriefs(env) })).then((d) => d.briefs).catch(() => null),
+  ]);
   let contig = 0;
   if (items.length >= 400) {
     contig = items[items.length - 1].ts;
@@ -739,12 +829,32 @@ function liteItem(it) {
   return { ...rest, lite: 1 };
 }
 
-export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(runOnce(env));
-  },
+// 首屏数据和轮询结果在多个标签页/设备之间共用缓存：数据每分钟才变一次，不必每个请求都查数据库
+async function lvl(env) {
+  return (await budget(env)).level;
+}
+const ttl = async (env, ms) => ms * LEVELS[await lvl(env)].ttl;
 
-  async fetch(req, env) {
+async function cron(env0) {
+  const now = Date.now();
+  if (dbBlocked(now)) {
+    console.warn('D1 暂时不可用（额度用完或出错），本轮跳过');
+    return;
+  }
+  const env = guard(env0, 'cron');
+  try {
+    await ensureSchema(env);
+    return await runOnce(env, { now });
+  } catch (e) {
+    noteDbError(e, now);
+    console.error('cron failed', e?.message || e);
+  } finally {
+    await flushReads(env, { force: true });
+  }
+}
+
+const app = {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
@@ -759,26 +869,37 @@ export default {
       case '/': {
         // 首屏数据直接写进网页，省掉一次往返；数据库慢的时候不等它，网页照常先出来
         const boot = await Promise.race([
-          bootData(env).catch(() => null),
+          (async () => cached('boot', await ttl(env, 20_000), () => bootData(env)))().catch(() => null),
           new Promise((r) => setTimeout(() => r(null), 900)),
         ]);
-        return new Response(renderPage({ key: url.searchParams.get('key') || '', boot }), {
+        return new Response(renderPage({ key: url.searchParams.get('key') || '', boot: boot && !boot.stale ? { ...boot, now: Date.now() } : null }), {
           headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-HW-Build': BUILD },
         });
       }
 
       case '/api/items': {
-        const items = await listItems(env, {
-          limit: Number(url.searchParams.get('limit') || 200),
-          matched: url.searchParams.get('matched') === '1',
-          since: Number(url.searchParams.get('since') || 0),
-          before: Number(url.searchParams.get('before') || 0),
-        });
-        return json({ now: Date.now(), build: BUILD, items });
+        const now = Date.now();
+        const limit = Math.min(Number(url.searchParams.get('limit') || 200), 500);
+        const matched = url.searchParams.get('matched') === '1';
+        const before = Number(url.searchParams.get('before') || 0);
+        let since = Number(url.searchParams.get('since') || 0);
+        // 轮询的 since 取整到 5 分钟（多给几条不要紧，网页按 id 去重），这样各个标签页、设备能共用同一份缓存；
+        // 太久以前的 since 等于要最新的一页
+        if (since > 0) since = since < now - 3 * HOUR ? 0 : Math.floor(since / 300_000) * 300_000;
+        const b = await budget(env, now);
+        const key = `items:${limit}:${matched ? 1 : 0}:${since}:${before}`;
+        const d = await cached(key, before ? 60_000 * LEVELS[b.level].ttl : 15_000 * LEVELS[b.level].ttl, async () => ({
+          items: await listItems(env, { limit, matched, since, before }),
+          at: Date.now(),
+        }));
+        return json({ now, build: BUILD, items: d.items, stale: d.stale || undefined, budget: b.level, reads_pct: b.pct, poll: LEVELS[b.level].poll });
       }
 
-      case '/api/briefs':
-        return json({ now: Date.now(), briefs: await listBriefs(env) });
+      case '/api/briefs': {
+        const d = await cached('briefs', await ttl(env, 60_000), async () => ({ briefs: await listBriefs(env) }));
+        if (dbBlocked() && !d.briefs?.length) return json({ error: 'db_unavailable', briefs: [] }, 503); // 别让网页把已有的简报清空
+        return json({ now: Date.now(), briefs: d.briefs });
+      }
 
       case '/api/brief-run': {
         // 管理用：立刻（重）写一件事的简报，如 /api/brief-run?admin=…&key=$NVDA；不带 key 就按平常的规则跑一轮
@@ -793,13 +914,13 @@ export default {
       }
 
       case '/api/stats':
-        return json(await statsData(env));
+        return json(await cached('stats', await ttl(env, 120_000), () => statsData(env)));
 
       case '/api/status': {
         const cfg = config(env);
         // 只显示当前配置里的源（已删掉的源不再列出）；外部推送进来的（如 Telegram）照常显示
         const keys = new Set(cfg.sources.map(sourceKey));
-        const sources = (await env.DB.prepare('SELECT * FROM source_state ORDER BY key').all()).results
+        const sources = (await cached('status:sources', await ttl(env, 30_000), async () => ({ rows: (await env.DB.prepare('SELECT key, runs, last_ok, last_count, last_error, last_error_at FROM source_state ORDER BY key').all()).results }))).rows
           .filter((r) => keys.has(r.key) || !r.key.startsWith('rss:'));
         return json({
           channels: enabledChannels(env),
@@ -808,6 +929,7 @@ export default {
           ai: { enabled: cfg.aiOn && (!!env.AI || claudeOn(env)), provider: claudeOn(env) ? 'claude' : 'workers', tags: cfg.aiTags, threshold: cfg.threshold, weights: cfg.weights, usage: await usageRows(env) },
           claude: { enabled: claudeOn(env), model: env.CLAUDE_MODEL || CLAUDE_MODEL, translate: cfg.trProvider === 'claude', ...claudeState(), ...(await claudeUsage(env)) },
           notifyMode: cfg.notifyMode,
+          d1: await readsStatus(env),
           webpush: (await listSubscriptions(env)).map((x) => ({ min: x.min_score, mode: x.mode, quiet: x.quiet_from != null ? `${x.quiet_from}-${x.quiet_to} ${x.tz || ''}`.trim() : null, last_ok: x.last_ok, fails: x.fails, last_error: x.last_error })),
           sources,
         });
@@ -945,7 +1067,7 @@ export default {
         const sub = ep ? await getSubscription(env, ep) : null;
         return json({
           publicKey: keys.publicKey,
-          counts: await dailyCounts(env),
+          counts: (await cached('push:counts', 600_000, async () => ({ c: await dailyCounts(env) })).catch(() => ({ c: null }))).c,
           sub: sub ? { min: sub.min_score, mode: sub.mode, quietFrom: sub.quiet_from, quietTo: sub.quiet_to, tz: sub.tz, sticky: !!sub.sticky, lastOk: sub.last_ok, fails: sub.fails, lastError: sub.last_error } : null,
         });
       }
@@ -1016,6 +1138,25 @@ ${items
 
       default:
         return new Response('Not found', { status: 404 });
+    }
+  },
+};
+
+export default {
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(cron(env));
+  },
+
+  async fetch(req, env0, ctx) {
+    const env = guard(env0, 'web');
+    try {
+      return await app.fetch(req, env, ctx);
+    } catch (e) {
+      noteDbError(e);
+      // 数据库不可用（比如当天读取额度用完）：接口返回 503，网页会继续显示浏览器里存的上一份数据
+      return json({ error: 'db_unavailable', message: String(e?.message || e).slice(0, 200), items: [], poll: LEVELS.blocked.poll }, 503);
+    } finally {
+      ctx?.waitUntil?.(flushReads(env).catch(() => {}));
     }
   },
 };
