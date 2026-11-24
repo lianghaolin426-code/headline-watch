@@ -1011,7 +1011,7 @@ function briefHtml2(b,full,hid,extra){if(!b)return '';var nn=b.srcs.filter(funct
     (b.title?'<div class="bt" dir="auto">'+esc(b.title)+'</div>':'')+briefMd(b,full)+
     (full?'<div class="bnote">'+T('bfNote',src)+'</div>':hid?'<div class="bfoot"><button class="bmore" data-brief="'+esc(hid)+'">'+T('bfMore')+'</button>'+(extra||'')+'</div>':'')+'</section>';}
 async function loadBriefs(){try{var r=await fetch(api('/api/briefs'),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),sig=JSON.stringify((d.briefs||[]).map(function(b){return b.key+b.updated}));
-  if(sig===state.bSig)return;state.bSig=sig;state.briefs=d.briefs||[];render(true);if(document.body.classList.contains('open-reader'))renderReader();}catch(e){}}
+  if(sig===state.bSig)return;state.bSig=sig;state.briefs=d.briefs||[];render(true);snapSoon();if(document.body.classList.contains('open-reader'))renderReader();}catch(e){}}
 function relHtml(i){var c=REL[i.id];if(!c||!c.items||!c.items.length)return '';
   return '<div class="d-rel"><div class="d-rel-h">'+T(isArt(i)?'relFlash':'relArts')+' · <span class="num">'+c.items.length+'</span></div>'+c.items.map(function(r){var u=fixUrl(r.url),t=state.lang!=='zh'&&r.title_tr&&r.tr_lang===state.lang?r.title_tr:cleanTitle(r.title);
     var k=byId(r.id);
@@ -1376,7 +1376,7 @@ if(hashId){try{history.replaceState(history.state,'',location.href.split('#')[0]
 var SNAP='hw-snap2',snapT=0;try{localStorage.removeItem('hw-snap')}catch(e){}
 function snapSave(){try{if(state.loaded&&!state.lite&&state.items.length){var top=state.items.filter(function(i){return !state.contig||i.ts>=state.contig}).slice(0,400),cg=top.length>=400?top[top.length-1].ts:0,t18=Date.now()-18*36e5;
     var old=cg?state.items.filter(function(i){return i.ts<cg&&i.ts>t18&&((i.score||0)>=6||isArt(i))}).slice(0,700):[];
-    localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),contig:cg,stats:state.stats,items:top.concat(old)}));}}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
+    localStorage.setItem(SNAP,JSON.stringify({now:state.okAt||Date.now(),contig:cg,stats:state.stats,briefs:state.briefs||null,items:top.concat(old)}));}}catch(e){try{localStorage.removeItem(SNAP)}catch(e2){}}}
 function snapSoon(){clearTimeout(snapT);snapT=setTimeout(function(){(window.requestIdleCallback||setTimeout)(snapSave)},1500);}
 window.addEventListener('pagehide',snapSave);
 function bootData(){var b=BOOT,c=null,at=0;try{c=JSON.parse(localStorage.getItem(SNAP)||'null')}catch(e){}
@@ -1387,7 +1387,10 @@ function bootData(){var b=BOOT,c=null,at=0;try{c=JSON.parse(localStorage.getItem
   if(b&&c){// 网页自带的数据更新，但只有标题；正文从本机快照里补
     var m={};c.items.forEach(function(i){m[i.id]=i});at=c.now;
     b.items=b.items.map(function(i){var o=i.lite&&m[i.id];if(!o)return i;o=Object.assign({},o,i);delete o.lite;return o;});}
-  var src=b||c;state.items=src.items.slice().sort(function(x,y){return y.ts-x.ts});state.contig=src.contig||0;state.stats=src.stats||null;state.bootAt=at||src.now;state.loaded=true;
+  var src=b||c;state.items=src.items.slice().sort(function(x,y){return y.ts-x.ts});state.contig=src.contig||0;state.stats=src.stats||null;
+  // AI 事件简报也跟着首屏数据一起来，不然头条下面会先显示事件脉络、再换成简报
+  if(src.briefs){state.briefs=src.briefs;state.bSig=JSON.stringify(src.briefs.map(function(b){return b.key+b.updated}));}
+  state.bootAt=at||src.now;state.loaded=true;
   state.lite=state.items.some(function(i){return i.lite&&(!state.contig||i.ts>=state.contig)});
   state.items.forEach(function(i){if(i.seen_at>state.lastSeen)state.lastSeen=i.seen_at});
   return Math.abs(Date.now()-src.now)<2e4;}
@@ -1417,7 +1420,7 @@ if(freshBoot){state.first=false;state.okAt=Date.now();$('liveTxt').textContent=T
 else{load().then(function(){if(hashId)openFromPush(hashId);}).then(fillLite).then(backfill);}
 if(!state.stats||!freshBoot)loadStats();
 pushInit();(window.requestIdleCallback||setTimeout)(loadHealth);setInterval(loadStats,3e5);
-loadBriefs();setInterval(loadBriefs,120000);setInterval(load,15000);setInterval(renderClocks,20000);setInterval(loadHealth,300000);
+if(!freshBoot||!state.briefs)loadBriefs();setInterval(loadBriefs,120000);setInterval(load,15000);setInterval(renderClocks,20000);setInterval(loadHealth,300000);
 `;
 
 const ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f5f0e6'/%3E%3Cpath d='M9 8v16M23 8v16M9 16h14' stroke='%231a1714' stroke-width='3.4'/%3E%3Ccircle cx='25.5' cy='6.5' r='3.5' fill='%23c8371d'/%3E%3C/svg%3E";

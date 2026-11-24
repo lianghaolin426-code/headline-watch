@@ -722,7 +722,7 @@ async function statsData(env) {
 // 这样头条、今日要闻、各标签的条数一打开就是最终结果，不用等后面再补一页数据才变（以前会先显示 9 分的头条再跳成 10 分的）。
 async function bootData(env) {
   const now = Date.now();
-  const [items, stats] = await Promise.all([listItems(env, { limit: 400 }), statsData(env)]);
+  const [items, stats, briefs] = await Promise.all([listItems(env, { limit: 400 }), statsData(env), listBriefs(env).catch(() => null)]);
   let contig = 0;
   if (items.length >= 400) {
     contig = items[items.length - 1].ts;
@@ -730,7 +730,7 @@ async function bootData(env) {
     const have = new Set(items.map((x) => x.id));
     for (const x of extra) if (!have.has(x.id)) items.push(x);
   }
-  return { now, contig, items: items.map(liteItem), stats };
+  return { now, contig, items: items.map(liteItem), stats, briefs };
 }
 
 function liteItem(it) {
