@@ -44,7 +44,7 @@ function toMs(v) {
 const URLS = {
   cls: (o) => o.shareurl || `https://www.cls.cn/detail/${o.id}`,
   wscn: (o) => o.uri || `https://wallstreetcn.com/livenews/${o.id}`,
-  gelonghui: (o) => (o.route ? `https://www.gelonghui.com${o.route}` : `https://www.gelonghui.com/live/${o.id}`),
+  gelonghui: (o) => (o.route ? new URL(o.route, 'https://www.gelonghui.com').href : `https://www.gelonghui.com/live/${o.id}`),
   jin10: (o) => `https://flash.jin10.com/detail/${o.id}`,
 };
 
