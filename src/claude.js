@@ -28,19 +28,20 @@ export function claudeReset() {
 
 /**
  * 发一次请求，返回 { text, usage: { input, output } }；失败、被拒答或被截断时返回 null。
- * @param kind 'score' | 'translate'，只用来分开记用量
+ * @param kind 'score' | 'translate' | 'brief'，只用来分开记用量
  */
-export async function claudeText(env, { system, user, maxTokens, kind = 'score' }) {
+export async function claudeText(env, { system, user, maxTokens, kind = 'score', effort = 'low', think = false, timeout = 20_000 }) {
   if (!claudeUp(env)) return null;
   try {
     // CLAUDE_CLIENT 只在测试里注入假的客户端
-    const client = env.CLAUDE_CLIENT || new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 20_000 });
+    const client = env.CLAUDE_CLIENT || new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout });
     const res = await client.messages.create({
       model: env.CLAUDE_MODEL || CLAUDE_MODEL,
       max_tokens: maxTokens,
       // 打分和翻译都是短平快的活：不要思考过程，省钱也省时间
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'low' },
+      // 写事件简报这种需要组织材料的活才打开思考（think=true）
+      thinking: think ? { type: 'adaptive' } : { type: 'disabled' },
+      output_config: { effort },
       // 固定的提示词做缓存：每分钟都在调，命中缓存的部分只收一成的钱（提示词太短不够缓存时自动忽略，没有副作用）
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: user }],
