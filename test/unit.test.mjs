@@ -164,3 +164,16 @@ test('tagged score replies', async () => {
   assert.deepEqual(parseTagged('[7, 2]', 2).scores, [7, 2]);
   assert.equal(parseTagged('nope', 2), null);
 });
+
+test('wallstreetcn information-flow: keep articles only, unwrap resource', async () => {
+  const { parseCnJson } = await import('../src/cnfeeds.js');
+  const body = { code: 20000, data: { items: [
+    { resource_type: 'live', resource: { id: 1, title: '快讯', display_time: 1795515646 } },
+    { resource_type: 'ad', resource: { id: 2, kind: 'banner' } },
+    { resource_type: 'article', resource: { id: 3, title: '华尔街看黄仁勋回归：卖方狂欢，买方困惑', display_time: 1795515000, uri: 'https://wallstreetcn.com/articles/3' } },
+  ] } };
+  const out = parseCnJson(JSON.stringify(body), '华尔街见闻文章', 'wscnArticle');
+  assert.equal(out.length, 1);
+  assert.equal(out[0].title, '华尔街看黄仁勋回归：卖方狂欢，买方困惑');
+  assert.equal(out[0].url, 'https://wallstreetcn.com/articles/3');
+});
