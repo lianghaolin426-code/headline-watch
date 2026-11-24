@@ -142,23 +142,31 @@ export function parseEchoed(raw, titles) {
   const tags = new Array(n).fill(null);
   let fixed = 0;
   let dropped = 0;
-  for (const row of data) {
-    if (!Array.isArray(row) || typeof row[1] !== 'string') continue;
-    const sc = Number(row[2]);
-    if (row[2] == null || !Number.isFinite(sc)) continue;
-    const e = squash(row[1]);
-    let i = Number(row[0]);
-    if (!(Number.isInteger(i) && i >= 0 && i < n && fits(i, e))) {
-      const hits = keys.map((_, k) => k).filter((k) => fits(k, e));
-      if (hits.length !== 1) {
-        dropped++;
-        continue;
-      }
-      i = hits[0];
-      fixed++;
-    }
-    scores[i] = Math.max(1, Math.min(10, sc));
+  const put = (i, row) => {
+    scores[i] = Math.max(1, Math.min(10, Number(row[2])));
     tags[i] = row.length > 3 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6] }) : null;
+  };
+  const rows = data.filter((row) => Array.isArray(row) && typeof row[1] === 'string' && row[2] != null && Number.isFinite(Number(row[2])));
+  const valid = (i) => Number.isInteger(i) && i >= 0 && i < n;
+  const later = [];
+  // 第一遍：编号和开头对得上的，直接认
+  for (const row of rows) {
+    const i = Number(row[0]);
+    if (valid(i) && scores[i] == null && fits(i, squash(row[1]))) put(i, row);
+    else later.push(row);
+  }
+  // 第二遍：对不上的，看开头能不能唯一对上另一条还空着的标题（编号写串了）；
+  // 哪条都对不上、但编号的位置还空着的，按编号认（多半只是开头抄得不准）；其余丢掉，那条快讯交给规则
+  for (const row of later) {
+    const e = squash(row[1]);
+    const i = Number(row[0]);
+    const hits = keys.map((_, k) => k).filter((k) => scores[k] == null && fits(k, e));
+    if (hits.length === 1) {
+      put(hits[0], row);
+      fixed++;
+    } else if (hits.length > 1 && valid(i) && hits.includes(i)) put(i, row);
+    else if (!hits.length && valid(i) && scores[i] == null && !keys.some((_, k) => fits(k, e))) put(i, row);
+    else dropped++;
   }
   return { scores, tags, fixed, dropped };
 }
@@ -184,6 +192,8 @@ export async function aiScores(env, items, { tags = false } = {}) {
     const out = parsed.scores;
     out.tags = parsed.tags;
     out.usage = usage;
+    out.fixed = parsed.fixed || 0;
+    out.dropped = parsed.dropped || 0;
     out.provider = provider;
     return out;
   };

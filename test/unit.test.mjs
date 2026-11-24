@@ -285,10 +285,15 @@ test('echoed rows: swapped numbers are put back, unknown rows dropped', async ()
   const titles = ['Tool Changer. Now Standard. Bambu Lab Launches the P3C', '世卫：美国报告3例感染禽流感病例 1人死亡', 'Mosaic to sell Louisiana ammonia plant', 'OK'];
   // 模型把 0 和 1 的编号写反了
   const out = parseEchoed('[[1,"Tool Changer",1],[0,"世卫：美国报告3例感染禽流",6,-1,"","Bird flu","health"],[2,"Something el",9,1,"MOS","Mosaic","industrial"],[3,"OK",3]]', titles);
-  assert.deepEqual(out.scores, [1, 6, null, null]);
+  // 第三行开头抄错但编号位置空着：按编号认；"OK" 这种极短标题也按编号认
+  assert.deepEqual(out.scores, [1, 6, 9, 3]);
   assert.equal(out.tags[1].topic, 'Bird flu');
   assert.equal(out.tags[0], null);
   assert.equal(out.fixed, 2);
-  assert.equal(out.dropped, 2);
+  assert.equal(out.dropped, 0);
+  // 两条标题一样：各归各的编号；多出来的一行丢掉
+  const dup = parseEchoed('[[0,"JPMorgan say",5,0,"","SOFR","macro"],[1,"JPMorgan say",5,0,"","SOFR","macro"],[1,"JPMorgan say",9]]', ['JPMorgan says SOFR mispriced', 'JPMorgan says SOFR mispriced']);
+  assert.deepEqual(dup.scores, [5, 5]);
+  assert.equal(dup.dropped, 1);
   assert.equal(parseEchoed('no json', titles), null);
 });

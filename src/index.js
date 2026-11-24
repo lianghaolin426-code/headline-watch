@@ -87,6 +87,10 @@ async function scoreItems(env, cfg, list, report) {
     .slice(0, cfg.maxAi);
   const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags }) : null;
   if (scores?.usage) await addUsage(env, report, scores.usage, scores.provider);
+  if (report && (scores?.fixed || scores?.dropped)) {
+    report.renumbered = (report.renumbered || 0) + scores.fixed;
+    report.dropped = (report.dropped || 0) + scores.dropped;
+  }
   if (cfg.aiOn && candidates.length && !scores) report.errors.push('AI 打分失败，本轮用规则判断');
   candidates.forEach((it, k) => {
     if (scores && scores[k] != null) {
@@ -731,8 +735,11 @@ export default {
         if (url.searchParams.has('tags')) cfg.aiTags = url.searchParams.get('tags') !== '0'; // 对比带标签和不带标签的开销
         const hours = Math.min(Number(url.searchParams.get('hours') || 6), 72);
         const rows = (
-          await env.DB.prepare('SELECT id, source, title, body, ts, confirms FROM items WHERE ts > ? ORDER BY ts DESC LIMIT 200')
-            .bind(Date.now() - hours * 3_600_000)
+          await env.DB.prepare(
+            // todo=1：只补还没有 AI 分数的（额度用完那段时间留下的）；skip=N：跳过最新的 N 条，分几次跑完
+            `SELECT id, source, title, body, ts, confirms FROM items WHERE ts > ? ${url.searchParams.get('todo') === '1' ? "AND (score_by IS NULL OR score_by = 'rule')" : ''} ORDER BY ts DESC LIMIT 200 OFFSET ?`
+          )
+            .bind(Date.now() - hours * 3_600_000, Math.max(0, Number(url.searchParams.get('skip')) || 0))
             .all()
         ).results.map((r) => enrich(r, cfg));
         const report = { errors: [] };
@@ -746,6 +753,9 @@ export default {
           rescored: out.length,
           important: out.filter((r) => r.important).length,
           errors: report.errors,
+          renumbered: report.renumbered || 0,
+          dropped: report.dropped || 0,
+          by: out.reduce((c, r) => ((c[r.scoreBy] = (c[r.scoreBy] || 0) + 1), c), {}),
           usage:
             report.aiUsage &&
             (report.aiUsage.provider === 'claude'
