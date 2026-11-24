@@ -9,6 +9,7 @@ import { parseCnJson } from './cnfeeds.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
+import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
 import { renderPage } from './page.js';
 import { translatePending } from './translate.js';
 
@@ -567,7 +568,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       upd.push(env.DB.prepare('UPDATE items SET confirms = ?, score = ?, important = ? WHERE id = ?').bind(confirms, score, important ? 1 : 0, row.id));
       const storyPushed = row.dup_of || by.some((f) => f.important || f.matches.some((m) => m.notified || m.important));
       if (important && !row.important && !row.notified && !storyPushed && now - row.ts <= cfg.maxAgeMs && cfg.notifyMode !== 'off') {
-        toNotify.push({ id: row.id, title: row.title, source: row.source, url: row.url, ts: row.ts, score, scoreBy: row.score_by, hits: [`${confirms + 1} 个来源证实`] });
+        toNotify.push({ id: row.id, title: row.title, source: row.source, url: row.url, ts: row.ts, score, scoreBy: row.score_by, confirms, hits: [`${confirms + 1} 个来源证实`] });
       }
     }
     if (upd.length) await env.DB.batch(upd);
@@ -582,18 +583,31 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     await safeRelate(env, cfg, { arts, now }, report);
   }
 
-  if (notify && toNotify.length && enabledChannels(env).length) {
+  if (notify && toNotify.length) {
     toNotify.sort((a, b) => a.ts - b.ts);
-    for (const it of toNotify.slice(-cfg.maxPerRun)) {
-      const results = await notifyAll(env, {
-        title: it.title,
-        source: it.source,
-        reason: `${it.scoreBy === 'ai' ? 'AI' : '规则'} ${Math.round(it.score * 10) / 10} 分${it.hits.length ? ' · ' + it.hits.join(', ') : ''}`,
-        url: it.url,
-        ts: it.ts,
-      });
-      const failed = results.filter((r) => !r.ok);
-      if (failed.length) report.errors.push(...failed.map((f) => `notify ${f.channel}: ${f.error}`));
+    const batch = toNotify.slice(-cfg.maxPerRun);
+    // 网页推送：每个订阅的浏览器按自己的门槛和免打扰时段收
+    let web = { ids: new Set(), errors: [], sent: 0 };
+    try {
+      web = await pushToSubscribers(env, batch, { now });
+    } catch (e) {
+      report.errors.push(`webpush: ${e?.message || e}`);
+    }
+    report.errors.push(...web.errors);
+    report.webpush = web.sent;
+    const channels = enabledChannels(env).length;
+    for (const it of batch) {
+      if (channels) {
+        const results = await notifyAll(env, {
+          title: it.title,
+          source: it.source,
+          reason: `${it.scoreBy === 'ai' ? 'AI' : '规则'} ${Math.round(it.score * 10) / 10} 分${it.hits.length ? ' · ' + it.hits.join(', ') : ''}`,
+          url: it.url,
+          ts: it.ts,
+        });
+        const failed = results.filter((r) => !r.ok);
+        if (failed.length) report.errors.push(...failed.map((f) => `notify ${f.channel}: ${f.error}`));
+      } else if (!web.ids.has(it.id)) continue;
       await db.prepare('UPDATE items SET notified = ? WHERE id = ?').bind(now, it.id).run();
       report.notified++;
     }
@@ -735,6 +749,7 @@ export default {
           ai: { enabled: cfg.aiOn && (!!env.AI || claudeOn(env)), provider: claudeOn(env) ? 'claude' : 'workers', tags: cfg.aiTags, threshold: cfg.threshold, weights: cfg.weights, usage: await usageRows(env) },
           claude: { enabled: claudeOn(env), model: env.CLAUDE_MODEL || CLAUDE_MODEL, translate: cfg.trProvider === 'claude', ...claudeState(), ...(await claudeUsage(env)) },
           notifyMode: cfg.notifyMode,
+          webpush: (await listSubscriptions(env)).map((x) => ({ min: x.min_score, mode: x.mode, quiet: x.quiet_from != null ? `${x.quiet_from}-${x.quiet_to} ${x.tz || ''}`.trim() : null, last_ok: x.last_ok, fails: x.fails, last_error: x.last_error })),
           sources,
         });
       }
@@ -854,6 +869,64 @@ export default {
 
       case '/api/run': // 手动触发一次抓取（测试用）
         return json(await runOnce(env, { notify: url.searchParams.get('notify') !== '0' }));
+
+      case '/sw.js':
+        return new Response(SW_JS, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' } });
+
+      case '/manifest.webmanifest':
+        return new Response(
+          JSON.stringify({ name: 'Headline Watch', short_name: 'Headline', start_url: '/' + (url.searchParams.get('key') ? '?key=' + encodeURIComponent(url.searchParams.get('key')) : ''), display: 'standalone', background_color: '#f5f0e6', theme_color: '#f5f0e6' }),
+          { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8' } }
+        );
+
+      case '/api/push/key': {
+        // 公钥 + 过去 24 小时各门槛的条数；带 endpoint 时顺便返回这个浏览器在服务器上的设置
+        const keys = await vapidKeys(env);
+        const ep = url.searchParams.get('endpoint');
+        const sub = ep ? await getSubscription(env, ep) : null;
+        return json({
+          publicKey: keys.publicKey,
+          counts: await dailyCounts(env),
+          sub: sub ? { min: sub.min_score, mode: sub.mode, quietFrom: sub.quiet_from, quietTo: sub.quiet_to, tz: sub.tz, sticky: !!sub.sticky, lastOk: sub.last_ok, fails: sub.fails, lastError: sub.last_error } : null,
+        });
+      }
+
+      case '/api/push/subscribe': {
+        if (req.method !== 'POST') return json({ ok: false }, 405);
+        const body = await req.json().catch(() => null);
+        const page = String(body?.page || '').split('#')[0];
+        const origin = page.startsWith(url.origin + '/') ? page : url.origin + '/';
+        const r = await saveSubscription(env, body, { origin, ua: req.headers.get('User-Agent') });
+        return json(r, r.ok ? 200 : 400);
+      }
+
+      case '/api/push/unsubscribe': {
+        if (req.method !== 'POST') return json({ ok: false }, 405);
+        const body = await req.json().catch(() => null);
+        return json(await removeSubscription(env, body?.endpoint));
+      }
+
+      case '/api/push/test': {
+        // 只能给已经订阅的浏览器发测试，避免被人拿来乱发
+        if (req.method !== 'POST') return json({ ok: false }, 405);
+        const body = await req.json().catch(() => null);
+        const sub = await getSubscription(env, body?.endpoint);
+        if (!sub) return json({ ok: false, error: 'not subscribed' }, 404);
+        try {
+          const r = await sendPush(env, sub, {
+            title: body?.title ? String(body.title).slice(0, 120) : 'Headline Watch 测试推送',
+            body: body?.body ? String(body.body).slice(0, 200) : '能看到这条，说明推送已经通了',
+            id: `test-${Date.now()}`, // 每次都不同，避免被当成同一条通知悄悄替换
+            sticky: !!sub.sticky,
+            url: String(sub.origin || url.origin + '/').split('#')[0],
+            ts: Date.now(),
+          }, { ttl: 300 });
+          if (r.gone) await removeSubscription(env, sub.endpoint);
+          return json(r, r.ok ? 200 : 502);
+        } catch (e) {
+          return json({ ok: false, error: String(e?.message || e) }, 502);
+        }
+      }
 
       case '/api/test-notify': {
         const channels = enabledChannels(env);
