@@ -626,13 +626,31 @@ function emptyHtml(){
     :filtered?'<div class="empty"><b>'+T('eFilter')+'</b>'+T('eFilterD')+'<br><button class="btn" id="clr2">'+T('clear')+'</button></div>'
     :'<div class="empty"><b>'+T('eScore')+'</b>'+T('eScoreD')+'</div>';
 }
+/* ---------- 动效：名次变化时平滑移位，新条目淡入，分数变化时轻轻一闪 ---------- */
+var lastKey='';
+function snap(){var m={},vh=window.innerHeight,n=0;[].forEach.call($('main').querySelectorAll('[data-id]'),function(el){
+  if(n>120)return;var r=el.getBoundingClientRect();if(r.bottom<-400||r.top>vh+400)return;n++;
+  var sc=el.querySelector('.sc,.ring span');m[el.dataset.id+'|'+el.classList[0]]={x:r.left,y:r.top,s:sc?sc.textContent:''};});return m;}
+function play(prev){var ease='cubic-bezier(.2,.8,.2,1)',vh=window.innerHeight,n=0;
+  [].forEach.call($('main').querySelectorAll('[data-id]'),function(el){
+    if(n>120||!el.animate)return;var r=el.getBoundingClientRect();if(r.bottom<-400||r.top>vh+400)return;n++;
+    var p=prev[el.dataset.id+'|'+el.classList[0]];
+    if(!p){el.animate([{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'none'}],{duration:420,easing:ease});return;}
+    var dx=p.x-r.left,dy=p.y-r.top;
+    if(Math.abs(dx)+Math.abs(dy)>2)el.animate([{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'none'}],{duration:480,easing:ease});
+    var sc=el.querySelector('.sc,.ring span');
+    if(sc&&p.s&&sc.textContent!==p.s){var t=sc.closest('.ring')||sc;t.animate([{transform:'scale(1)'},{transform:'scale(1.22)',boxShadow:'0 0 0 6px var(--red-soft)'},{transform:'scale(1)'}],{duration:900,easing:'ease-out'});}
+  });}
 function render(soft,gesture){
+  var key=state.view+'|'+state.q+'|'+state.lang+'|'+offCount(),still=!!window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var prev=(state.loaded&&!soft&&!still&&key===lastKey&&!document.hidden)?snap():null;lastKey=state.loaded?key:'';
   want=[];var b=base();renderTabs(b);if(!soft)renderSide();
   var html='';
   if(!state.loaded){for(var k=0;k<9;k++)html+='<div class="sk" style="width:'+(50+(k*37)%45)+'%"></div>';}
   else if(state.view==='brief'){html=briefHtml(b)||emptyHtml();}
   else{var v=state.view==='star'?starList():b.filter(function(i){return inView(i,state.view)});html=v.length?'<div class="list">'+listHtml(v.slice(0,400))+'</div>':emptyHtml();}
   $('main').innerHTML=html;state.newIds={};
+  if(prev&&Object.keys(prev).length)play(prev);
   if(document.body.classList.contains('open-reader'))renderReader();
   setTop();if(want.length)pump(!!gesture);
 }
