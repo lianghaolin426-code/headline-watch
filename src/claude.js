@@ -41,10 +41,15 @@ export async function claudeText(env, { system, user, maxTokens, kind = 'score' 
       // 打分和翻译都是短平快的活：不要思考过程，省钱也省时间
       thinking: { type: 'disabled' },
       output_config: { effort: 'low' },
-      system,
+      // 固定的提示词做缓存：每分钟都在调，命中缓存的部分只收一成的钱（提示词太短不够缓存时自动忽略，没有副作用）
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: user }],
     });
-    const usage = { input: Number(res?.usage?.input_tokens) || 0, output: Number(res?.usage?.output_tokens) || 0 };
+    // 记账用的输入 token 按价格折算：读缓存算一成，写缓存算 1.25 倍，这样 花费 = 输入 x 单价 仍然成立
+    const u = res?.usage || {};
+    const cacheRead = Number(u.cache_read_input_tokens) || 0;
+    const cacheWrite = Number(u.cache_creation_input_tokens) || 0;
+    const usage = { input: Math.round((Number(u.input_tokens) || 0) + cacheRead * 0.1 + cacheWrite * 1.25), output: Number(u.output_tokens) || 0, cacheRead };
     await recordUsage(env, kind, usage);
     if (res.stop_reason === 'refusal' || res.stop_reason === 'max_tokens') {
       console.warn('claude stopped early', res.stop_reason);

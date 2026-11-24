@@ -11,7 +11,7 @@ Use standard mainland financial terminology (e.g. 美联储, 回购, 做空, 财
 Use the established Chinese name for well-known companies, people and places (Nvidia = 英伟达, Jensen Huang = 黄仁勋, Fed = 美联储); keep other proper nouns in their original spelling.
 Be concise and neutral, like a wire headline. Do not add or drop facts, do not explain.`,
   en: `You translate Chinese financial news flashes into English for professional investors.
-Write in concise wire-headline style (Reuters / Bloomberg). Keep numbers, currencies, percentages and tickers exactly as written.
+Write in concise wire-headline style (Reuters / Bloomberg). Use sentence case, not Title Case. Keep numbers, currencies, percentages and tickers exactly as written.
 Use the established English name for companies, people and places. Do not add or drop facts, do not explain.`,
 };
 const FORMAT = `The user message lists numbered items. Each has a headline "T:" and sometimes a summary "B:".

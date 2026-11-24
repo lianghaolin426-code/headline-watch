@@ -213,13 +213,14 @@ test('Claude is the first choice for scoring, Workers AI the fallback', async ()
   const items = [{ source: 'Reuters', title: 'Fed unexpectedly cuts rates by 50bp' }, { source: 'X', title: 'Analyst raises price target' }];
   const workers = { run: async () => ({ response: '[[0,7],[1,3]]', usage: { prompt_tokens: 5, completion_tokens: 6 } }) };
 
-  let out = await aiScores({ CLAUDE_CLIENT: client(() => reply('[[0,10,1,"","Fed","macro"],[1,2]]')), AI: workers }, items, { tags: true });
+  let out = await aiScores({ CLAUDE_CLIENT: client(() => reply('[[0,"Fed unexpect",10,1,"","Fed","macro"],[1,"Analyst rais",2]]')), AI: workers }, items, { tags: true });
   assert.deepEqual([...out], [10, 2]);
   assert.equal(out.provider, 'claude');
   assert.equal(out.tags[0].topic, 'Fed');
   assert.deepEqual(out.usage, { prompt: 700, completion: 40 });
   assert.equal(sent[0].model, 'claude-haiku-5-5');
   assert.equal(sent[0].temperature, undefined);
+  assert.equal(sent[0].system[0].cache_control.type, 'ephemeral');
   assert.match(sent[0].messages[0].content, /^0\. \[Reuters\]/);
 
   // 拒答、回复不合法、接口报错：都退回 Workers AI
@@ -232,7 +233,7 @@ test('Claude is the first choice for scoring, Workers AI the fallback', async ()
   assert.equal(await aiScores({ CLAUDE_CLIENT: client(() => reply('nope')) }, items), null);
   // AI_PROVIDER="workers" 可以关掉 Claude
   let called = 0;
-  out = await aiScores({ CLAUDE_CLIENT: client(() => (called++, reply('[[0,9],[1,1]]'))), AI: workers, AI_PROVIDER: 'workers' }, items);
+  out = await aiScores({ CLAUDE_CLIENT: client(() => (called++, reply('[[0,"Fed unexpect",9],[1,"Analyst rais",1]]'))), AI: workers, AI_PROVIDER: 'workers' }, items);
   assert.equal(called, 0);
   assert.equal(out.provider, 'workers');
 
@@ -269,7 +270,7 @@ test('Claude translation saves what it can and hands the rest to the fallback', 
     stop_reason: 'end_turn',
     usage: { input_tokens: 300, output_tokens: 50 },
     // 英译中那批漏掉第二条；中译英那批正常
-    content: [{ type: 'text', text: /Simplified Chinese/.test(req.system) ? '[{"i":0,"t":"美联储意外降息","b":""}]' : '[{"i":0,"t":"Fed unexpectedly cuts rates","b":""}]' }],
+    content: [{ type: 'text', text: /Simplified Chinese/.test(req.system[0].text) ? '[{"i":0,"t":"美联储意外降息","b":""}]' : '[{"i":0,"t":"Fed unexpectedly cuts rates","b":""}]' }],
   }) } };
   const fetcher = async () => ({ status: 200, json: async () => ({ responseStatus: 200, responseData: { translatedText: '英伟达股价暴跌8%' } }) });
   const n = await translatePending({ DB, CLAUDE_CLIENT: client }, { provider: 'claude', fallback: 'mymemory', fetcher });
@@ -277,4 +278,17 @@ test('Claude translation saves what it can and hands the rest to the fallback', 
   assert.deepEqual(saved.map((a) => [a[3], a[0], a[2]]).sort(), [['a', '美联储意外降息', 'zh'], ['b', '英伟达股价暴跌8%', 'zh'], ['c', 'Fed unexpectedly cuts rates', 'en']]);
   assert.equal(usage.length, 2);
   assert.equal(usage[0][1], 'translate');
+});
+
+test('echoed rows: swapped numbers are put back, unknown rows dropped', async () => {
+  const { parseEchoed } = await import('../src/score.js');
+  const titles = ['Tool Changer. Now Standard. Bambu Lab Launches the P3C', '世卫：美国报告3例感染禽流感病例 1人死亡', 'Mosaic to sell Louisiana ammonia plant', 'OK'];
+  // 模型把 0 和 1 的编号写反了
+  const out = parseEchoed('[[1,"Tool Changer",1],[0,"世卫：美国报告3例感染禽流",6,-1,"","Bird flu","health"],[2,"Something el",9,1,"MOS","Mosaic","industrial"],[3,"OK",3]]', titles);
+  assert.deepEqual(out.scores, [1, 6, null, null]);
+  assert.equal(out.tags[1].topic, 'Bird flu');
+  assert.equal(out.tags[0], null);
+  assert.equal(out.fixed, 2);
+  assert.equal(out.dropped, 2);
+  assert.equal(parseEchoed('no json', titles), null);
 });
