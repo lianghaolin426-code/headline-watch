@@ -579,7 +579,7 @@ function briefHtml(b){
   // 12 小时统计：重要条数、和平常比、多空情绪、热门股票
   var win=dedupe(b.filter(function(i){return i.ts>now-12*36e5&&!i.dup_of})),tot=win.length,imp=win.filter(isHot).length,srcs={};win.forEach(function(i){srcs[i.source]=1});
   var st=state.stats,vs='<div class="vs"><strong>'+T('vsNone')+'</strong><div class="gauge"></div></div>';
-  if(st&&st.windows){var w0=null,past=[];st.windows.forEach(function(w){if(w.k===0)w0=w;else if(st.now-w.k*864e5-432e5>=st.oldest)past.push(w.imp||0);});
+  if(st&&st.windows){var w0=null,past=[];st.windows.forEach(function(w){if(w.k===0)w0=w;else if(st.now-w.k*864e5-432e5>=st.oldest&&(w.n||0)>=50)past.push(w.imp||0);});
     if(w0){imp=w0.imp||0;tot=Math.max(tot,w0.n||0);}
     if(past.length){var avg=past.reduce(function(x,y){return x+y},0)/past.length,r=avg>0?imp/avg:(imp?2:1),pc=Math.round(Math.abs(r-1)*100),up=r>=1.1,dn=r<=.9;
       vs='<div class="vs"><strong'+(up?' class="up"':'')+'>'+(up?T('vsUp',pc):dn?T('vsDown',pc):T('vsFlat'))+'</strong><div class="gauge"><i'+(up?' class="up"':'')+' style="inset-inline-start:'+Math.round(Math.max(0,Math.min(1,r/2))*100)+'%"></i></div><small>'+T('vsNote',past.length,Math.round(avg*10)/10)+'</small></div>';}}

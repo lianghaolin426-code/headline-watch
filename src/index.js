@@ -434,7 +434,8 @@ export default {
             .bind(now)
             .all()
         ).results;
-        const oldest = (await env.DB.prepare('SELECT MIN(ts) AS t FROM items').first())?.t || now;
+        // 用最早的抓取时间（seen_at）而不是发布时间：有些源会带很久以前的发布日期
+        const oldest = (await env.DB.prepare('SELECT MIN(seen_at) AS t FROM items').first())?.t || now;
         return json({ now, oldest, windows });
       }
 
