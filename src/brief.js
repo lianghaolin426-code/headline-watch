@@ -3,7 +3,9 @@
 // 只用收集到的原文，每句话标注来源编号，网页上可以点开原文。
 // 有新报道时滚动重写（攒够几条或隔一段时间，9 分以上的新消息立即），每天有花费上限。
 
-import { claudeText, claudeUp, claudeUsd } from './claude.js';
+import { claudeText, claudeUp, claudeUsd, claudeState } from './claude.js';
+
+const failedUntil = new Map();
 
 export const BRIEF_TABLE =
   'CREATE TABLE IF NOT EXISTS briefs (key TEXT PRIMARY KEY, title TEXT, body TEXT, srcs TEXT, ids TEXT, n INTEGER, created INTEGER, updated INTEGER, writes INTEGER NOT NULL DEFAULT 0, day TEXT, day_writes INTEGER NOT NULL DEFAULT 0)';
@@ -22,7 +24,7 @@ export function briefConfig(env) {
     batchMin: Number(env.BRIEF_BATCH_MIN || 30), // 两次更新至少隔多少分钟
     urgentMin: Number(env.BRIEF_URGENT_MIN || 10), // 9 分以上的新消息：至少隔多少分钟就更新
     staleH: Number(env.BRIEF_STALE_HOURS || 3), // 只有一两条新报道时，最多等多久也更新
-    maxSrc: Number(env.BRIEF_MAX_SOURCES || 60), // 一篇最多喂多少条报道
+    maxSrc: Number(env.BRIEF_MAX_SOURCES || 45), // 一篇最多喂多少条报道
     minItems: Number(env.BRIEF_MIN_ITEMS || 3), // 至少几条报道才值得写简报
   };
 }
@@ -225,7 +227,7 @@ export async function writeBrief(env, ev, row, c, now) {
   const arts = await articlesFor(env, ev.items.map((i) => i.id));
   const srcs = pickSources(ev.items, arts, c.maxSrc);
   const user = `以下是关于同一事件的 ${srcs.length} 条报道（现在是北京时间 ${bjTime(now)}）：\n\n${sourceText(srcs)}`;
-  const res = await claudeText(env, { system: BRIEF_SYSTEM, user, maxTokens: 6000, kind: 'brief', effort: 'medium', think: true, timeout: 90_000 });
+  const res = await claudeText(env, { system: BRIEF_SYSTEM, user, maxTokens: 16000, kind: 'brief', effort: 'low', think: true, timeout: 120_000 });
   if (!res) return null;
   const out = tidyBrief(res.text, srcs.length);
   if (!out) return null;
@@ -271,9 +273,13 @@ export async function runBriefs(env, { now = Date.now(), articles = new Set(), f
     .map((ev) => ({ ev, why: force ? (ev.key === force ? 'force' : null) : needsWrite(ev, rows.get(ev.key) || null, now, c) }))
     .filter((x) => x.why)
     .sort((a, b) => Math.max(...b.ev.items.map((i) => i.score || 0)) - Math.max(...a.ev.items.map((i) => i.score || 0)));
-  for (const { ev, why } of todo.slice(0, force ? 1 : c.perRun)) {
+  // 写失败的事件 30 分钟内不再试（免得每 5 分钟白花一次钱）
+  const ready = todo.filter((x) => force || !(failedUntil.get(x.ev.key) > now));
+  for (const { ev, why } of ready.slice(0, force ? 1 : c.perRun)) {
     const r = await writeBrief(env, ev, rows.get(ev.key) || null, c, now);
-    report.written.push(r ? { key: ev.key, why, n: ev.items.length, usd: r.usd, uncited: r.uncited } : { key: ev.key, why, failed: true });
+    if (!r) failedUntil.set(ev.key, now + 30 * 60_000);
+    else failedUntil.delete(ev.key);
+    report.written.push(r ? { key: ev.key, why, n: ev.items.length, usd: r.usd, uncited: r.uncited } : { key: ev.key, why, failed: true, error: claudeState().last_error });
   }
   report.pending = Math.max(0, todo.length - report.written.length);
   return report;

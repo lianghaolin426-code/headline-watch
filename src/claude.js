@@ -53,6 +53,7 @@ export async function claudeText(env, { system, user, maxTokens, kind = 'score',
     const usage = { input: Math.round((Number(u.input_tokens) || 0) + cacheRead * 0.1 + cacheWrite * 1.25), output: Number(u.output_tokens) || 0, cacheRead };
     await recordUsage(env, kind, usage);
     if (res.stop_reason === 'refusal' || res.stop_reason === 'max_tokens') {
+      lastError = `stopped: ${res.stop_reason} (${kind}, ${usage.output} output tokens)`;
       console.warn('claude stopped early', res.stop_reason);
       return null;
     }

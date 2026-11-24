@@ -122,3 +122,20 @@ test('runBriefs writes a cited brief, marks new sources on update, respects spen
   const u = DB.raw.prepare("SELECT calls FROM claude_usage WHERE kind = 'brief'").get();
   assert.equal(u.calls, 2);
 });
+
+test('a brief cut off at max_tokens is reported and not retried for 30 minutes', async () => {
+  claudeReset();
+  const DB = d1();
+  const ins = DB.raw.prepare('INSERT INTO items (id, source, title, body, url, ts, seen_at, score, confirms, tickers, topic) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  [it('a', { score: 9.5, tickers: 'AMD' }), it('b', { tickers: 'AMD' }), it('c', { tickers: 'AMD' })].forEach((i) => ins.run(i.id, i.source, i.title, i.body, i.url, i.ts, i.ts, i.score, i.confirms, i.tickers, i.topic));
+  let calls = 0;
+  const CLAUDE_CLIENT = { messages: { create: async (req) => (calls++, assert.equal(req.max_tokens, 16000), { stop_reason: 'max_tokens', usage: { input_tokens: 5000, output_tokens: 16000 }, content: [{ type: 'text', text: '## 一句话\n…' }] }) } };
+  const env = { DB, CLAUDE_CLIENT };
+  const r = await runBriefs(env, { now: NOW });
+  assert.equal(r.written[0].failed, true);
+  assert.match(r.written[0].error, /max_tokens/);
+  await runBriefs(env, { now: NOW + 10 * 60_000 });
+  assert.equal(calls, 1);
+  await runBriefs(env, { now: NOW + 31 * 60_000 });
+  assert.equal(calls, 2);
+});
