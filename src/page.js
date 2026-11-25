@@ -901,11 +901,13 @@ var STOP={};('the this that after with from will says new its and for not how wh
 /* 热门话题自动划线：过去 18 小时里条数最多的几个话题（至少 4 条，最多 5 个），
    在属于这个话题的快讯标题里，把话题的名字划出来。话题标签是英文（AI 打的），中文标题里叫什么是算出来的：
    这个话题的标题里大多都有、别的话题的标题里几乎没有的那个词（比如 Houthi 对应“胡塞武装”）。 */
+// 太笼统的标签不算话题（“市场”“其他”这类什么都能装的），不进话题卡片、话题列表，也不划线
+var VAGUE={market:1,markets:1,other:1,others:1,stocks:1,stock:1,economy:1,news:1,general:1,misc:1,business:1,finance:1,company:1,earnings:1};
 var HOT={at:0,n:-1,map:{},list:[],zh:{}};
 function hotTopics(){var now=Date.now();if(now-HOT.at<6e4&&HOT.n===state.items.length)return HOT;
   var win=state.items.filter(function(i){return i.ts>now-18*36e5}),g={},map={};
   function txt(i){var c=TR[i.id];return (i.title+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase();}
-  win.forEach(function(i){if(i.dup_of||!i.topic)return;var k=i.topic.toLowerCase();(g[k]=g[k]||{key:k,name:i.topic,items:[]}).items.push(i)});
+  win.forEach(function(i){if(i.dup_of||!i.topic||(i.score||0)<5)return;var k=i.topic.toLowerCase();if(VAGUE[k])return;(g[k]=g[k]||{key:k,name:i.topic,items:[]}).items.push(i)});
   // 话题的中文名：新打的标签自带中文名，同一个话题的旧快讯跟着用（不用重新打标签）
   var zc={},zh={};state.items.forEach(function(i){if(!i.topic||!i.topic_zh)return;var k=i.topic.toLowerCase(),m=zc[k]=zc[k]||{};m[i.topic_zh]=(m[i.topic_zh]||0)+1;if(!zh[k]||m[i.topic_zh]>m[zh[k]])zh[k]=i.topic_zh;});
   var all=Object.keys(g).map(function(k){return g[k]}).sort(function(a,b){return b.items.length-a.items.length||b.items.filter(isHot).length-a.items.filter(isHot).length||(a.key<b.key?-1:1)});
@@ -914,7 +916,7 @@ function hotTopics(){var now=Date.now();if(now-HOT.at<6e4&&HOT.n===state.items.l
     var ins=tp.items.map(txt),outs=win.filter(function(i){return !i.topic||i.topic.toLowerCase()!==tp.key}).map(txt),c={};
     ins.forEach(function(t){var u={};(t.match(/[一-鿿]+/g)||[]).forEach(function(run){for(var n=2;n<=4;n++)for(var q=0;q+n<=run.length;q++)u[run.substr(q,n)]=1;});Object.keys(u).forEach(function(w){c[w]=(c[w]||0)+1});});
     var best='',bs=0;Object.keys(c).forEach(function(w){var cov=c[w]/ins.length;if(cov<.6)return;var oc=outs.length?outs.filter(function(t){return t.indexOf(w)>=0}).length/outs.length:0;if(oc>=.06)return;var sc=cov-oc*3+w.length*.01;if(sc>bs){bs=sc;best=w;}});
-    if(best&&terms.indexOf(best)<0)terms.push(best);tp.hot=true;map[tp.key]=terms;});
+    if(best&&!zh[tp.key]&&terms.indexOf(best)<0)terms.push(best);tp.hot=true;map[tp.key]=terms;});
   HOT={at:now,n:state.items.length,map:map,list:all,zh:zh};return HOT;}
 function tpName(n){var z=state.lang==='zh'&&hotTopics().zh[String(n).toLowerCase()];return z||n;}
 function topicsHtml(){var all=hotTopics().list;if(all.length<3)return '';var many=all.filter(function(x){return x.items.length>1}),one=all.length-many.length,L=many.length>=6?many:all.slice(0,30);
@@ -922,7 +924,7 @@ function topicsHtml(){var all=hotTopics().list;if(all.length<3)return '';var man
     return '<button class="chipb tp" data-rel="#'+esc(x.name)+'"><bdi>'+(x.hot?'<mark class="k">'+esc(tpName(x.name))+'</mark>':esc(tpName(x.name)))+'</bdi><b class="num">'+x.items.length+'</b></button>'}).join('')+(L===many&&one?'<span class="tpm">'+T('tpMore',one)+'</span>':'')+'</div></div>';}
 function topics(list){
   // AI 给了话题标签的快讯够多时，直接按标签归拢（中英文自动对上）；否则退回到数专有名词
-  var tg={},nt=0;list.forEach(function(i){if(i.dup_of||!i.topic)return;nt++;var k=i.topic.toLowerCase();(tg[k]=tg[k]||{name:i.topic,tag:true,items:[]}).items.push(i)});
+  var tg={},nt=0;list.forEach(function(i){if(i.dup_of||!i.topic||(i.score||0)<5||VAGUE[i.topic.toLowerCase()])return;nt++;var k=i.topic.toLowerCase();(tg[k]=tg[k]||{name:i.topic,tag:true,items:[]}).items.push(i)});
   if(nt>=12){var at=Object.keys(tg).map(function(k){return tg[k]}).filter(function(x){return x.items.length>=3}).sort(function(a,b){return b.items.length-a.items.length||b.items.filter(isHot).length-a.items.filter(isHot).length});if(at.length)return at.slice(0,3);}
   var cap={},low={},docs={};
   list.forEach(function(i){if(itemLang(i)!=='en')return;var ws=cleanTitle(i.title).split(/[^A-Za-z0-9&'’-]+/),u={};
