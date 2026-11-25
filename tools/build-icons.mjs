@@ -2,7 +2,10 @@
 // 产出 src/icons.js（Worker 直接内嵌，不读数据库）和 assets/ 下的 SVG 原稿。
 import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { svg, P, I, RD } from './logo.mjs';
+import { svg as base, P, I, R, RD } from './logo.mjs';
+// 统一用黑底：墨色底、米白 H、朱红句点（深浅模式都一样）
+export const RED_ON_INK = '#e8492c';
+const svg = (o = {}) => base({ bg: I, fg: P, red: RED_ON_INK, ...o });
 const { chromium } = createRequire(import.meta.url)('playwright');
 
 const pngs = {
@@ -26,13 +29,13 @@ await b.close();
 
 const favicon = svg({ small: true });
 writeFileSync('assets/logo.svg', svg() + '\n');
-writeFileSync('assets/logo-dark.svg', svg({ bg: I, fg: P, red: RD }) + '\n');
-writeFileSync('assets/logo-mark.svg', svg({ bg: null }) + '\n');
+writeFileSync('assets/logo-light.svg', base() + '\n');
+writeFileSync('assets/logo-mark.svg', base({ bg: null }) + '\n');
 writeFileSync('assets/favicon.svg', favicon + '\n');
 for (const [k, v] of Object.entries(out)) writeFileSync(`assets/${k}.png`, Buffer.from(v, 'base64'));
 writeFileSync('src/icons.js', `// 由 tools/build-icons.mjs 生成，不要手改。
 // Logo：报头同款 Playfair Display ExtraBold 的 “H” 加朱红句点（报头 “Headline Watch.” 的缩写）。
-export const ICON_VERSION = '1';
+export const ICON_VERSION = '2';
 export const FAVICON_SVG = ${JSON.stringify(favicon)};
 const PNG = ${JSON.stringify(out, null, 1)};
 const cache = new Map();

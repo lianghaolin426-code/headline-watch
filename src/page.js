@@ -1131,7 +1131,7 @@ async function load(manual){
         var hot=fresh.filter(isHot);
         if(hot.length){
           if(state.sound)beep();
-          if(state.notify&&!PUSH.sub&&window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(cleanTitle(i.title),{icon:'/icons/icon-192.png?v=1',body:i.source+' · '+fmtScore(i.score),tag:i.id})}catch(e){}});
+          if(state.notify&&!PUSH.sub&&window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(cleanTitle(i.title),{icon:'/icons/icon-192.png?v=2',body:i.source+' · '+fmtScore(i.score),tag:i.id})}catch(e){}});
           if(document.hidden){unread+=hot.length;document.title='('+unread+') Headline Watch';}
         }
       }
