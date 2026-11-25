@@ -480,7 +480,7 @@ function focusFilter(src, items) {
 // 新闻稿源（PR Newswire）里的两类垃圾，入库前就丢掉，不占打分、翻译和数据库额度：
 // 1) 同一篇稿子的西班牙语、法语、德语、荷兰语等版本（英文版另有一条）；2) 律所招揽集体诉讼的广告（"Stock Drop Notice"、"SHAREHOLDER ALERT"）。
 // 2026-11-25 按前 24 小时的 547 条实测：外语 73 条、律所 19 条，英文正常稿没有误伤。
-const FOREIGN_WORDS = /(?<![\p{L}.])(?:de|la|le|les|des|du|una|el|los|las|und|der|das|mit|für|para|con|por|sur|avec|dans|aux|zum|zur|sich|ist|van|het|een|voor|met|och|nas|sua|seu|ao|dos)(?![\p{L}])/giu;
+const FOREIGN_WORDS = /(?<![\p{L}.])(?:de|la|le|les|des|du|una|el|los|las|und|der|das|mit|für|para|con|por|sur|avec|dans|aux|zum|zur|sich|ist|van|het|een|voor|met|och|nas|sua|seu|ao|dos|dass|auf|eine|einen|bekannt|nach|über)(?![\p{L}])/giu;
 export function isForeign(t) {
   const s = String(t || '');
   const words = (s.match(FOREIGN_WORDS) || []).length;
