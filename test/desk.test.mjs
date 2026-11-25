@@ -142,3 +142,24 @@ test('desk: topic status, written match, mood, draft parsing and quotes', async 
   assert.equal(slot2(close), null);
   assert.deepEqual(slot2(close, true), { slot: 'close', day: '2026-11-25' });
 });
+
+test('desk: public view hides unpublished work; lint catches invented quotes; one shared story is not the same topic', async () => {
+  const { deskPublic, draftLint, sameTopic, deskMood } = await import('../src/desk.js');
+  const st = { run: { id: 1, topics: [{ rank: 1, title_zh: 't', wr: { id: 1, title: 'x' } }] }, picks: { 1: { verdict: 'pass', ts: 1, note: 'thin' } }, dossiers: { 1: { body: 'b' } }, drafts: { 1: { body: 'd' } }, written: [{ id: 1 }], follow: { 1: { id: 1, yes: true } } };
+  const pub = deskPublic(st);
+  assert.deepEqual(pub.picks, { 1: { verdict: 'pass', ts: 1 } });
+  assert.deepEqual([pub.dossiers, pub.drafts, pub.written, pub.follow], [{}, {}, [], {}]);
+  assert.equal(pub.run.topics[0].wr, undefined);
+  assert.equal(st.run.topics[0].wr.id, 1); // the full state is untouched
+  const out = { heads: ['A "dead-cat bounce" call'], summary: '', body: 'He described a "sell first, ask questions later" mood. The materials do not include the close.', cards: [] };
+  const warn = draftLint(out, 'Klement called it a dead-cat bounce. 先卖再说');
+  assert.equal(warn.length, 2);
+  assert.match(warn[0], /sell first, ask questions later/);
+  assert.match(warn[1], /materials do not include/i);
+  assert.equal(sameTopic({ ids: ['a', 'b', 'c'], stories: ['Huang', 'AI selloff', 'Chips'] }, { ids: ['x', 'y', 'z'], stories: ['Huang', 'Pardon', 'Export rules'] }), false);
+  assert.equal(sameTopic({ ids: ['a', 'b', 'c'], stories: ['S1'] }, { ids: ['a', 'b', 'q'], stories: [] }), true);
+  assert.equal(sameTopic({ ids: ['a'], stories: ['S1'] }, { ids: ['z'], stories: ['S1', 'S2'] }), true);
+  // eighteen bearish headlines on one story count once
+  const rows = Array.from({ length: 18 }, (_, k) => ({ id: 'b' + k, story: 'Selloff', dir: -1, score: 8 })).concat([1, 2, 3, 4].map((k) => ({ id: 'u' + k, story: 'Up' + k, dir: 1, score: 7 })));
+  assert.deepEqual(deskMood(rows, null).news, { up: 4, down: 1, n: 5 });
+});

@@ -205,7 +205,9 @@ export function parseDesk(text, list, max = 8) {
     if (!items.length || !str(t.title_zh || t.title_en, 10)) continue;
     const basis = { f: 0, s: 0, h: 0 };
     items.forEach((i) => basis[thickness(i)]++);
-    const stories = [...new Set(items.map((i) => i.story).filter(Boolean))];
+    const sc = new Map();
+    items.forEach((i) => i.story && sc.set(i.story, (sc.get(i.story) || 0) + 1));
+    const stories = [...sc.keys()].sort((a, b) => sc.get(b) - sc.get(a)); // 报道最多的事件排前面
     const write = !!t.write && writes < 2;
     if (write) writes++;
     topics.push({
@@ -219,6 +221,7 @@ export function parseDesk(text, list, max = 8) {
       tickers: (Array.isArray(t.tickers) ? t.tickers : []).map((x) => str(x, 12).toUpperCase().replace(/[^A-Z0-9.]/g, '')).filter(Boolean).slice(0, 4),
       ids: items.map((i) => i.id),
       tsl: items.map((i) => i.ts),
+      pk: Math.max(0, ...items.map((i) => i.pick || 0)) || undefined,
       dirs: items.reduce((a, i) => a + (i.dir > 0 ? 1 : i.dir < 0 ? -1 : 0), 0),
       // 三条关键事实（各带出处）和并进来的观点线索：选题卡上直接显示
       facts: (Array.isArray(t.facts) ? t.facts : [])
@@ -278,7 +281,8 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
   if (!claudeUp(env)) return { ok: false, error: 'claude_down' };
   await ensureTables(env);
   const spent = await spentToday(env, now);
-  if (spent >= c.dailyUsd) return { ok: false, error: 'budget', spent };
+  // 定时的选题会比临时写稿要紧：白天写稿把额度用到上限后，定时会还能再用半份额度
+  if (spent >= c.dailyUsd * (slot === 'manual' ? 1 : 1.5)) return { ok: false, error: 'budget', spent };
   // 分数线直接写进语句，用得上部分索引 idx_items_brief（5 分以上、不是重复的）
   const rows = (
     await env.DB.prepare(`SELECT id, source, title, body, url, ts, score, confirms, dir, tickers, topic, story FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ${Number(c.minScore) || 6} ORDER BY ts DESC LIMIT 600`)
@@ -314,7 +318,40 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
   topicStatus(topics, prev, now);
   const mood = deskMood(rows, prev[0]?.mood || null);
   const r = await env.DB.prepare('INSERT INTO desk_runs (ts, slot, n, topics, usd, model, mood) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(now, slot, rows.length, JSON.stringify(topics), usd, c.model, JSON.stringify(mood)).run();
-  return { ok: true, run: { id: r.meta?.last_row_id, ts: now, slot, n: rows.length, topics, usd, mood } };
+  const id = r.meta?.last_row_id;
+  try {
+    if (prev[0] && id) await carryOver(env, prev[0], id, topics);
+  } catch {}
+  return { ok: true, run: { id, ts: now, slot, n: rows.length, topics, usd, mood } };
+}
+
+/**
+ * 新开一场选题会后，上一场已经做的事不能丢：同一件事的选择（就写这个 / 这个不对）、档案、英文稿都带到新一场对应的选题上。
+ * 每个旧选题最多带给一个新选题（重合最多的那个）。带过来的选择保留原来的时间，校准时按时间去重。
+ */
+async function carryOver(env, old, newId, topics) {
+  const used = new Set();
+  const map = [];
+  for (const t of topics) {
+    const m = (old.topics || []).filter((o) => !used.has(o.rank) && sameTopic(t, o)).sort((a, b) => closeness(t, b) - closeness(t, a))[0];
+    if (m) {
+      used.add(m.rank);
+      map.push([m.rank, t.rank]);
+    }
+  }
+  if (!map.length) return 0;
+  const last = {};
+  for (const p of (await env.DB.prepare('SELECT rank, verdict, ts, title, note FROM desk_picks WHERE run_id = ? ORDER BY id').bind(old.id).all()).results) {
+    if (p.verdict === 'pick' || p.verdict === 'pass') last[p.rank] = p;
+    else if (p.verdict === 'clear') delete last[p.rank];
+  }
+  for (const [from, to] of map) {
+    await env.DB.prepare('INSERT OR IGNORE INTO desk_dossiers (run_id, rank, title, body, srcs, pasted, created, updated, writes, usd) SELECT ?, ?, title, body, srcs, pasted, created, updated, writes, 0 FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(newId, to, old.id, from).run();
+    await env.DB.prepare('INSERT OR IGNORE INTO desk_drafts (run_id, rank, format, heads, summary, body, cards, checks, created, updated, writes, usd) SELECT ?, ?, format, heads, summary, body, cards, checks, created, updated, writes, 0 FROM desk_drafts WHERE run_id = ? AND rank = ?').bind(newId, to, old.id, from).run();
+    const p = last[from];
+    if (p) await env.DB.prepare('INSERT INTO desk_picks (ts, run_id, rank, verdict, title, note) VALUES (?, ?, ?, ?, ?, ?)').bind(p.ts, newId, to, p.verdict, p.title, p.note || '').run();
+  }
+  return map.length;
 }
 
 const mem = { done: '', busy: false };
@@ -363,7 +400,8 @@ export async function deskState(env, { now = Date.now() } = {}) {
     out.mood = safeJson(r.mood, null);
     const picks = (await env.DB.prepare('SELECT rank, verdict, ts, note FROM desk_picks WHERE run_id = ? ORDER BY id').bind(r.id).all()).results;
     for (const p of picks) {
-      if (p.verdict === 'fu_yes' || p.verdict === 'fu_no') out.follow[p.rank] = { id: Number(p.note) || 0, yes: p.verdict === 'fu_yes' };
+      if (p.verdict === 'fu_clear') delete out.follow[p.rank];
+      else if (p.verdict === 'fu_yes' || p.verdict === 'fu_no') out.follow[p.rank] = { id: Number(p.note) || 0, yes: p.verdict === 'fu_yes' };
       else if (p.verdict === 'clear') delete out.picks[p.rank];
       else out.picks[p.rank] = { verdict: p.verdict, ts: p.ts, note: p.note || undefined };
     }
@@ -386,9 +424,20 @@ export async function deskState(env, { now = Date.now() } = {}) {
   return out;
 }
 
+/**
+ * 给没带管理密码的访客看的版本：选题榜本身可以看，没发表的稿子、档案、已写记录、否决理由都不给。
+ */
+export function deskPublic(st) {
+  if (!st) return st;
+  const picks = {};
+  for (const k of Object.keys(st.picks || {})) picks[k] = { verdict: st.picks[k].verdict, ts: st.picks[k].ts };
+  const run = st.run && { ...st.run, topics: st.run.topics.map(({ wr, ...t }) => t) };
+  return { ...st, run, picks, dossiers: {}, drafts: {}, written: [], follow: {}, guest: true };
+}
+
 /** 记下用户的选择：pick = 就写这个，pass = 这个不对，clear = 撤销 */
 export async function deskPick(env, { run, rank, verdict, note = '', now = Date.now() }) {
-  if (!['pick', 'pass', 'clear', 'fu_yes', 'fu_no'].includes(verdict)) return { ok: false, error: 'bad_verdict' };
+  if (!['pick', 'pass', 'clear', 'fu_yes', 'fu_no', 'fu_clear'].includes(verdict)) return { ok: false, error: 'bad_verdict' };
   await ensureTables(env);
   const r = (await env.DB.prepare('SELECT id, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
   const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
@@ -546,7 +595,7 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
     pasted.push({ label: clean(paste.label).slice(0, 80), text, ts: now });
     while (pasted.length > 3) pasted.shift();
   } else if (paste) return { ok: false, error: 'paste_short' };
-  else if (old && now - old.updated < c.dossierMin * 60_000) return { ok: true, cached: true };
+  else if (old && now - old.updated < c.dossierMin * 60_000) return { ok: true, cached: true, wait_min: Math.ceil((c.dossierMin * 60_000 - (now - old.updated)) / 60_000) };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down' };
   const spent = await spentToday(env, now);
   if (spent >= c.dailyUsd) return { ok: false, error: 'budget', spent };
@@ -601,12 +650,23 @@ export async function deskPack(env, { run, rank, now = Date.now() }) {
 
 /* ---------- 选题状态：新出现 / 在升温 / 在降温 / 持续 ---------- */
 
-const overlap = (a, b) => {
+const shared = (a, b) => {
   const A = new Set(a || []);
-  return (b || []).some((x) => A.has(x));
+  return (b || []).filter((x) => A.has(x)).length;
 };
-/** 两个选题是不是同一件事：有共同的事件名，或者有共同的报道 */
-export const sameTopic = (a, b) => overlap(a.stories, b.stories) || overlap(a.ids, b.ids);
+/**
+ * 两个选题是不是同一件事。只共用一个事件名不算（“黄仁勋复职”会同时出现在 AI 抛售和英伟达治理两个选题里）：
+ * 要么共同的报道有两条以上（或占较小一方的一半），要么共同的事件名占较小一方的一半以上。
+ */
+export function sameTopic(a, b) {
+  const ni = shared(a.ids, b.ids);
+  const mi = Math.min((a.ids || []).length, (b.ids || []).length);
+  if (ni >= 2 || (ni >= 1 && ni * 2 >= mi)) return true;
+  const ns = shared(a.stories, b.stories);
+  const ms = Math.min((a.stories || []).length, (b.stories || []).length);
+  return ns >= 1 && ns * 2 >= ms;
+}
+const closeness = (a, b) => shared(a.ids, b.ids) * 2 + shared(a.stories, b.stories);
 
 /**
  * 给这一场的每个选题标状态（直接写在选题上）：
@@ -656,7 +716,14 @@ export function matchWritten(t, runId, written) {
  */
 export function deskMood(rows, prev) {
   const cnt = (list) => ({ up: list.filter((r) => r.dir > 0).length, down: list.filter((r) => r.dir < 0).length, n: list.length });
-  const news = cnt(rows.filter((r) => r.kind !== 'v' && (r.score || 0) >= 6));
+  // 要闻按“事”算，不按条数算：同一件事报了 18 条也只算一票，方向取多数
+  const ev = new Map();
+  for (const r of rows) {
+    if (r.kind === 'v' || (r.score || 0) < 6) continue;
+    const k = r.story || 'id:' + r.id;
+    ev.set(k, (ev.get(k) || 0) + (r.dir > 0 ? 1 : r.dir < 0 ? -1 : 0));
+  }
+  const news = cnt([...ev.values()].map((v) => ({ dir: v })));
   const views = cnt(rows.filter((r) => r.kind === 'v'));
   const lean = (c) => (c.up + c.down >= 4 ? Math.round(((c.up - c.down) / (c.up + c.down)) * 100) : null);
   const out = { news, views, lean: lean(news), vlean: lean(views) };
@@ -685,6 +752,8 @@ export async function deskWritten(env, { run, rank, title, note = '', id, undo =
     const r = (await env.DB.prepare('SELECT id, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
     const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
     if (!t) return { ok: false, error: 'no_topic' };
+    const had = (await env.DB.prepare('SELECT id FROM desk_written WHERE run_id = ? AND rank = ? AND gone = 0 LIMIT 1').bind(r.id, t.rank).all()).results?.[0];
+    if (had) return { ok: true, dup: true };
     await env.DB.prepare('INSERT INTO desk_written (ts, title, run_id, rank, ids, stories, off, note) VALUES (?, ?, ?, ?, ?, ?, 0, ?)').bind(now, t.title_zh, r.id, t.rank, JSON.stringify(t.ids || []), JSON.stringify(t.stories || []), clean(note).slice(0, 300)).run();
     return { ok: true };
   }
@@ -704,7 +773,10 @@ Hard rules on facts
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
 5. Do not state share prices or percentage moves unless the materials give them. Do not imply that the news caused a price move unless the materials say so.
-6. No investment advice, no "buy/sell", no promises. Neutral, professional tone. On Saudi government policy, report what officials said, neutrally.
+6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
+7. Keep figures in their own time frame. A cumulative figure (value lost over a whole selloff) must not be attached to a one-day move, in headlines above all. Do not give the same label ("three-year high") to a different figure than the materials do.
+8. If the US or Saudi market is still trading when you write, say that the figures are intraday.
+9. No investment advice, no "buy/sell", no promises. Neutral, professional tone. On Saudi government policy, report what officials said, neutrally.
 
 Style
 - 450 to 700 words for the article. No padding, no throat-clearing opening, no summary paragraph that repeats the piece, no rhetorical questions in a row.
@@ -713,8 +785,8 @@ Style
 - Stocks: mention a listed company only where it is genuinely part of the story, and say what is at stake for it in concrete terms, so a curious reader wants to look it up. First mention as Name (TICKER), e.g. Nvidia (NVDA), Aramco (2222). Never add a list of "stocks to watch" just to have one, never write calls to action like "check out".
 
 Headlines
-- Give 5 headlines, each taking a different angle (newest fact; the key number; the cause or another concrete fact; the consequence or next step; the counterparty or a surprising detail).
-- They should make a reader want to open the piece: lead with the most striking number, contrast or named person that the article really contains. It is fine to build a headline on a detail that is only briefly covered, as long as the article does cover it and the headline does not overstate it.
+- Give 5 headlines, all about this article's main story (not a side item), each taking a different angle (newest fact; the key number; the cause or another concrete fact; the consequence or next step; the counterparty or a surprising detail).
+- They should make a reader want to open the piece: use the strongest hook the article has, such as a named person, a vivid term a named strategist used, a sharp contrast between two institutions, or the most striking number. Lead with the most striking number, contrast or named person that the article really contains. It is fine to build a headline on a detail that is only briefly covered, as long as the article does cover it and the headline does not overstate it.
 - Clear subject + active verb + key result. 5 to 10 words. Present tense for what happened, "to + verb" for what is planned. Verbs must match the state of the event (Could / Sees / Warns for forecasts). No tickers, no $, no win-rate claims, no question-mark bait without an answer in the piece.
 
 Cards (optional visual blocks the editor can screenshot into the app)
@@ -755,7 +827,7 @@ export function parseDraft(text) {
   // 正文里自己有 ## 小标题：ARTICLE 一直取到 CARDS 为止
   const am = src.match(/(?:^|\n)##\s*ARTICLE\s*\n/);
   const a = am ? am.index + am[0].length : -1;
-  const b = src.search(/\n##\s*CARDS\s*(?:\n|$)/);
+  const b = src.search(/\n##\s*(?:CARDS|CHECK)\s*(?:\n|$)/);
   const body = a >= 0 ? src.slice(a, b > a ? b : undefined).trim() : '';
   if (heads.length < 3 || body.length < 400) return null;
   let cards = [];
@@ -763,7 +835,7 @@ export function parseDraft(text) {
     const j = sec('CARDS').match(/\[[\s\S]*\]/);
     cards = (j ? JSON.parse(j[0]) : []).map(tidyCard).filter(Boolean).slice(0, 3);
   } catch {}
-  return { format: lines(sec('FORMAT'))[0]?.slice(0, 160) || '', heads, summary: sec('SUMMARY').replace(/\s+/g, ' ').slice(0, 900), body, cards, checks: lines(sec('CHECK')).slice(0, 12) };
+  return { format: lines(sec('FORMAT'))[0]?.slice(0, 160) || '', heads, summary: sec('SUMMARY').replace(/\s+/g, ' ').slice(0, 900), body, cards, checks: lines(sec('CHECK')).slice(0, 8) };
 }
 
 const cs = (v, n) => String(v ?? '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -792,6 +864,32 @@ function tidyCard(c) {
   return null;
 }
 
+/**
+ * 机器再查一遍稿子，查到的问题加在“发稿前要核对”的最前面：
+ * 1) 英文引号里的话（三个词以上）不在材料原文里，多半是中文转述翻回英文再加的引号；2) 稿子里出现了讲材料、讲过程的话。
+ */
+export function draftLint(out, sourceText) {
+  const src = String(sourceText || '').toLowerCase().replace(/\s+/g, ' ');
+  const text = [out.heads.join('\n'), out.summary, out.body, JSON.stringify(out.cards)].join('\n');
+  const warn = [];
+  const seen = new Set();
+  for (const m of text.matchAll(/["“]([^"“”\n]{12,200})["”]/g)) {
+    const q = m[1].trim().replace(/[.,;:!?]+$/, '');
+    if (q.split(/\s+/).length < 3 || seen.has(q)) continue;
+    seen.add(q);
+    if (!src.includes(q.toLowerCase().replace(/\s+/g, ' '))) warn.push(`引号里的这句不在材料的英文原文里，发稿前请找到英文原话或去掉引号："${q.slice(0, 90)}"`);
+  }
+  const meta = text.match(/\b(?:the materials?|per the reports?|sources? reviewed|the dossier)\b[^.\n]{0,60}/i);
+  if (meta) warn.push(`稿子里有讲材料或写作过程的话，读者不该看到，请改掉："${meta[0].trim()}"`);
+  return warn.slice(0, 4);
+}
+
+/** 现在美股是不是在交易（周一到周五 9:30 到 16:00，纽约时间；不含节假日） */
+export function usOpen(now) {
+  const p = parts(now, 'America/New_York');
+  return !['Sat', 'Sun'].includes(p.wd) && p.min >= 9 * 60 + 30 && p.min < 16 * 60;
+}
+
 /** 写（或重写）一个选题的英文稿。alt = true：换一种形式重写 */
 export async function writeDraft(env, { run, rank, alt = false, now = Date.now() }) {
   const c = deskConfig(env);
@@ -801,7 +899,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
   if (!t) return { ok: false, error: 'no_topic' };
   const old = (await env.DB.prepare('SELECT format, updated FROM desk_drafts WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0] || null;
-  if (old && now - old.updated < c.draftMin * 60_000) return { ok: true, cached: true };
+  if (old && now - old.updated < c.draftMin * 60_000) return { ok: true, cached: true, wait_min: Math.ceil((c.draftMin * 60_000 - (now - old.updated)) / 60_000) };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down' };
   const spent = await spentToday(env, now);
   if (spent >= c.dailyUsd) return { ok: false, error: 'budget', spent };
@@ -814,7 +912,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id)), c.maxSrc);
   const views = (t.views || []).map((v) => `- ${v.who ? String(v.who).split('|')[0] + ': ' : ''}${v.t}`).join('\n');
   const user =
-    `Topic: ${t.title_en} (${t.title_zh})\nWhy the desk picked it: ${t.why_en || t.why_zh}\nWorking headline from the story meeting: ${t.angle_en}\nMarket: ${t.market}. Tickers the desk tagged: ${(t.tickers || []).join(', ') || 'none'}\nNow: ${bjTime(now)} Beijing time.\n` +
+    `${usOpen(now) ? 'The US market is open right now: figures in the materials are intraday.\n' : ''}Topic: ${t.title_en} (${t.title_zh})\nWhy the desk picked it: ${t.why_en || t.why_zh}\nWorking headline from the story meeting: ${t.angle_en}\nMarket: ${t.market}. Tickers the desk tagged: ${(t.tickers || []).join(', ') || 'none'}\nNow: ${bjTime(now)} Beijing time.\n` +
     (alt && old?.format ? `The previous draft used this format: "${old.format}". Choose a clearly different format this time.\n` : '') +
     (views ? `\nInstitution and expert views attached to this topic:\n${views}\n` : '') +
     `\nMaterials (〔正文〕 = full text, 〔摘要〕 = a sentence or two, 〔仅标题〕 = headline only; treat headline-only items as thin and list what rests on them under CHECK):\n\n${dossierText(srcs, pasted)}` +
@@ -823,6 +921,9 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   if (!res) return { ok: false, error: 'model', detail: claudeState().last_error };
   const out = parseDraft(res.text);
   if (!out) return { ok: false, error: 'parse' };
+  const pre = draftLint(out, user);
+  if (usOpen(now) && t.market !== 'Saudi') pre.unshift('这篇写于美股盘中，里面的涨跌都是盘中数字，没有收盘数据。收盘后请点“用最新材料重写”，或手动更新数字。');
+  out.checks = pre.concat(out.checks).slice(0, 10);
   const usd = claudeUsd(res.usage.input, res.usage.output);
   await env.DB.prepare(
     `INSERT INTO desk_drafts (run_id, rank, format, heads, summary, body, cards, checks, created, updated, writes, usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)

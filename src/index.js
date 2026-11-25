@@ -14,7 +14,7 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
-import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes } from './desk.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic } from './desk.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -1001,7 +1001,7 @@ async function bootData(env) {
     listItems(env, { limit: 400 }),
     cached('stats', 120_000, () => statsData(env)).catch(() => null),
     cached('briefs', 60_000, async () => ({ briefs: await listBriefs(env) })).then((d) => d.briefs).catch(() => null),
-    cached('desk', 60_000, () => deskState(env)).catch(() => null),
+    cached('desk', 60_000, () => deskState(env)).then(deskPublic).catch(() => null),
   ]);
   let contig = 0;
   if (items.length >= 400) {
@@ -1127,12 +1127,14 @@ const app = {
 
       case '/api/desk': {
         // 选题台：最新一场选题会、用户的选择、已生成的档案
-        return json(await cached('desk', await ttl(env, 60_000), () => deskState(env)));
+        // 没发表的稿子、档案、已写记录只给带管理密码的请求；访客只看得到选题榜本身
+        const full = await cached('desk', await ttl(env, 60_000), () => deskState(env));
+        return json(env.ADMIN_KEY && req.headers.get('X-HW-Admin') === env.ADMIN_KEY ? full : deskPublic(full));
       }
 
       case '/api/desk/pack': {
         // 一个选题的全部资料（含用户贴进来的全文），只有带管理密码才给
-        if (env.ADMIN_KEY && req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
         return json(await deskPack(env, { run: url.searchParams.get('run'), rank: url.searchParams.get('rank') }));
       }
 
@@ -1150,7 +1152,7 @@ const app = {
         // 这三个会花钱或写数据库：只接受 POST；每天有花费上限（DESK_DAILY_USD），手动开会和重写档案有最短间隔
         // 网站是公开的，这些按钮只有用户本人能用：请求头要带管理密码（网页用 ?admin=管理密码 打开一次后记在浏览器里）
         if (req.method !== 'POST') return new Response('POST only', { status: 405 });
-        if (env.ADMIN_KEY && req.headers.get('X-HW-Admin') !== env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        if (!env.ADMIN_KEY || (req.headers.get('X-HW-Admin') !== env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY)) return json({ ok: false, error: 'admin' }, 403);
         let b = {};
         try {
           b = await req.json();
