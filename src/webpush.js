@@ -312,6 +312,8 @@ self.addEventListener('push', function (e) {
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: e.data ? e.data.text() : 'Headline Watch' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'Headline Watch', {
     body: d.body || '',
+    icon: '/icons/icon-192.png?v=1',
+    badge: '/icons/badge-96.png?v=1',
     tag: d.id || undefined,
     renotify: !!d.id, // 同一个 tag 的新通知也要再弹一次横幅，不然 macOS 只会悄悄替换
     requireInteraction: !!d.sticky, // 停留在屏幕上直到手动关掉

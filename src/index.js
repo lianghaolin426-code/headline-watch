@@ -11,6 +11,7 @@ import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
 import { renderPage, BUILD } from './page.js';
+import { iconResponse, ICON_VERSION } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
@@ -909,6 +910,11 @@ async function cron(env0) {
 const app = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    // Logo 图标：内嵌的静态文件，不查数据库、不需要访问密码，浏览器长期缓存
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      const icon = iconResponse(url.pathname);
+      if (icon) return icon;
+    }
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
     // 这样看板公开分享给别人也不会被人乱触发推送。
@@ -1141,7 +1147,7 @@ const app = {
 
       case '/manifest.webmanifest':
         return new Response(
-          JSON.stringify({ name: 'Headline Watch', short_name: 'Headline', start_url: '/' + (url.searchParams.get('key') ? '?key=' + encodeURIComponent(url.searchParams.get('key')) : ''), display: 'standalone', background_color: '#f5f0e6', theme_color: '#f5f0e6' }),
+          JSON.stringify({ name: 'Headline Watch', short_name: 'Headline', start_url: '/' + (url.searchParams.get('key') ? '?key=' + encodeURIComponent(url.searchParams.get('key')) : ''), display: 'standalone', background_color: '#f5f0e6', theme_color: '#f5f0e6', icons: [{ src: '/icons/icon-192.png?v=' + ICON_VERSION, sizes: '192x192', type: 'image/png' }, { src: '/icons/icon-512.png?v=' + ICON_VERSION, sizes: '512x512', type: 'image/png' }, { src: '/icons/maskable-512.png?v=' + ICON_VERSION, sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }),
           { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8' } }
         );
 

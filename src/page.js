@@ -1131,7 +1131,7 @@ async function load(manual){
         var hot=fresh.filter(isHot);
         if(hot.length){
           if(state.sound)beep();
-          if(state.notify&&!PUSH.sub&&window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(cleanTitle(i.title),{body:i.source+' · '+fmtScore(i.score),tag:i.id})}catch(e){}});
+          if(state.notify&&!PUSH.sub&&window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(cleanTitle(i.title),{icon:'/icons/icon-192.png?v=1',body:i.source+' · '+fmtScore(i.score),tag:i.id})}catch(e){}});
           if(document.hidden){unread+=hot.length;document.title='('+unread+') Headline Watch';}
         }
       }
@@ -1433,7 +1433,8 @@ pushInit();(window.requestIdleCallback||setTimeout)(loadHealth);setInterval(vis(
 if(!freshBoot||!state.briefs)loadBriefs();setInterval(vis(loadBriefs),180000);schedule();setInterval(renderClocks,20000);setInterval(vis(loadHealth),600000);
 `;
 
-const ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f5f0e6'/%3E%3Cpath d='M9 8v16M23 8v16M9 16h14' stroke='%231a1714' stroke-width='3.4'/%3E%3Ccircle cx='25.5' cy='6.5' r='3.5' fill='%23c8371d'/%3E%3C/svg%3E";
+import { FAVICON_SVG, ICON_VERSION } from './icons.js';
+const ICON = 'data:image/svg+xml,' + encodeURIComponent(FAVICON_SVG);
 
 const X = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m2 2 10 10M12 2 2 12"/></svg>';
 
@@ -1527,7 +1528,10 @@ export function renderPage({ key, boot }) {
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" id="tc" content="#f5f0e6">
 <title>Headline Watch</title>
-<link rel="icon" href="${ICON}">
+<link rel="icon" type="image/svg+xml" href="${ICON}">
+<link rel="alternate icon" type="image/png" sizes="32x32" href="/icons/icon-32.png?v=${ICON_VERSION}">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${ICON_VERSION}">
+<meta name="apple-mobile-web-app-title" content="Headline Watch">
 <link rel="manifest" href="/manifest.webmanifest${key ? '?key=' + encodeURIComponent(key) : ''}">
 <script>try{var t=JSON.parse(localStorage.getItem('hw')||'{}').theme;if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>${CSS}</style></head><body>${BODY}<script>
