@@ -153,14 +153,14 @@ test('tagged score replies', async () => {
   const { parseTagged } = await import('../src/score.js');
   const r = parseTagged('[[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,6,1,"","Fed","macro"],[3,8,1,"$tsla, 2222.SR, not a ticker","Aramco","Energy"]]', 5);
   assert.deepEqual(r.scores, [9, 2, 6, 8, null]);
-  assert.deepEqual(r.tags[0], { dir: -1, tickers: 'NVDA', topic: 'Nvidia', sector: 'tech' });
+  assert.deepEqual(r.tags[0], { dir: -1, tickers: 'NVDA', topic: 'Nvidia', sector: 'tech', story: '' });
   assert.equal(r.tags[1], null);
-  assert.deepEqual(r.tags[2], { dir: 1, tickers: '', topic: 'Fed', sector: 'macro' });
+  assert.deepEqual(r.tags[2], { dir: 1, tickers: '', topic: 'Fed', sector: 'macro', story: '' });
   assert.equal(r.tags[3].tickers, 'TSLA,2222');
   assert.equal(r.tags[3].sector, 'energy');
   // 旧格式仍然能用
   assert.deepEqual(parseTagged('[{"i":0,"s":9},{"i":1,"s":3}]', 2).scores, [9, 3]);
-  assert.deepEqual(parseTagged('[{"i":0,"s":9,"d":1,"k":["AAPL"],"t":"Apple","c":"tech"}]', 1).tags[0], { dir: 1, tickers: 'AAPL', topic: 'Apple', sector: 'tech' });
+  assert.deepEqual(parseTagged('[{"i":0,"s":9,"d":1,"k":["AAPL"],"t":"Apple","c":"tech"}]', 1).tags[0], { dir: 1, tickers: 'AAPL', topic: 'Apple', sector: 'tech', story: '' });
   assert.deepEqual(parseTagged('[7, 2]', 2).scores, [7, 2]);
   assert.equal(parseTagged('nope', 2), null);
 });
@@ -332,4 +332,33 @@ test('topics: "English|中文" is kept, split for the API, and merged onto known
   assert.equal(canonTopic('Nasdaq 100|纳指', known), 'Nasdaq|纳指');
   assert.equal(canonTopic('Dell|戴尔', known), 'Dell|戴尔');
   assert.equal(canonTopic('Copper|铜', known), 'Copper|铜');
+});
+
+test('stories: scoring files each headline under a specific event', async () => {
+  const { aiScores, parseEchoed, resolveStory } = await import('../src/score.js');
+  const { claudeReset } = await import('../src/claude.js');
+  claudeReset();
+  // 编号换成已有事件的名字；新名字整理后保留；只差标点的并到已有的；不是一件事的留空
+  const known = ['黄仁勋复任英伟达CEO', '特朗普提议政府入股英伟达'];
+  assert.equal(resolveStory('S2', known), known[1]);
+  assert.equal(resolveStory('s1', known), known[0]);
+  assert.equal(resolveStory('S7', known), '');
+  assert.equal(resolveStory('“黄仁勋 复任英伟达CEO”。', known), known[0]);
+  assert.equal(resolveStory('赛诺菲收购Insmed', known), '赛诺菲收购Insmed');
+  assert.equal(resolveStory('', known), '');
+  assert.equal(resolveStory('none', known), '');
+  const r = parseEchoed('[[0,"Trump floats",8,1,"NVDA","Nvidia|英伟达","tech","S2"],[1,"Analyst rais",2]]', ['Trump floats US stake in Nvidia', 'Analyst raises target']);
+  assert.equal(r.tags[0].story, 'S2');
+
+  const sent = [];
+  const client = { messages: { create: async (req) => (sent.push(req), { stop_reason: 'end_turn', content: [{ type: 'text', text: '[[0,"Trump floats",8,1,"NVDA","Nvidia|英伟达","tech","S2"],[1,"Sanofi to bu",9,1,"SNY","Sanofi|赛诺菲","health","赛诺菲收购Insmed"],[2,"Analyst rais",2]]' }], usage: { input_tokens: 900, output_tokens: 60 } }) } };
+  const items = [{ source: 'A', title: 'Trump floats US stake in Nvidia' }, { source: 'B', title: 'Sanofi to buy Insmed for $41 billion' }, { source: 'C', title: 'Analyst raises target' }];
+  const out = await aiScores({ CLAUDE_CLIENT: client }, items, { tags: true, topics: ['Nvidia|英伟达'], stories: known });
+  assert.match(sent[0].messages[0].content, /^Known topics: Nvidia\|英伟达\nOpen stories: S1 黄仁勋复任英伟达CEO; S2 特朗普提议政府入股英伟达\n\n0\. \[A\]/);
+  assert.equal(out.tags[0].story, known[1]);
+  assert.equal(out.tags[1].story, '赛诺菲收购Insmed');
+  assert.equal(out.tags[2], null);
+  // 后备模型不分事件
+  const w = await aiScores({ AI: { run: async () => ({ response: '[[0,8,1,"NVDA","Nvidia","tech"],[1,2],[2,2]]' }) } }, items, { tags: true, stories: known });
+  assert.equal(w.tags[0].story, '');
 });

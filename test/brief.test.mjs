@@ -176,3 +176,15 @@ test('tidyBrief keeps at most two key marks, drops them from the headline and fr
   assert.ok(out.body.includes('==单日涨超30%==') && out.body.includes('==周一==') && out.body.includes('另有第三处。'));
   assert.ok(!/一句话\n.*==/.test(out.body));
 });
+
+test('events follow the story when the scorer gave one, so one ticker can hold several events', () => {
+  const evs = groupEvents([
+    { id: 'a', tickers: 'NVDA', topic: 'Nvidia', story: '黄仁勋复任英伟达CEO' },
+    { id: 'b', tickers: 'NVDA', topic: 'Nvidia', story: '特朗普提议政府入股英伟达' },
+    { id: 'c', tickers: 'NVDA,TSM', topic: 'Nvidia', story: '特朗普提议政府入股英伟达' },
+    { id: 'd', tickers: 'NVDA', topic: 'Nvidia' },
+    { id: 'e', tickers: '', topic: 'Tariffs', story: '黄仁勋复任英伟达CEO' },
+  ]);
+  const by = Object.fromEntries(evs.map((e) => [e.key, e.items.map((i) => i.id).join('')]));
+  assert.deepEqual(by, { '~黄仁勋复任英伟达CEO': 'ae', '~特朗普提议政府入股英伟达': 'bc', $NVDA: 'd' });
+});

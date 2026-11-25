@@ -5,7 +5,7 @@
 // 以后改查询之前请先看 README 里“数据库读取量”一节。
 
 export const DAILY_LIMIT = 5_000_000;
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 // 写入额度：免费版每天 10 万行（索引的更新也算）。只统计和显示，不限流。
 export const DAILY_WRITE_LIMIT = 100_000;
 
@@ -264,6 +264,8 @@ export async function ensureSchema(env) {
     // v12：攒批打分的“待评分”条目单独建部分索引。以前每分钟按 seen_at 把最近 30 分钟/3 小时的快讯扫一遍找 score_by = 'wait'（一天约 50 万行读取）
     "CREATE INDEX IF NOT EXISTS idx_items_wait ON items (seen_at) WHERE score_by = 'wait'",
     'ALTER TABLE d1_reads ADD COLUMN writes INTEGER NOT NULL DEFAULT 0',
+    // v13：每条 5 分以上的快讯归到一件具体的事（AI 打分时顺带给出），简报和网页按它归拢
+    'ALTER TABLE items ADD COLUMN story TEXT',
   ];
   for (const s of stmts) {
     try {

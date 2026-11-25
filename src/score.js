@@ -19,10 +19,11 @@ direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: u
 Example: [[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,8,1,"2222","Aramco","energy"]]`;
 
 // Claude 专用：每行多抄一小段标题开头，用来核对编号有没有串行（实测偶尔会把相邻两条的编号写反）
-const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score] when the score is below 5, otherwise [number, "start", score, direction, "TICKERS", "Topic", "sector"].
+const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score] when the score is below 5, otherwise [number, "start", score, direction, "TICKERS", "Topic", "sector", "Story"].
 "start" is the first 12 characters of that headline's text (after the [source] tag), copied exactly; it proves the row belongs to that number.
 direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: up to 3 US symbols or 4-digit Tadawul codes of the listed companies it is mainly about, comma-separated, or "". Topic: the subject as a canonical English label of 1-2 words, identical for every headline on that subject (Nvidia, Fed, Oil, Iran), then "|" and its usual Simplified Chinese name in at most 6 characters (Nvidia|英伟达, Fed|美联储, Oil|原油, Tariffs|关税), or "". When the user message starts with a "Known topics" line, reuse one of those labels exactly whenever the headline is about that subject (add the Chinese name if the list has none), and make a new label only when none fits; prefer the broad subject (Nasdaq, not Nasdaq 100; AI stocks, not AI chip stocks). sector: tech, finance, energy, health, consumer, industrial, macro, crypto or other.
-Example: [[0,"Nvidia short",9,-1,"NVDA","Nvidia|英伟达","tech"],[1,"Analyst rais",2],[2,"Saudi Aramco",8,1,"2222","Aramco|沙特阿美","energy"]]`;
+Story: the one specific event the headline reports. A Topic is a subject and holds many stories: headlines on the same development share one story, and separate developments of one subject are separate stories (under Nvidia, "黄仁勋复任英伟达CEO" and "特朗普提议政府入股英伟达" are two stories). When the user message has an "Open stories" line, answer with the id (S3) of the story the headline belongs to; later re-reports of it, reactions to it and price moves it caused belong to it too. Only when none fits, name a new story: a Simplified Chinese phrase of at most 14 characters saying who did what, with no date and no source name; headlines in this list on the same new event must use the identical phrase. Keep stories at the level of one newspaper article: statements, strikes and counter-strikes of the same clash on the same day are one story, not three. "" for market wraps, data roundups and anything that is not one event.
+Example: [[0,"Nvidia short",9,-1,"NVDA","Nvidia|英伟达","tech","S2"],[1,"Analyst rais",2],[2,"Saudi Aramco",8,1,"2222","Aramco|沙特阿美","energy","沙特阿美拟售百亿美元股份"]]`;
 
 // 例行新闻的特征词：命中则减分
 const ROUTINE = [
@@ -78,7 +79,22 @@ function cleanTag(t) {
   const [en, zh] = String(t.t ?? '').replace(/["<>]/g, '').split('|').map((x) => x.replace(/\s+/g, ' ').trim());
   const topic = en ? en.slice(0, 30) + (zh && /\p{Script=Han}/u.test(zh) ? '|' + zh.slice(0, 12) : '') : '';
   const sector = String(t.c ?? '').toLowerCase().trim();
-  return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '' };
+  return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '', story: String(t.y ?? '').trim() };
+}
+
+/**
+ * AI 给的“事件”：写的是已有事件的编号（S3）就换成那件事的名字；写的是新名字就整理一下（去引号、限长）。
+ * 新名字和某件已有事件的名字只差标点空格时，也算那件已有的。不是一件具体的事（空、none）返回 ''。
+ */
+export function resolveStory(raw, known = []) {
+  let x = String(raw ?? '').replace(/["'“”‘’「」《》<>|]/g, '').replace(/\s+/g, ' ').trim();
+  if (!x || /^(none|null|n\/a|-)$/i.test(x)) return '';
+  const m = x.match(/^S\s?(\d{1,3})(?![\p{L}\p{N}])/iu);
+  if (m) return known[+m[1] - 1] || '';
+  x = x.replace(/[。.，,；;：:]+$/, '').slice(0, 24);
+  if (x.length < 2) return '';
+  const k = squash(x);
+  return known.find((t) => squash(t) === k) || x;
 }
 
 /**
@@ -156,7 +172,7 @@ export function parseEchoed(raw, titles) {
   let dropped = 0;
   const put = (i, row) => {
     scores[i] = Math.max(1, Math.min(10, Number(row[2])));
-    tags[i] = row.length > 3 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6] }) : null;
+    tags[i] = row.length > 3 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6], y: row[7] }) : null;
   };
   const rows = data.filter((row) => Array.isArray(row) && typeof row[1] === 'string' && row[2] != null && Number.isFinite(Number(row[2])));
   const valid = (i) => Number.isInteger(i) && i >= 0 && i < n;
@@ -204,7 +220,7 @@ export function canonTopic(topic, known = []) {
   return hit[0] + (z ? '|' + z : '');
 }
 
-export async function aiScores(env, items, { tags = false, topics = [] } = {}) {
+export async function aiScores(env, items, { tags = false, topics = [], stories = [] } = {}) {
   if (!items.length) return null;
   const system = SYSTEM_PROMPT + '\n' + (tags ? TAG_FORMAT : PLAIN_FORMAT);
   const list = items.map((it, i) => `${i}. [${it.source}] ${it.title}`).join('\n');
@@ -216,7 +232,8 @@ export async function aiScores(env, items, { tags = false, topics = [] } = {}) {
       return null;
     }
     const out = parsed.scores;
-    out.tags = parsed.tags.map((t) => (t && t.topic ? { ...t, topic: canonTopic(t.topic, topics) } : t));
+    // 事件只认 Claude 给的（带已有事件清单的那种问法）；后备模型不分事件，网页会退回按股票 / 话题归拢
+    out.tags = parsed.tags.map((t) => (t ? { ...t, topic: t.topic ? canonTopic(t.topic, topics) : t.topic, story: provider === 'claude' ? resolveStory(t.story, stories) : '' } : t));
     out.usage = usage;
     out.fixed = parsed.fixed || 0;
     out.dropped = parsed.dropped || 0;
@@ -226,8 +243,9 @@ export async function aiScores(env, items, { tags = false, topics = [] } = {}) {
 
   if (claudeUp(env)) {
     // 已有话题放在用户消息开头（不放进系统提示词，免得每次变动都让提示词缓存失效）
-    const known = tags && topics.length ? `Known topics: ${topics.join('; ')}\n\n` : '';
-    const res = await claudeText(env, { system: tags ? SYSTEM_PROMPT + '\n' + ECHO_FORMAT : system, user: known + list, maxTokens: 100 + items.length * (tags ? 70 : 24), kind: 'score' });
+    const known =
+      (tags && topics.length ? `Known topics: ${topics.join('; ')}\n` : '') + (tags && stories.length ? `Open stories: ${stories.map((t, k) => `S${k + 1} ${t}`).join('; ')}\n` : '');
+    const res = await claudeText(env, { system: tags ? SYSTEM_PROMPT + '\n' + ECHO_FORMAT : system, user: (known ? known + '\n' : '') + list, maxTokens: 100 + items.length * (tags ? 90 : 24), kind: 'score' });
     const out = res && finish(res.text, { prompt: res.usage.input, completion: res.usage.output }, 'claude');
     if (out) return out;
   }

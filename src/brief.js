@@ -30,8 +30,12 @@ export function briefConfig(env) {
   };
 }
 
-/** 事件的键：股票代码优先，没有就用 AI 话题标签（和网页上的“同一件事”分组一致） */
+/**
+ * 事件的键（和网页上的“同一件事”分组一致）：AI 打分时给了事件名的，就只按事件名（"~事件名"）归拢，
+ * 同一只股票下的几件不同的事各写各的简报；没有事件名的（旧数据、行情综述）仍按股票代码、再按话题标签。
+ */
 export function eventKeys(i) {
+  if (i.story) return ['~' + String(i.story).trim()];
   const ks = String(i.tickers || '')
     .split(',')
     .map((s) => s.trim().toUpperCase())
@@ -146,7 +150,7 @@ export const BRIEF_SYSTEM = `你是一名财经编辑，为一个只关注美股
 10. 每个数字（涨跌幅、金额、日期、概率）都必须紧跟它的来源编号；括号里的补充说明也一样，没有来源的补充一律不写。
 11. 不要说"某某等媒体称"，只写实际标注了的那一家来源。
 12. 标着"早前报道"的是这件事前期的关键报道（只有标题），用来保留来龙去脉：事件脉络和背景里该写的照样写、照样标注。
-13. 同一家公司或同一话题下，报道可能涉及几件不同的事（比如人事变动和政府入股提议）。"一句话"和"发生了什么"的第一句要写最新的重要进展（时间最晚的 8 分以上报道），较早的事放在后面或写进事件脉络，不要让旧消息盖过新进展。
+13. 这些报道通常是同一件具体的事；但同一家公司或同一话题下，有时会混进几件不同的事（比如人事变动和政府入股提议）。"一句话"和"发生了什么"的第一句要写最新的重要进展（时间最晚的 8 分以上报道），较早的事放在后面或写进事件脉络，不要让旧消息盖过新进展。
 14. 重点标记：全文最多 2 处，用 ==…== 包住读者最该记住的关键事实（一个数字、一项决定或一个日期，每处不超过 25 个字），只放在"发生了什么"或"市场反应"里。只能包住句子里的文字，不包来源编号，不包观点和推测；没有特别关键的事实就一处也不标。"一句话"里不标。
 
 写作要求：
@@ -221,12 +225,17 @@ async function spentToday(env, now) {
 }
 
 async function loadEvents(env, c, now, articles) {
-  const rows = (
-    // 分数线直接写进语句，这样能用上部分索引 idx_items_brief（只含 5 分以上、不是重复的快讯）
-    await env.DB.prepare(`SELECT id, source, title, body, url, ts, score, confirms, tickers, topic FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ${Number(c.minScore) || 0} ORDER BY ts DESC LIMIT 1500`)
+  // 分数线直接写进语句，这样能用上部分索引 idx_items_brief（只含 5 分以上、不是重复的快讯）
+  const q = (cols) =>
+    env.DB.prepare(`SELECT id, source, title, body, url, ts, score, confirms, tickers, topic${cols} FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ${Number(c.minScore) || 0} ORDER BY ts DESC LIMIT 1500`)
       .bind(now - c.windowH * H)
-      .all()
-  ).results;
+      .all();
+  let rows;
+  try {
+    rows = (await q(', story')).results;
+  } catch {
+    rows = (await q('')).results; // 还没有 story 列（v13 之前的库）
+  }
   return groupEvents(rows.filter((r) => !articles.has(r.source)));
 }
 

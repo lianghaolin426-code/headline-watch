@@ -38,6 +38,7 @@ function config(env) {
     bigMin: Number(env.BIG_NUMBER_MIN_BILLION || 10),
     aiOn: env.AI_SCORING !== 'false',
     aiTags: env.AI_TAGS !== 'false',
+    stories: env.AI_STORIES !== 'false', // 打分时顺带把快讯归到具体的事件（简报和网页按事件归拢）；"false" 退回按股票 / 话题归拢
     aiWaitMin: Number(env.AI_BATCH_WAIT_MIN ?? 5),
     aiBatchSize: Number(env.AI_BATCH_SIZE || 8),
     aiUrgentWaitMin: Number(env.AI_URGENT_WAIT_MIN ?? 3),
@@ -85,28 +86,50 @@ function enrich(it, cfg) {
 }
 
 /**
- * 最近 24 小时里用过的话题（"英文|中文"，按条数从多到少，最多 40 个）：交给 AI 照着用，同一件事就不会被打成好几种叫法。
- * 走 5 分以上快讯的部分索引，一次只读几百行；结果缓存 10 分钟。查不到就当没有，不影响打分。
+ * 交给 AI 照着用的两份清单（一次查询，走 5 分以上快讯的部分索引，只读几百行；结果缓存 10 分钟，查不到就当没有）：
+ * topics：最近 24 小时用过的话题（"英文|中文"，按条数从多到少，最多 40 个），同一个话题就不会被打成好几种叫法；
+ * stories：最近 36 小时还在进行的事件名（最近 6 小时有新报道的最多 30 件，加上更早但报道多的最多 20 件），
+ *          新快讯属于其中哪件就归进去，都不是才算一件新的事。
  */
-async function knownTopics(env, now = Date.now()) {
+const freshStories = new Map(); // 本实例刚建的事件：清单缓存刷新之前，先靠它让下一批快讯能归到同一件事
+async function knownTags(env, now = Date.now()) {
+  let base = { topics: [], stories: [] };
   try {
-    return await cached('known_topics', 10 * 60_000, async () => {
-      const rows = (await env.DB.prepare('SELECT topic, COUNT(*) AS n FROM items WHERE ts > ? AND score >= 5 AND dup_of IS NULL AND topic IS NOT NULL GROUP BY topic').bind(now - 24 * 3_600_000).all()).results;
+    base = await cached('known_tags', 10 * 60_000, async () => {
+      const q = (cols) =>
+        env.DB.prepare(`SELECT ${cols}, COUNT(*) AS n, MAX(ts) AS last FROM items WHERE ts > ? AND score >= 5 AND dup_of IS NULL GROUP BY ${cols}`).bind(now - 36 * 3_600_000).all();
+      let rows;
+      try {
+        rows = (await q('topic, story')).results;
+      } catch {
+        rows = (await q('topic')).results; // 还没有 story 列（v13 之前的库）
+      }
       const m = new Map();
+      const st = new Map();
       for (const r of rows) {
+        if (r.story) {
+          const o = st.get(r.story) || { t: r.story, n: 0, last: 0 };
+          o.n += r.n;
+          o.last = Math.max(o.last, r.last);
+          st.set(r.story, o);
+        }
         const [en, zh] = String(r.topic || '').split('|');
         const k = en.toLowerCase();
-        if (!k) continue;
+        if (!k || r.last < now - 24 * 3_600_000) continue;
         const o = m.get(k) || { en, zh: '', n: 0 };
         o.n += r.n;
         if (zh && !o.zh) o.zh = zh;
         m.set(k, o);
       }
-      return [...m.values()].sort((a, b) => b.n - a.n).slice(0, 40).map((o) => o.en + (o.zh ? '|' + o.zh : ''));
+      const all = [...st.values()];
+      const recent = all.filter((o) => o.last > now - 6 * 3_600_000).sort((a, b) => b.last - a.last).slice(0, 30);
+      const older = all.filter((o) => !recent.includes(o)).sort((a, b) => b.n - a.n || b.last - a.last).slice(0, 20);
+      return { topics: [...m.values()].sort((a, b) => b.n - a.n).slice(0, 40).map((o) => o.en + (o.zh ? '|' + o.zh : '')), stories: [...recent, ...older].map((o) => o.t) };
     });
-  } catch {
-    return [];
-  }
+  } catch {}
+  for (const [t, at] of freshStories) if (now - at > 20 * 60_000) freshStories.delete(t);
+  const extra = [...freshStories.keys()].filter((t) => !base.stories.includes(t));
+  return { topics: base.topics || [], stories: [...extra.reverse(), ...(base.stories || [])].slice(0, 60) };
 }
 
 /** 给一批快讯打分并写回数据库：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分；AI 失败时用规则 */
@@ -116,7 +139,8 @@ async function scoreItems(env, cfg, list, report) {
   const candidates = [...list]
     .sort((a, b) => (b.hits.length > 0) + (b.weight >= 1) - ((a.hits.length > 0) + (a.weight >= 1)) || b.ts - a.ts)
     .slice(0, cfg.maxAi);
-  const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags, topics: cfg.aiTags ? await knownTopics(env) : [] }) : null;
+  const known = cfg.aiOn && cfg.aiTags ? await knownTags(env) : { topics: [], stories: [] };
+  const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags, topics: known.topics, stories: cfg.stories ? known.stories : [] }) : null;
   if (scores?.usage) await addUsage(env, report, scores.usage, scores.provider);
   if (report && (scores?.fixed || scores?.dropped)) {
     report.renumbered = (report.renumbered || 0) + scores.fixed;
@@ -157,6 +181,16 @@ async function scoreItems(env, cfg, list, report) {
           env.DB.prepare('UPDATE items SET dir = ?, tickers = ?, topic = ?, sector = ? WHERE id = ?').bind(it.tags.dir, it.tags.tickers, it.tags.topic, it.tags.sector, it.id)
         )
       );
+      // 事件单独写：5 分以下的不归事件；数据库还没有 story 列（v13 之前）时只是不记，不影响别的标签
+      const storied = cfg.stories ? tagged.filter((it) => it.tags.story && (it.score || 0) >= 5) : [];
+      if (storied.length) {
+        try {
+          await env.DB.batch(storied.map((it) => env.DB.prepare('UPDATE items SET story = ? WHERE id = ?').bind(it.tags.story, it.id)));
+          storied.forEach((it) => freshStories.set(it.tags.story, Date.now()));
+        } catch (e) {
+          console.warn('saving stories failed (schema v13 not applied yet?)', e?.message || e);
+        }
+      }
     } catch (e) {
       console.warn('saving tags failed (run migrate-v6.sql?)', e?.message || e);
     }
@@ -860,14 +894,14 @@ async function listRows(env, { limit = 200, matched = false, since = 0, before =
   // since（轮询“最近抓到的”）走 seen_at 索引：ORDER BY 写成 +ts，免得数据库为了按 ts 排序而沿 ts 索引把整张表扫一遍
   // （2026-11-24 每 15 秒一次的轮询就是这样一次读 1 万多行）
   const ord = since > 0 && !before && !after && !ids ? '+ts' : 'ts';
-  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''} FROM items
+  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''}${level > 3 ? ', story' : ''} FROM items
                WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${after > 0 ? 'AND ts > ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ${keep ? `AND (score >= 6 OR source IN (${keep.map(() => '?').join(',') || "''"}))` : ''} ${ids ? `AND id IN (${ids.map(() => '?').join(',')})` : ''}
                ORDER BY ${ord} DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
   const args = [since, ...(before > 0 ? [before] : []), ...(after > 0 ? [after] : []), ...(keep || []), ...(ids || []), Math.min(limit, cap)];
   // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
-  for (const level of [3, 2, 1]) {
+  for (const level of [4, 3, 2, 1]) {
     try {
       return (await env.DB.prepare(sql(level)).bind(...args).all()).results.map(splitTopic);
     } catch {}

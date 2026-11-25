@@ -57,6 +57,7 @@ AI_THRESHOLD = "8"
 # AI 打分时顺便给 5 分以上的快讯贴标签：利好/利空方向、股票代码、话题、板块（看板的热门股票、话题、多空情绪用）。
 # 需要先跑 migrate-v6.sql。设为 "false" 就回到只打分。
 AI_TAGS = "true"
+AI_STORIES = "true" # 打分时顺带把 5 分以上的快讯归到具体的事件；"false" 退回按股票 / 话题归拢
 # 打分和贴标签首选 Claude Haiku：密钥用 `wrangler secret put ANTHROPIC_API_KEY` 存成机密变量，不要写在这个文件里。
 # 配了密钥后新快讯当轮就打分；Claude 出错时自动退回 Workers AI（这时才按下面的规则攒批省额度），再不行退回规则。
 # 想临时停用 Claude：AI_PROVIDER = "workers"。用量和花费见 /api/status 的 claude 一栏。

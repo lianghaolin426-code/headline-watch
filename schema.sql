@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS items (
   tickers TEXT,   -- AI 标签：逗号分隔的股票代码
   topic TEXT,     -- AI 标签：话题
   sector TEXT,    -- AI 标签：板块
+  story TEXT,     -- AI 标签：属于哪件具体的事（事件名）
   title_tr TEXT,  -- 标题译文（NULL = 还没翻，空串 = 翻过但没结果）
   body_tr TEXT,   -- 摘要译文
   tr_lang TEXT    -- 译文语言：zh 或 en
