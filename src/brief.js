@@ -297,7 +297,7 @@ export async function listBriefs(env, { now = Date.now() } = {}) {
     return rows.map((r) => {
       const srcs = safeJson(r.srcs, []);
       const last = Math.max(0, ...srcs.filter((s) => !s.art).map((s) => s.ts));
-      // quiet：这件事 6 小时没有新报道了，网页上显示“已停止更新”
+      // quiet：这件事 6 小时没有新报道（只是提示，不会停止更新：有新报道照样重写）
       return { ...r, srcs, ids: safeJson(r.ids, []), last, quiet: now - Math.max(last, r.updated - 6 * H) > 6 * H };
     });
   } catch {

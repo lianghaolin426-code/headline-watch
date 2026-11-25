@@ -115,8 +115,8 @@ test('runBriefs writes a cited brief, marks new sources on update, respects spen
   assert.deepEqual(list[0].srcs.filter((s) => s.new).map((s) => s.id), ['d', 'e', 'f']);
   assert.equal(list[0].writes, 2);
 
-  // 花费到上限就不再写
-  const capped = await runBriefs({ ...env, BRIEF_DAILY_USD: '0.001' }, { now: NOW + 90 * 60_000, articles, force: '$NVDA' });
+  // 花费到上限就不再写（用量按真实日期记账，所以这里用当前时间）
+  const capped = await runBriefs({ ...env, BRIEF_DAILY_USD: '0.001' }, { now: Date.now(), articles, force: '$NVDA' });
   assert.match(capped.skipped, /上限/);
   // 用量记在 claude_usage 的 brief 一栏
   const u = DB.raw.prepare("SELECT calls FROM claude_usage WHERE kind = 'brief'").get();
