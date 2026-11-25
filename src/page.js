@@ -1400,7 +1400,7 @@ function briefMd(b,full){var S={};b.srcs.forEach(function(x){S[x.n]=x});var secs
   function line(t){var out='';t.replace(/([^\[]*?)((?:\[S\d+\])+)|(.+)$/g,function(all,txt,g,rest){if(rest!=null){out+=key(rest);return '';}var nw=/\[S(\d+)\]/.test(g)&&g.match(/\d+/g).some(function(n){return S[n]&&S[n].new});var lead=nw?(txt.match(/^[\s。，；、,.;:：]*/)||[''])[0]:'';out+=key(lead)+(nw?'<i class="nw">'+T('nwTag')+'</i>':'')+key(txt.slice(lead.length))+cites(g);return '';});return out;}
   // 重点句：简报正文里用 ==…== 包住的关键事实（写简报的 AI 标，每篇最多 2 处），显示为黄色划线
   function key(t){return esc(t).replace(/==([^=]+)==/g,'<mark class="k">$1</mark>').replace(/==/g,'');}
-  var h='';secs.forEach(function(s){if(s.h==='一句话')return;if(s.h==='事件脉络'){var tk=function(l){var m=l.match(/^[-*]?\s*(\d\d-\d\d \d\d:\d\d)/);return m?m[1]:'~'};s.L=s.L.map(function(l,k){return [l,k]}).sort(function(a,b){var x=tk(a[0]),y=tk(b[0]);return x<y?-1:x>y?1:a[1]-b[1]}).map(function(a){return a[0]});}if(!full&&s.h!=='发生了什么')return;
+  var h='';secs.forEach(function(s){if(s.h==='一句话')return;if(s.h==='事件脉络'){var tk=function(l){var m=l.match(/^[-*]?\s*(\d\d-\d\d(?: \d\d:\d\d)?)/);return m?m[1]:'~'};s.L=s.L.map(function(l,k){return [l,k]}).sort(function(a,b){var x=tk(a[0]),y=tk(b[0]);return x<y?-1:x>y?1:a[1]-b[1]}).map(function(a){return a[0]});}if(!full&&s.h!=='发生了什么')return;
     h+=(full?'<h5>'+esc(s.h)+'</h5>':'');var li=s.L.filter(function(l){return /^[-*]\s/.test(l)});
     if(li.length===s.L.length)h+='<ul>'+li.map(function(l){return '<li dir="auto">'+line(l.replace(/^[-*]\s+/,''))+'</li>'}).join('')+'</ul>';
     else h+=s.L.map(function(l){return '<p dir="auto">'+line(l.replace(/^[-*]\s+/,''))+'</p>'}).join('');});

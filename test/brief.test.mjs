@@ -188,3 +188,8 @@ test('events follow the story when the scorer gave one, so one ticker can hold s
   const by = Object.fromEntries(evs.map((e) => [e.key, e.items.map((i) => i.id).join('')]));
   assert.deepEqual(by, { '~黄仁勋复任英伟达CEO': 'ae', '~特朗普提议政府入股英伟达': 'bc', $NVDA: 'd' });
 });
+
+test('timeline: invented 00:00 is dropped and date-only lines sort by date', () => {
+  const out = sortTimeline('## 事件脉络\n11-24 00:53 b [S1]\n11-08 00:00 a [S2]\n## x\ny');
+  assert.match(out, /^## 事件脉络\n11-08 a \[S2\]\n11-24 00:53 b \[S1\]\n## x/);
+});
