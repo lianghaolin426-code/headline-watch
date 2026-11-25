@@ -146,14 +146,15 @@ test('rewrite keeps earlier key reports the last brief cited, as titles only', (
   const row = {
     body: '## 发生了什么\n董事会宣布。[S1][S3] 股价大涨。[S3]\n## 观点\n- 文章：好。[S4]',
     srcs: JSON.stringify([
-      { n: 1, id: 'old1', src: 'FT', ts: NOW - 50 * H, url: 'u1', t: 'Nvidia reinstates Huang' },
+      { n: 1, id: 'old1', src: 'FT', ts: NOW - 50 * H, url: 'u1', t: 'Nvidia reinstates Huang', sc: 9.5, cf: 2 },
       { n: 2, id: 'old2', src: 'CNBC', ts: NOW - 49 * H, url: 'u2', t: 'never cited' },
       { n: 3, id: 'b', src: 'Reuters', ts: NOW - H, url: 'u3', t: 'Shares soar' },
       { n: 4, id: 'art', src: '华尔街见闻文章', ts: NOW - H, url: 'u4', t: 'A', art: true },
     ]),
   };
   const prev = prevCited(row, 15);
-  assert.deepEqual(prev.map((p) => p.id), ['b', 'old1']); // 引用多的在前；没引用的、文章不带
+  assert.deepEqual(prev.map((p) => p.id), ['old1', 'b']); // 分数高的在前（b 虽然引用多）；没引用的、文章不带
+  assert.deepEqual(prevCited(row, 1).map((p) => p.id), ['old1']);
   const s = pickSources([it('b'), it('c')], [], 45, prev);
   assert.deepEqual(s.map((x) => x.id), ['old1', 'b', 'c']); // old1 补进来，b 已在本轮不重复
   assert.equal(s[0].prev, true);

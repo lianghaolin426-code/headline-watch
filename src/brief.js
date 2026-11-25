@@ -117,7 +117,7 @@ export function pickSources(items, arts, max, prev = []) {
   list = list.concat(prev.filter((p) => !have.has(p.id)).map((p) => ({ ...p, prev: true })));
   list.sort((a, b) => a.ts - b.ts);
   const all = [...list.map((i) => ({ ...i, art: false })), ...arts.slice(0, 12).map((a) => ({ ...a, art: true }))];
-  return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: clean(i.body), ts: i.ts, url: i.url, score: i.score, art: i.art, prev: i.prev || undefined }));
+  return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: clean(i.body), ts: i.ts, url: i.url, score: i.score, confirms: i.confirms || 0, art: i.art, prev: i.prev || undefined }));
 }
 
 export function sourceText(srcs) {
@@ -231,7 +231,7 @@ async function articlesFor(env, ids) {
   }
 }
 
-/** 上一版正文里引用过的报道（引用次数多的优先），供重写时保留前情 */
+/** 上一版正文里引用过的报道（分数高、多源证实的优先），供重写时保留前情 */
 export function prevCited(row, max) {
   if (!row || !max) return [];
   const srcs = safeJson(row.srcs, []);
@@ -239,9 +239,10 @@ export function prevCited(row, max) {
   String(row.body || '').replace(/\[S(\d+)\]/g, (_, n) => cnt.set(+n, (cnt.get(+n) || 0) + 1));
   return srcs
     .filter((x) => !x.art && cnt.has(x.n))
-    .sort((a, b) => cnt.get(b.n) - cnt.get(a.n) || a.ts - b.ts)
+    // 留哪些：分数高的优先，其次多家来源证实的，再其次被引用次数多的（之后按时间排进材料）
+    .sort((a, b) => (b.sc || 0) - (a.sc || 0) || (b.cf || 0) - (a.cf || 0) || cnt.get(b.n) - cnt.get(a.n) || a.ts - b.ts)
     .slice(0, max)
-    .map((x) => ({ id: x.id, source: x.src, title: x.t, body: '', ts: x.ts, url: x.url, score: null }));
+    .map((x) => ({ id: x.id, source: x.src, title: x.t, body: '', ts: x.ts, url: x.url, score: x.sc ?? null, confirms: x.cf || 0 }));
 }
 
 /** 写（或重写）一件事的简报，成功返回新的一行 */
@@ -255,7 +256,7 @@ export async function writeBrief(env, ev, row, c, now) {
   if (!out) return null;
   const had = new Set(safeJson(row?.ids, []));
   const fresh = !!row && now - row.updated <= c.windowH * H;
-  const map = srcs.map((s) => ({ n: s.n, id: s.id, src: s.source, ts: s.ts, url: s.url, t: s.title.slice(0, 120), art: s.art || undefined, prev: s.prev || undefined, new: fresh && !s.art && !s.prev && !had.has(s.id) ? 1 : undefined }));
+  const map = srcs.map((s) => ({ n: s.n, id: s.id, src: s.source, ts: s.ts, url: s.url, t: s.title.slice(0, 120), sc: s.score ?? undefined, cf: s.confirms || undefined, art: s.art || undefined, prev: s.prev || undefined, new: fresh && !s.art && !s.prev && !had.has(s.id) ? 1 : undefined }));
   const today = new Date(now).toISOString().slice(0, 10);
   const next = {
     key: ev.key,
