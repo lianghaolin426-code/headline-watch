@@ -146,6 +146,7 @@ export const BRIEF_SYSTEM = `你是一名财经编辑，为一个只关注美股
 10. 每个数字（涨跌幅、金额、日期、概率）都必须紧跟它的来源编号；括号里的补充说明也一样，没有来源的补充一律不写。
 11. 不要说"某某等媒体称"，只写实际标注了的那一家来源。
 12. 标着"早前报道"的是这件事前期的关键报道（只有标题），用来保留来龙去脉：事件脉络和背景里该写的照样写、照样标注。
+13. 同一家公司或同一话题下，报道可能涉及几件不同的事（比如人事变动和政府入股提议）。"一句话"和"发生了什么"的第一句要写最新的重要进展（时间最晚的 8 分以上报道），较早的事放在后面或写进事件脉络，不要让旧消息盖过新进展。
 
 写作要求：
 - 简体中文，书面、凝练、通顺，像一流财经媒体的编辑稿，不堆砌、不重复同一事实。外国人名、公司名用通行中文译名，没有通行译名的保留原文。
@@ -155,7 +156,7 @@ export const BRIEF_SYSTEM = `你是一名财经编辑，为一个只关注美股
 ## 发生了什么
 （3–5 句）
 ## 事件脉络
-（按时间的要点列表，每条以"MM-DD HH:MM"开头（用报道时间），只列关键节点，最多 8 条）
+（按时间从早到晚的要点列表，每条都以"MM-DD HH:MM"开头（月-日 时:分，用报道时间，日期不能省），只列关键节点，最多 8 条）
 ## 市场反应
 （涨跌幅、指数、相关板块，数字必须原样来自来源）
 ## 各方观点
@@ -165,6 +166,17 @@ export const BRIEF_SYSTEM = `你是一名财经编辑，为一个只关注美股
 - 全文 500–900 字（不含来源标注）。
 - 只输出简报正文（Markdown），不要前言后语。`;
 
+/** 事件脉络按开头的 "MM-DD HH:MM" 从早到晚排（没有时间的条目留在原位置之后） */
+export function sortTimeline(body) {
+  return body.replace(/(##\s*事件脉络[^\n]*\n)([\s\S]*?)(?=\n##|$)/, (all, h, sec) => {
+    const L = sec.split('\n');
+    const key = (l) => (l.match(/^\s*[-*]?\s*(\d{2}-\d{2} \d{2}:\d{2})/) || [])[1] || '~';
+    const items = L.map((l, k) => ({ l, k })).filter((x) => x.l.trim());
+    items.sort((a, b) => (key(a.l) < key(b.l) ? -1 : key(a.l) > key(b.l) ? 1 : a.k - b.k));
+    return h + items.map((x) => x.l).join('\n');
+  });
+}
+
 /** 检查并整理模型的输出：去掉不存在的来源编号；返回 { title, body, uncited } 或 null */
 export function tidyBrief(text, n) {
   let body = String(text || '').trim();
@@ -172,6 +184,7 @@ export function tidyBrief(text, n) {
   if (at < 0) return null;
   body = body.slice(at);
   body = body.replace(/\[S(\d+)\]/g, (m, d) => (+d >= 1 && +d <= n ? `[S${+d}]` : ''));
+  body = sortTimeline(body);
   const lines = body.split('\n').filter((l) => l.trim() && !l.startsWith('#'));
   if (!lines.length) return null;
   const uncited = lines.filter((l) => !/\[S\d+\]/.test(l)).length;

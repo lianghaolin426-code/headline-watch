@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { groupEvents, needsWrite, briefConfig, tidyBrief, pickSources, runBriefs, listBriefs, prevCited, sourceText } from '../src/brief.js';
+import { groupEvents, needsWrite, briefConfig, tidyBrief, pickSources, runBriefs, listBriefs, prevCited, sourceText, sortTimeline } from '../src/brief.js';
 import { claudeReset } from '../src/claude.js';
 
 // 用 node 自带的 SQLite 模拟 D1 的接口
@@ -160,4 +160,11 @@ test('rewrite keeps earlier key reports the last brief cited, as titles only', (
   assert.equal(s[0].prev, true);
   assert.match(sourceText(s), /\[S1\] .*FT（早前报道/);
   assert.deepEqual(prevCited(null, 15), []);
+});
+
+test('timeline lines are put in date order', () => {
+  const b = '## 一句话\nx [S1]\n## 事件脉络\n- 11-24 07:18 后 [S2]\n- 11-23 23:00 前 [S1]\n- 无时间 [S3]\n## 市场反应\ny [S1]';
+  const out = sortTimeline(b);
+  assert.match(out, /11-23 23:00 前 \[S1\]\n- 11-24 07:18 后 \[S2\]\n- 无时间 \[S3\]\n## 市场反应/);
+  assert.equal(sortTimeline('## 一句话\nx'), '## 一句话\nx');
 });
