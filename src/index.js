@@ -192,7 +192,7 @@ async function scoreItems(env, cfg, list, report) {
         )
       );
       // 事件单独写：5 分以下的不归事件；数据库还没有 story 列（v13 之前）时只是不记，不影响别的标签
-      const storied = cfg.stories ? tagged.filter((it) => it.tags.story && ((it.score || 0) >= 5 || (it.pick || 0) >= 6)) : [];
+      const storied = cfg.stories ? tagged.filter((it) => it.tags.story && ((it.score || 0) >= 5 || (it.pick || 0) >= 6 || (it.tags.hook || 0) >= 2)) : [];
       if (storied.length) {
         try {
           await env.DB.batch(storied.map((it) => env.DB.prepare('UPDATE items SET story = ? WHERE id = ?').bind(it.tags.story, it.id)));
@@ -209,7 +209,7 @@ async function scoreItems(env, cfg, list, report) {
   const picked = list.filter((it) => it.pick != null);
   if (picked.length) {
     try {
-      await env.DB.batch(picked.map((it) => env.DB.prepare('UPDATE items SET pick = ?, kind = ?, who = ? WHERE id = ?').bind(it.pick, it.tags?.kind || null, it.tags?.who || null, it.id)));
+      await env.DB.batch(picked.map((it) => env.DB.prepare('UPDATE items SET pick = ?, kind = ?, who = ?, hook = ? WHERE id = ?').bind(it.pick, it.tags?.kind || null, it.tags?.who || null, it.tags?.hook || null, it.id)));
     } catch (e) {
       console.warn('saving pick failed (schema v14 not applied yet?)', e?.message || e);
     }

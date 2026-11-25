@@ -163,3 +163,19 @@ test('desk: public view hides unpublished work; lint catches invented quotes; on
   const rows = Array.from({ length: 18 }, (_, k) => ({ id: 'b' + k, story: 'Selloff', dir: -1, score: 8 })).concat([1, 2, 3, 4].map((k) => ({ id: 'u' + k, story: 'Up' + k, dir: 1, score: 7 })));
   assert.deepEqual(deskMood(rows, null).news, { up: 4, down: 1, n: 5 });
 });
+
+test('desk: eye-catching items reach the meeting and the topic card', () => {
+  const rows = [
+    it('a', { story: 'Nvidia', score: 8, pick: 8 }),
+    it('h', { score: 3, pick: 3, hook: 3, title: 'Nvidia to pour $50 billion into one startup' }),
+    it('n', { score: 6 }),
+  ];
+  const inp = deskInput(rows, new Set(), 1); // even when the cap leaves no room for storyless items
+  assert.match(inp.text, /吸睛资讯/);
+  const nh = inp.list.findIndex((i) => i.id === 'h') + 1;
+  const na = inp.list.findIndex((i) => i.id === 'a') + 1;
+  assert.ok(nh > 0 && na > 0);
+  const topics = parseDesk(JSON.stringify({ topics: [{ title_zh: '英伟达', title_en: 'Nvidia', why_zh: 'x', market: 'US', items: [na], hooks: [['500 亿的大数字', nh], ['不是吸睛条目', na]] }] }), inp.list);
+  assert.deepEqual(topics[0].hooks.map((h) => h.id), ['h']);
+  assert.match(topics[0].hooks[0].title, /\$50 billion/);
+});

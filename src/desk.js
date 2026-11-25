@@ -139,7 +139,7 @@ export function deskInput(rows, articles, max) {
     list.push(i);
     const b = bodyOf(i);
     const who = i.who ? String(i.who).split('|').pop() : '';
-    return `[${list.length}] ${bjTime(i.ts)} | ${i.source}${articles.has(i.source) ? '（深度文章）' : ''} | 突发${Math.round((i.score || 0) * 10) / 10}${i.pick != null ? ' 选题' + Math.round(i.pick * 10) / 10 : ''}${who ? ' | 观点方：' + who : ''}${i.tickers ? ' | ' + i.tickers : ''} | ${clean(i.title).slice(0, 260)}${b.length >= 40 ? '\n     摘要：' + b.slice(0, 240) : ''}`;
+    return `[${list.length}] ${bjTime(i.ts)} | ${i.source}${articles.has(i.source) ? '（深度文章）' : ''} | 突发${Math.round((i.score || 0) * 10) / 10}${i.pick != null ? ' 选题' + Math.round(i.pick * 10) / 10 : ''}${(i.hook || 0) >= 2 ? ' 吸睛' + i.hook : ''}${who ? ' | 观点方：' + who : ''}${i.tickers ? ' | ' + i.tickers : ''} | ${clean(i.title).slice(0, 260)}${b.length >= 40 ? '\n     摘要：' + b.slice(0, 240) : ''}`;
   };
   const cap = max - views.length;
   for (const g of gs) {
@@ -154,18 +154,30 @@ export function deskInput(rows, articles, max) {
     out.push('## 观点线索：机构、知名人物和深度媒体怎么看（单条不一定够成题，可以并进上面的事件，也可以几条合成一个题）');
     for (const i of views) out.push(line(i) + (i.story ? `\n     所属事件：${i.story}` : ''));
   }
+  // 吸睛资讯：上面没列到的也在这里列出来，保证选题会看得见
+  const seen = new Set(list.map((i) => i.id));
+  const hooks = rows.filter((r) => (r.hook || 0) >= 2 && !seen.has(r.id)).sort((a, b) => (b.hook || 0) - (a.hook || 0) || b.ts - a.ts).slice(0, 30);
+  if (hooks.length) {
+    out.push('## 吸睛资讯：标题本身很抓眼球的消息（大数字、名人、惊人说法），分量不一定大');
+    for (const i of hooks) out.push(line(i) + (i.story ? `\n     所属事件：${i.story}` : ''));
+  }
   return { text: out.join('\n'), list, groups: gs, views: isView.size };
 }
 
 export const DESK_SYSTEM = `你是一家财经 app 的选题主编。读者是交易美股或沙特股（Tadawul）的人，不一定是沙特人，只交易其中一个市场的也很多，文章用英语发布，每天只做 1 到 2 篇有分量的稿子。
 
-用户消息是一个新闻看板在过去 24 小时里收集到的材料，分两部分：前面是突发事实，已经按"同一件事"粗略归好；最后一节是"观点线索"，是机构、知名人物和深度媒体对市场的看法。每条前面有编号 [n]，时间是北京时间。"突发N"是这条消息有多突发、多重大，"选题N"是它作为写稿原料的价值（都是 10 分最高）。大部分只有标题，少数带一两句摘要。
+用户消息是一个新闻看板在过去 24 小时里收集到的材料，分两部分：前面是突发事实，已经按"同一件事"粗略归好；最后一节是"观点线索"，是机构、知名人物和深度媒体对市场的看法。有的条目带“吸睛N”（2 或 3），表示标题本身很抓眼球（大数字、名人、惊人说法），最后可能还有一节“吸睛资讯”。每条前面有编号 [n]，时间是北京时间。"突发N"是这条消息有多突发、多重大，"选题N"是它作为写稿原料的价值（都是 10 分最高）。大部分只有标题，少数带一两句摘要。
 
 你的任务：开一次选题会，从中选出最值得做成文章的 5 到 8 个选题，按值得做的程度从高到低排列。
 
 选题有两种来路，都要考虑：
 - 一件大事本身。这时把观点线索里和它有关的看法并进来，文章才有深度（比如"加息预期升温"这件事，并入高盛、摩根大通的两条看法）。
 - 几条观点线索合成的一个题（比如几家机构对同一个问题的分歧，或者一个有分量的反常识判断）。单条观点通常不够，但有具体数字或大胆判断、又切中当前市场焦点的，可以单独成题。
+
+吸睛资讯怎么用：
+- 它本身分量可能不大，但读者爱点。先看它能不能挂到一个已经够强的选题上，当补充材料，甚至当发布标题的一部分；能就写进那个选题的 "hooks"。
+- 几条吸睛资讯加上清单里的其他材料，如果能合成一个说得通的题，也可以单独成题，在理由里说明是靠哪条吸睛资讯立起来的。
+- 只有噱头、和读者能买卖的东西没有关系的，不用。
 
 怎么判断"值得做"（按重要性排列）：
 1. 市场分量：这件事会不会真的影响价格和资金流向（指数级别、大市值公司、油价、美联储和利率、美元、沙特本地的阿美 / PIF / 银行 / 交易所规则 / 大型 IPO）。
@@ -180,10 +192,11 @@ export const DESK_SYSTEM = `你是一家财经 app 的选题主编。读者是�
 - 例行的行情综述（"美股收高""早盘要闻汇总"）不算选题，除非背后有一件具体的事。
 - 清单里够格的事不足 5 件时，有几件写几件，不要凑数。
 - "facts" 是让主编不点开也能看懂这件事的三条关键事实：每条一句话（不超过 40 个字），必须出自清单里的某一条，并给出那条的编号。
+- "hooks" 是挂在这个选题上的吸睛资讯，最多 3 条，只能用带“吸睛”标记的条目，没有就给空数组，不要硬凑。
 - "write" 标出今天最值得动笔的选题：最多 2 个，通常就是排在最前面的 1 到 2 个；如果今天没有真正够分量的，可以一个都不标。
 
 只输出一个 JSON 对象，不要任何别的文字，不要代码块标记：
-{"topics":[{"title_zh":"不超过 26 个字的中文选题名，说清是哪件事","title_en":"English topic name, at most 12 words","why_zh":"两句话。第一句：发生了什么、市场为什么在意。第二句：这些读者为什么要关心、可以从哪个角度写；材料很薄时在这里直说。","why_en":"The same two sentences in English.","angle_en":"A working English headline for the article, at most 14 words","market":"US 或 Saudi 或 Both","tickers":["最相关的股票代码，最多 4 个，没有就空数组"],"facts":[["一句话事实",清单编号],["一句话事实",清单编号],["一句话事实",清单编号]],"items":[这个选题用到的清单编号（事实和观点线索都算），最多 18 个],"write":true}]}`;
+{"topics":[{"title_zh":"不超过 26 个字的中文选题名，说清是哪件事","title_en":"English topic name, at most 12 words","why_zh":"两句话。第一句：发生了什么、市场为什么在意。第二句：这些读者为什么要关心、可以从哪个角度写；材料很薄时在这里直说。","why_en":"The same two sentences in English.","angle_en":"A working English headline for the article, at most 14 words","market":"US 或 Saudi 或 Both","tickers":["最相关的股票代码，最多 4 个，没有就空数组"],"facts":[["一句话事实",清单编号],["一句话事实",清单编号],["一句话事实",清单编号]],"hooks":[["这条为什么吸睛、可以怎么用（不超过 30 个字）",清单编号]],"items":[这个选题用到的清单编号（事实和观点线索都算），最多 18 个],"write":true}]}`;
 
 /** 从模型的回答里取出 JSON；整理成选题列表（编号换成快讯 id，算出材料厚度） */
 export function parseDesk(text, list, max = 8) {
@@ -229,6 +242,12 @@ export function parseDesk(text, list, max = 8) {
         .filter((f) => f && f.t && f.i)
         .slice(0, 3)
         .map((f) => ({ t: f.t, id: f.i.id, src: outlet(f.i.source), url: f.i.url || undefined })),
+      // 挂在这个选题上的吸睛资讯：卡片上作为“写这个的理由之一”列出来
+      hooks: (Array.isArray(t.hooks) ? t.hooks : [])
+        .map((f) => (Array.isArray(f) ? { t: str(f[0], 90), i: list[Number(f[1]) - 1] } : null))
+        .filter((f) => f && f.i && (f.i.hook || 0) >= 2)
+        .slice(0, 3)
+        .map((f) => ({ t: f.t, title: clean(f.i.title).slice(0, 140), id: f.i.id, src: outlet(f.i.source), url: f.i.url || undefined })),
       views: items
         .filter((i) => i.kind === 'v')
         .slice(0, 6)
@@ -300,6 +319,20 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
     for (const p of picked) {
       const o = have.get(p.id);
       if (o) Object.assign(o, { pick: p.pick, kind: p.kind, who: p.who });
+      else rows.push(p);
+    }
+  } catch {}
+  // 吸睛的资讯（标题党的大数字、惊人说法）：不管突发分和选题分高低都留住，走部分索引 idx_items_hook；v15 之前没有这一列时跳过
+  try {
+    const have = new Map(rows.map((r) => [r.id, r]));
+    const hooks = (
+      await env.DB.prepare('SELECT id, source, title, body, url, ts, score, confirms, dir, tickers, topic, story, pick, kind, who, hook FROM items WHERE ts > ? AND hook >= 2 AND dup_of IS NULL ORDER BY ts DESC LIMIT 200')
+        .bind(now - c.windowH * H)
+        .all()
+    ).results;
+    for (const p of hooks) {
+      const o = have.get(p.id);
+      if (o) o.hook = p.hook;
       else rows.push(p);
     }
   } catch {}
@@ -637,6 +670,7 @@ export async function deskPack(env, { run, rank, now = Date.now() }) {
   const L = [`# ${t.title_zh}`, `${t.title_en}`, '', `选题会时间：北京时间 ${bjTime(r.ts)}`, '', '## 为什么值得写', t.why_zh, '', t.why_en, '', `Working headline: ${t.angle_en}`];
   if (t.tickers?.length) L.push('', `相关股票：${t.tickers.join(', ')}`);
   if (t.facts?.length) L.push('', '## 关键事实', ...t.facts.map((f) => `- ${f.t}（${f.src}）`));
+  if (t.hooks?.length) L.push('', '## 吸睛资讯（可以当标题或开头的钩子）', ...t.hooks.map((h) => `- ${h.title}（${h.src}）：${h.t}${h.url ? ' ' + h.url : ''}`));
   if (t.views?.length) L.push('', '## 观点线索', ...t.views.map((v) => `- ${v.who ? String(v.who).split('|')[0] + '：' : ''}${v.t}${v.url ? ' ' + v.url : ''}`));
   L.push('', `## 全部报道（${items.length + arts.filter((a) => !have.has(a.id)).length} 条，按时间）`);
   for (const i of items.concat(arts.filter((a) => !have.has(a.id)))) {
@@ -915,6 +949,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
     `${usOpen(now) ? 'The US market is open right now: figures in the materials are intraday.\n' : ''}Topic: ${t.title_en} (${t.title_zh})\nWhy the desk picked it: ${t.why_en || t.why_zh}\nWorking headline from the story meeting: ${t.angle_en}\nMarket: ${t.market}. Tickers the desk tagged: ${(t.tickers || []).join(', ') || 'none'}\nNow: ${bjTime(now)} Beijing time.\n` +
     (alt && old?.format ? `The previous draft used this format: "${old.format}". Choose a clearly different format this time.\n` : '') +
     (views ? `\nInstitution and expert views attached to this topic:\n${views}\n` : '') +
+    ((t.hooks || []).length ? `\nEye-catching items the desk attached to this topic (good headline material if, and only if, the article covers them accurately):\n${t.hooks.map((h) => '- ' + h.title).join('\n')}\n` : '') +
     `\nMaterials (〔正文〕 = full text, 〔摘要〕 = a sentence or two, 〔仅标题〕 = headline only; treat headline-only items as thin and list what rests on them under CHECK):\n\n${dossierText(srcs, pasted)}` +
     (d?.body ? `\n\nThe desk's own dossier on this topic (Chinese, built from the same materials; lines starting with 推断 are the desk's inference, not fact):\n${String(d.body).slice(0, 6000)}` : '');
   const res = await claudeText(env, { system: DRAFT_SYSTEM, user, maxTokens: 16000, kind: 'draft', effort: 'medium', model: c.draftModel, timeout: 170_000 });

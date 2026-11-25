@@ -19,8 +19,9 @@ direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: u
 Example: [[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,8,1,"2222","Aramco","energy"]]`;
 
 // Claude 专用：每行多抄一小段标题开头，用来核对编号有没有串行（实测偶尔会把相邻两条的编号写反）
-const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score, pick] when score and pick are both below 5, otherwise [number, "start", score, pick, direction, "TICKERS", "Topic", "sector", "Story", "kind", "who"].
+const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score, pick] when score and pick are both below 5 and hook is below 2, otherwise [number, "start", score, pick, direction, "TICKERS", "Topic", "sector", "Story", "kind", "who", hook].
 pick: 1-10, how valuable the item is as raw material for an in-depth article for people who trade US or Saudi stocks. Judge it separately from score: a view piece can be score 2 and pick 8. 8-10: a named institution's or famous investor's concrete call, forecast or warning on a major theme ("Goldman: the market has already priced four Fed hikes", "Deutsche Bank sees the S&P 500 at 9000", "Oracle CDS spreads now above Bear Stearns in 2008", "Gundlach: US debt crisis starts in 2029"), a data-rich analysis that explains a big market move or risk, a striking historical comparison, and any event whose score is 8 or more. 5-7: useful analysis or context on a major theme (Fed and rates, AI and megacaps, oil and OPEC+, credit, Aramco, PIF, Tadawul). 1-4: routine, promotional or thin items, and markets this reader does not trade.
+hook: 0-3, how eye-catching the headline itself is to a retail investor scrolling a feed, judged separately from score and pick (a minor item can be hook 3). 3: a startling number or claim attached to a famous name ("Nvidia to invest $50 billion in...", "Musk says...", "Buffett dumps...", a record, a first-ever, a collapse or surge of 20% or more in a well-known stock, a shocking forecast). 2: clearly more clickable than ordinary news (big round numbers, celebrity investors, dramatic reversals, unusual comparisons). 1: mildly interesting. 0: ordinary. Do not give 2 or 3 to routine earnings, routine analyst rating changes or promotional releases.
 kind: "f" a fact or event, "v" a view, forecast or analysis attributed to an institution or a person, "d" a scheduled data release, "w" a market wrap or anything else. who: for kind "v" the institution or person whose view it is (never the outlet that published or relayed it, such as 格隆汇, 华尔街见闻 or 智通财经: leave who empty when the view is the outlet's own), English name then "|" and the usual Simplified Chinese name (Goldman Sachs|高盛, Jeffrey Gundlach|冈拉克), otherwise "". For kind "v", direction is the stance of the view and Story is the event or debate the view is about (reuse an open story when the view comments on one).
 "start" is the first 12 characters of that headline's text (after the [source] tag), copied exactly; it proves the row belongs to that number.
 direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: up to 3 US symbols or 4-digit Tadawul codes of the listed companies it is mainly about, comma-separated, or "". Topic: the subject as a canonical English label of 1-2 words, identical for every headline on that subject (Nvidia, Fed, Oil, Iran), then "|" and its usual Simplified Chinese name in at most 6 characters (Nvidia|英伟达, Fed|美联储, Oil|原油, Tariffs|关税), or "". When the user message starts with a "Known topics" line, reuse one of those labels exactly whenever the headline is about that subject (add the Chinese name if the list has none), and make a new label only when none fits; prefer the broad subject (Nasdaq, not Nasdaq 100; AI stocks, not AI chip stocks). sector: tech, finance, energy, health, consumer, industrial, macro, crypto or other.
@@ -84,7 +85,7 @@ function cleanTag(t) {
   const kind = String(t.kind ?? '').toLowerCase().trim().charAt(0);
   // 观点是谁的："英文名|中文名"，和话题一样存在同一列
   const who = String(t.who ?? '').replace(/["<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
-  return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '', story: String(t.y ?? '').trim(), kind: 'fvdw'.includes(kind) ? kind : '', who: kind === 'v' ? who : '' };
+  return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '', story: String(t.y ?? '').trim(), kind: 'fvdw'.includes(kind) ? kind : '', who: kind === 'v' ? who : '', hook: Math.max(0, Math.min(3, Math.round(Number(t.hook) || 0))) };
 }
 
 /**
@@ -212,7 +213,7 @@ export function parseEchoed(raw, titles) {
     // 新格式多一个“选题分”：短行 4 项 [编号, 开头, 分数, 选题分]，长行 9 项以上；5 到 8 项的是旧格式（没有选题分）
     const neu = row.length === 4 || row.length >= 9;
     if (neu && row[3] != null && Number.isFinite(Number(row[3]))) picks[i] = Math.max(1, Math.min(10, Number(row[3])));
-    tags[i] = row.length >= 9 ? cleanTag({ d: row[4], k: row[5], t: row[6], c: row[7], y: row[8], kind: row[9], who: row[10] }) : row.length > 4 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6], y: row[7] }) : null;
+    tags[i] = row.length >= 9 ? cleanTag({ d: row[4], k: row[5], t: row[6], c: row[7], y: row[8], kind: row[9], who: row[10], hook: row[11] }) : row.length > 4 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6], y: row[7] }) : null;
   };
   const rows = data.filter((row) => Array.isArray(row) && typeof row[1] === 'string' && row[2] != null && Number.isFinite(Number(row[2])));
   const valid = (i) => Number.isInteger(i) && i >= 0 && i < n;
