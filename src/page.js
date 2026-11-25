@@ -1131,7 +1131,7 @@ async function load(manual){
         var hot=fresh.filter(isHot);
         if(hot.length){
           if(state.sound)beep();
-          if(state.notify&&!PUSH.sub&&window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(cleanTitle(i.title),{icon:'/icons/icon-192.png?v=2',body:i.source+' · '+fmtScore(i.score),tag:i.id})}catch(e){}});
+          if(state.notify&&!PUSH.sub&&window.Notification&&Notification.permission==='granted')hot.slice(0,3).forEach(function(i){try{new Notification(cleanTitle(i.title),{icon:'/icons/icon-192.png',body:i.source+' · '+fmtScore(i.score),tag:i.id})}catch(e){}});
           if(document.hidden){unread+=hot.length;document.title='('+unread+') Headline Watch';}
         }
       }
@@ -1433,8 +1433,7 @@ pushInit();(window.requestIdleCallback||setTimeout)(loadHealth);setInterval(vis(
 if(!freshBoot||!state.briefs)loadBriefs();setInterval(vis(loadBriefs),180000);schedule();setInterval(renderClocks,20000);setInterval(vis(loadHealth),600000);
 `;
 
-import { FAVICON_SVG, ICON_VERSION } from './icons.js';
-const ICON = 'data:image/svg+xml,' + encodeURIComponent(FAVICON_SVG);
+import { faviconSvg, ICON_VERSION, DEFAULT_LOGO } from './icons.js';
 
 const X = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m2 2 10 10M12 2 2 12"/></svg>';
 
@@ -1520,7 +1519,7 @@ export const BUILD = fingerprint(CSS + BODY + JS);
 const seps = new RegExp('[' + String.fromCharCode(0x2028, 0x2029) + ']', 'g');
 const inline = (v) => JSON.stringify(v).replace(/</g, '\\' + 'u003c').replace(seps, '');
 
-export function renderPage({ key, boot }) {
+export function renderPage({ key, boot, logo = DEFAULT_LOGO }) {
   return `<!doctype html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8">
@@ -1528,11 +1527,11 @@ export function renderPage({ key, boot }) {
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" id="tc" content="#f5f0e6">
 <title>Headline Watch</title>
-<link rel="icon" type="image/svg+xml" href="${ICON}">
-<link rel="alternate icon" type="image/png" sizes="32x32" href="/icons/icon-32.png?v=${ICON_VERSION}">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${ICON_VERSION}">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(faviconSvg(logo))}">
+<link rel="alternate icon" type="image/png" sizes="32x32" href="/icons/icon-32.png?s=${logo}&amp;v=${ICON_VERSION}">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?s=${logo}&amp;v=${ICON_VERSION}">
 <meta name="apple-mobile-web-app-title" content="Headline Watch">
-<link rel="manifest" href="/manifest.webmanifest${key ? '?key=' + encodeURIComponent(key) : ''}">
+<link rel="manifest" href="/manifest.webmanifest?s=${logo}${key ? '&amp;key=' + encodeURIComponent(key) : ''}">
 <script>try{var t=JSON.parse(localStorage.getItem('hw')||'{}').theme;if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>${CSS}</style></head><body>${BODY}<script>
 var KEY=${inline(String(key || ''))},BUILD=${inline(BUILD)},BOOT=${boot ? inline(boot) : 'null'};${JS}</script></body></html>`;

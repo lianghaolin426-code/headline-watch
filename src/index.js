@@ -11,11 +11,11 @@ import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
 import { renderPage, BUILD } from './page.js';
-import { iconResponse, ICON_VERSION } from './icons.js';
+import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
-import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, LEVELS } from './dbguard.js';
+import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -765,6 +765,33 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
 
 // ---------- HTTP ----------
 
+// 当前用哪种 logo（管理页设置，存在 meta 表）。内存里缓存 5 分钟；数据库慢或出错就用默认的黑色。
+async function logoStyle(env) {
+  const got = await Promise.race([
+    cached('logo', 300_000, async () => ({ s: (await metaGet(env, 'logo'))?.v || DEFAULT_LOGO })).catch(() => null),
+    new Promise((r) => setTimeout(() => r(null), 400)),
+  ]);
+  return LOGO_STYLES.includes(got?.s) ? got.s : DEFAULT_LOGO;
+}
+
+function logoAdminPage(current, saved) {
+  const names = { dark: '黑色', light: '米白' };
+  const card = (st) => `<button name="style" value="${st}" class="${st === current ? 'on' : ''}"><img src="data:image/svg+xml,${encodeURIComponent(faviconSvg(st).replace('viewBox', 'width="160" height="160" viewBox'))}" alt=""><b>${names[st]}</b><span>${st === current ? '正在使用' : '换成这个'}</span></button>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Logo 设置 · Headline Watch</title>
+<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(faviconSvg(current))}">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#ebe5d8;color:#1a1714;font:15px/1.6 -apple-system,"PingFang SC","Noto Sans SC",sans-serif}
+main{padding:32px 20px;text-align:center;max-width:560px}h1{font:800 30px/1.2 Georgia,"Songti SC",serif;margin:0 0 6px}p{color:#6f675b;margin:0 0 26px}
+form{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+button{font:inherit;color:inherit;cursor:pointer;background:#f5f0e6;border:2px solid transparent;border-radius:22px;padding:26px 26px 18px;display:grid;gap:6px;justify-items:center;box-shadow:0 8px 30px rgba(40,30,10,.08);transition:.15s}
+button:hover{transform:translateY(-2px)}button.on{border-color:#c8371d}button img{width:120px;height:120px;margin-bottom:8px}button b{font-size:16px}button span{font-size:13px;color:#8a8275}button.on span{color:#c8371d;font-weight:600}
+.ok{display:inline-block;background:#e4efe4;color:#2f6f4a;border-radius:99px;padding:5px 14px;font-size:13px;margin-bottom:18px}small{display:block;margin-top:26px;color:#8a8275}a{color:inherit}</style></head><body><main>
+<h1>Logo 设置</h1><p>选一个，全站的标签图标、主屏图标和推送通知图标都会跟着换。</p>
+${saved ? '<div class="ok">已保存，几分钟内全部生效</div><br>' : ''}
+<form method="post">${LOGO_STYLES.map(card).join('')}</form>
+<small>这个页面只有带管理密码的网址才能打开。浏览器对图标有缓存，换完后强制刷新一次首页（Cmd+Shift+R）就能看到。<br><a href="/">返回首页</a></small>
+</main></body></html>`;
+}
+
 function authorized(req, env) {
   if (!env.ACCESS_KEY) return true;
   const u = new URL(req.url);
@@ -912,8 +939,13 @@ const app = {
     const url = new URL(req.url);
     // Logo 图标：内嵌的静态文件，不查数据库、不需要访问密码，浏览器长期缓存
     if (req.method === 'GET' || req.method === 'HEAD') {
-      const icon = iconResponse(url.pathname);
-      if (icon) return icon;
+      const icon = iconName(url.pathname);
+      if (icon) {
+        // 网址里写明样式的（?s=dark）直接给，不查数据库；没写明的跟着当前设置（设置在内存里缓存 5 分钟）
+        const s = url.searchParams.get('s');
+        const pinned = LOGO_STYLES.includes(s);
+        return iconResponse(icon, pinned ? s : await logoStyle(env), pinned);
+      }
     }
     if (!authorized(req, env)) return new Response('需要 ?key=访问密码', { status: 401 });
     // 手动抓取和测试推送是管理操作：设置了 ADMIN_KEY 时需要 ?admin=管理密码，
@@ -925,13 +957,27 @@ const app = {
     }
 
     switch (url.pathname) {
+      case '/admin/logo': {
+        // 只有带管理密码才能打开的 logo 设置页：/admin/logo?admin=管理密码
+        if (!env.ADMIN_KEY || url.searchParams.get('admin') !== env.ADMIN_KEY) return new Response('需要 ?admin=管理密码', { status: 403 });
+        let saved = false;
+        if (req.method === 'POST') {
+          const pickStyle = String((await req.formData()).get('style') || '');
+          if (!LOGO_STYLES.includes(pickStyle)) return new Response('unknown style', { status: 400 });
+          await metaSet(env, 'logo', pickStyle);
+          await cacheSet('logo', { s: pickStyle });
+          saved = true;
+        }
+        return new Response(logoAdminPage(await logoStyle(env), saved), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+      }
+
       case '/': {
         // 首屏数据直接写进网页，省掉一次往返；数据库慢的时候不等它，网页照常先出来
         const boot = await Promise.race([
           (async () => cached('boot', await ttl(env, 20_000), () => bootData(env)))().catch(() => null),
           new Promise((r) => setTimeout(() => r(null), 900)),
         ]);
-        return new Response(renderPage({ key: url.searchParams.get('key') || '', boot: boot && !boot.stale ? { ...boot, now: Date.now() } : null }), {
+        return new Response(renderPage({ key: url.searchParams.get('key') || '', boot: boot && !boot.stale ? { ...boot, now: Date.now() } : null, logo: await logoStyle(env) }), {
           headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-HW-Build': BUILD },
         });
       }
@@ -1145,11 +1191,14 @@ const app = {
       case '/sw.js':
         return new Response(SW_JS, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' } });
 
-      case '/manifest.webmanifest':
+      case '/manifest.webmanifest': {
+        const ms = url.searchParams.get('s');
+        const mlogo = LOGO_STYLES.includes(ms) ? ms : await logoStyle(env);
         return new Response(
-          JSON.stringify({ name: 'Headline Watch', short_name: 'Headline', start_url: '/' + (url.searchParams.get('key') ? '?key=' + encodeURIComponent(url.searchParams.get('key')) : ''), display: 'standalone', background_color: '#f5f0e6', theme_color: '#f5f0e6', icons: [{ src: '/icons/icon-192.png?v=' + ICON_VERSION, sizes: '192x192', type: 'image/png' }, { src: '/icons/icon-512.png?v=' + ICON_VERSION, sizes: '512x512', type: 'image/png' }, { src: '/icons/maskable-512.png?v=' + ICON_VERSION, sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }),
+          JSON.stringify({ name: 'Headline Watch', short_name: 'Headline', start_url: '/' + (url.searchParams.get('key') ? '?key=' + encodeURIComponent(url.searchParams.get('key')) : ''), display: 'standalone', background_color: '#f5f0e6', theme_color: '#f5f0e6', icons: [{ src: '/icons/icon-192.png?s=' + mlogo + '&v=' + ICON_VERSION, sizes: '192x192', type: 'image/png' }, { src: '/icons/icon-512.png?s=' + mlogo + '&v=' + ICON_VERSION, sizes: '512x512', type: 'image/png' }, { src: '/icons/maskable-512.png?s=' + mlogo + '&v=' + ICON_VERSION, sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }),
           { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8' } }
         );
+      }
 
       case '/api/push/key': {
         // 公钥 + 过去 24 小时各门槛的条数；带 endpoint 时顺便返回这个浏览器在服务器上的设置

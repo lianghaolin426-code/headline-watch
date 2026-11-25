@@ -280,6 +280,15 @@ export async function ensureSchema(env) {
 }
 
 /** meta 表的小工具：存取一段 JSON */
+// 刚写进数据库的设置直接放进缓存，本实例马上生效（其他实例等缓存到期）
+export async function cacheSet(key, val, now = Date.now()) {
+  S.memo.set(key, { at: now, val });
+  const edge = typeof caches !== 'undefined' ? caches.default : null;
+  if (!edge) return;
+  try {
+    await edge.put(new Request('https://hw-cache.invalid/' + encodeURIComponent(key)), new Response(JSON.stringify(val), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=172800', 'X-At': String(now) } }));
+  } catch {}
+}
 export async function metaGet(env, k) {
   try {
     const r = (await env.DB.prepare('SELECT v, updated FROM meta WHERE k = ?').bind(k).all()).results?.[0];
