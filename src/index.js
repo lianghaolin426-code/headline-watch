@@ -14,7 +14,7 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
-import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack } from './desk.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes } from './desk.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -1136,8 +1136,16 @@ const app = {
         return json(await deskPack(env, { run: url.searchParams.get('run'), rank: url.searchParams.get('rank') }));
       }
 
+      case '/api/desk/quotes': {
+        // 参考价只供内部看（数据源条款）：只有带管理密码才给。也用来让网页确认管理密码对不对
+        if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        return json({ admin: true, ...(await deskQuotes(env)) });
+      }
+
       case '/api/desk/run':
       case '/api/desk/pick':
+      case '/api/desk/draft':
+      case '/api/desk/written':
       case '/api/desk/dossier': {
         // 这三个会花钱或写数据库：只接受 POST；每天有花费上限（DESK_DAILY_USD），手动开会和重写档案有最短间隔
         // 网站是公开的，这些按钮只有用户本人能用：请求头要带管理密码（网页用 ?admin=管理密码 打开一次后记在浏览器里）
@@ -1150,6 +1158,8 @@ const app = {
         const now = Date.now();
         let r;
         if (url.pathname === '/api/desk/pick') r = await deskPick(env, { run: b.run, rank: b.rank, verdict: b.verdict, note: b.note, now });
+        else if (url.pathname === '/api/desk/draft') r = await writeDraft(env, { run: b.run, rank: b.rank, alt: !!b.alt, now });
+        else if (url.pathname === '/api/desk/written') r = await deskWritten(env, { run: b.run, rank: b.rank, title: b.title, note: b.note, id: b.id, undo: !!b.undo, now });
         else if (url.pathname === '/api/desk/dossier') r = await writeDossier(env, { run: b.run, rank: b.rank, paste: b.paste && typeof b.paste === 'object' ? b.paste : null, now });
         else {
           const last = (await deskState(env, { now })).run;
@@ -1159,7 +1169,7 @@ const app = {
         }
         const st = await deskState(env);
         await cacheSet('desk', st);
-        return json({ ...r, desk: st }, r.ok ? 200 : r.error === 'no_topic' || r.error === 'bad_verdict' || r.error === 'paste_short' ? 400 : 200);
+        return json({ ...r, desk: st }, r.ok ? 200 : r.error === 'no_topic' || r.error === 'bad_verdict' || r.error === 'paste_short' || r.error === 'title_short' ? 400 : 200);
       }
 
       case '/api/item': {

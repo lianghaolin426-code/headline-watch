@@ -96,3 +96,49 @@ test('desk: opinion leads get their own section and reach the topic card with fa
   assert.deepEqual(topics[0].facts.map((f) => f.id), ['v']);
   assert.deepEqual(topics[0].views.map((x) => [x.id, x.who]), [['v', 'Goldman Sachs|高盛']]);
 });
+
+test('desk: topic status, written match, mood, draft parsing and quotes', async () => {
+  const { topicStatus, matchWritten, deskMood, parseDraft, tidyQuote, deskSlot: slot2 } = await import('../src/desk.js');
+  const Hh = 3600000;
+  const now = T0;
+  const topics = [
+    { rank: 1, ids: ['a', 'b', 'c', 'd'], stories: ['S1'], tsl: [now - Hh, now - 2 * Hh, now - 3 * Hh, now - 20 * Hh] },
+    { rank: 2, ids: ['x'], stories: ['S9'], tsl: [now - Hh] },
+    { rank: 3, ids: ['m', 'n', 'o'], stories: ['S3'], tsl: [now - 10 * Hh, now - 12 * Hh, now - 14 * Hh] },
+  ];
+  const prev = [{ id: 5, ts: now - 12 * Hh, topics: [{ rank: 2, ids: ['zz'], stories: ['S1'] }, { rank: 4, ids: ['m'], stories: [] }] }];
+  topicStatus(topics, prev, now);
+  assert.deepEqual(topics.map((t) => t.st), ['up', 'new', 'down']);
+  assert.equal(topics[0].was, 2);
+  assert.equal(topics[0].since, now - 12 * Hh);
+  const written = [
+    { id: 3, ts: now - 5 * Hh, title: 'Old piece', run_id: 2, rank: 1, ids: '["zz"]', stories: '["S1"]', off: 0 },
+    { id: 2, ts: now - 6 * Hh, title: 'Off board', run_id: null, rank: null, ids: null, stories: null, off: 1 },
+  ];
+  assert.deepEqual(matchWritten(topics[0], 9, written), { id: 3, ts: now - 5 * Hh, title: 'Old piece', same: false, fresh: 3 });
+  assert.equal(matchWritten(topics[1], 9, written), null);
+  assert.equal(matchWritten({ rank: 1, ids: [], stories: [], tsl: [] }, 2, written).same, true);
+  const rows = [
+    ...[1, 1, 1, -1, -1].map((dir, k) => ({ id: 'n' + k, dir, score: 7, title: 't' })),
+    { id: 'v1', kind: 'v', dir: -1, who: 'Goldman Sachs|高盛', pick: 8, title: 'Four hikes', score: 2 },
+  ];
+  const mood = deskMood(rows, { lean: -40 });
+  assert.deepEqual(mood.news, { up: 3, down: 2, n: 5 });
+  assert.equal(mood.lean, 20);
+  assert.equal(mood.delta, 60);
+  assert.equal(mood.vlean, null);
+  assert.equal(mood.bears[0].who, 'Goldman Sachs|高盛');
+  const d = parseDraft('## FORMAT\nFive numbers\n## HEADLINES\n**One two three four**\n2. Two\n- Three\nFour\nFive\nSix\n## SUMMARY\nSum.\n## ARTICLE\n## What happened\n' + 'word '.repeat(100) + '\n## Next\nmore\n## CARDS\n[{"type":"numbers","title":"T","items":[{"n":"7%","label":"a"},{"n":"3","label":"b"}]},{"type":"nope"}]\n## CHECK\n- 核对一');
+  assert.deepEqual(d.heads, ['One two three four', 'Two', 'Three', 'Four', 'Five']);
+  assert.match(d.body, /^## What happened/);
+  assert.match(d.body, /more$/);
+  assert.equal(d.cards.length, 1);
+  assert.deepEqual(d.checks, ['核对一']);
+  assert.equal(parseDraft('nothing useful'), null);
+  assert.deepEqual(tidyQuote({ ticker: 'spy', tngoLast: 99, prevClose: 100 }), { t: 'SPY', p: 99, pc: 100, chg: -1, at: undefined });
+  assert.equal(tidyQuote({ ticker: 'X', tngoLast: null, prevClose: 0 }), null);
+  // after-close meeting only when switched on
+  const close = Date.UTC(2026, 10, 25, 21, 35); // 16:35 New York
+  assert.equal(slot2(close), null);
+  assert.deepEqual(slot2(close, true), { slot: 'close', day: '2026-11-25' });
+});
