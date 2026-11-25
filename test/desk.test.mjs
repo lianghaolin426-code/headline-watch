@@ -179,3 +179,37 @@ test('desk: eye-catching items reach the meeting and the topic card', () => {
   assert.deepEqual(topics[0].hooks.map((h) => h.id), ['h']);
   assert.match(topics[0].hooks[0].title, /\$50 billion/);
 });
+
+test('desk: quotes try Yahoo first (US and Saudi), fall back to Tiingo, and stop asking a source that refuses', async () => {
+  const { deskQuotes, tidyYahoo } = await import('../src/desk.js');
+  assert.deepEqual(tidyYahoo({ chart: { result: [{ meta: { regularMarketPrice: 27.5, chartPreviousClose: 27.0, regularMarketTime: 1795600000 } }] } }, '2222'), { t: '2222', p: 27.5, pc: 27, chg: 1.85, at: 1795600000000 });
+  assert.equal(tidyYahoo({ chart: { result: null } }, 'SPY'), null);
+  const meta = {};
+  const DB = {
+    prepare: (sql) => ({
+      bind: (...a) => ({
+        all: async () => ({ results: /FROM meta/.test(sql) ? (meta[a[0]] ? [{ v: meta[a[0]], updated: 1 }] : []) : [] }),
+        run: async () => { if (/INTO meta/.test(sql)) meta[a[0]] = a[1]; return {}; },
+      }),
+      all: async () => ({ results: /desk_runs/.test(sql) ? [{ topics: JSON.stringify([{ tickers: ['NVDA', '2222'] }]) }] : [] }),
+    }),
+  };
+  const urls = [];
+  const yahoo = async (u) => {
+    urls.push(u);
+    if (u.includes('tiingo')) return { ok: true, json: async () => [{ ticker: 'SPY', tngoLast: 99, prevClose: 100 }] };
+    return { ok: true, json: async () => ({ chart: { result: [{ meta: { regularMarketPrice: 11, chartPreviousClose: 10 } }] } }) };
+  };
+  const a = await deskQuotes({ DB }, { now: 1e12, fetcher: yahoo, gap: 0 });
+  assert.equal(a.src, 'yahoo');
+  assert.ok(urls.some((u) => u.includes('2222.SR')) && urls.some((u) => u.includes('%5ETASI.SR')) && urls.some((u) => u.includes('/NVDA?')));
+  assert.equal(a.quotes.find((q) => q.t === '2222').chg, 10);
+  // Yahoo refuses: no token → error; with a token → Tiingo, and Yahoo is left alone for half an hour
+  const refuse = async (u) => (u.includes('tiingo') ? yahoo(u) : { ok: false, status: 429 });
+  const b = await deskQuotes({ DB }, { now: 2e12, fetcher: refuse, gap: 0 });
+  assert.deepEqual([b.ok, b.error, b.status], [false, 'yahoo_http', 429]);
+  urls.length = 0;
+  const c = await deskQuotes({ DB, TIINGO_TOKEN: 'x' }, { now: 2e12 + 11 * 60000, fetcher: yahoo, gap: 0 });
+  assert.equal(c.src, 'tiingo');
+  assert.equal(urls.length, 1);
+});
