@@ -17,7 +17,7 @@ export function briefConfig(env) {
     on: env.BRIEFS !== 'false',
     windowH: Number(env.BRIEF_WINDOW_HOURS || 36), // 同一件事往前看多久
     minScore: Number(env.BRIEF_ITEM_MIN || 5), // 多少分以上的快讯算进事件
-    dailyUsd: Number(env.BRIEF_DAILY_USD || 0.3), // 每天最多花多少美元写简报
+    dailyUsd: Number(env.BRIEF_DAILY_USD || 0.5), // 每天最多花多少美元写简报
     perDay: Number(env.BRIEF_MAX_PER_DAY || 24), // 每件事每天最多写几次（9 分以上的新消息不受这个限制，只受每日花费上限）
     keepPrev: Number(env.BRIEF_KEEP_PREV || 15), // 重写时带上上一版引用过、已不在窗口里的报道（最多几条），长事件的前情不会丢
     perRun: Number(env.BRIEF_MAX_PER_RUN || 2), // 每分钟最多写几篇（控制单轮耗时）
