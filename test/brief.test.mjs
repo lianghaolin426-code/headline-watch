@@ -168,3 +168,11 @@ test('timeline lines are put in date order', () => {
   assert.match(out, /11-23 23:00 前 \[S1\]\n- 11-24 07:18 后 \[S2\]\n- 无时间 \[S3\]\n## 市场反应/);
   assert.equal(sortTimeline('## 一句话\nx'), '## 一句话\nx');
 });
+
+test('tidyBrief keeps at most two key marks, drops them from the headline and from spans holding citations', () => {
+  const out = tidyBrief('## 一句话\n==英伟达==恢复黄仁勋职务。[S1]\n## 发生了什么\n股价==单日涨超30%==。[S1] 董事会==周一==宣布。[S2] 另有==第三处==。[S2] 坏的==跨来源[S1]标记==。[S2] 落单==记号。[S3]\n', 3);
+  assert.equal(out.title, '英伟达恢复黄仁勋职务。');
+  assert.equal((out.body.match(/==/g) || []).length, 4);
+  assert.ok(out.body.includes('==单日涨超30%==') && out.body.includes('==周一==') && out.body.includes('另有第三处。'));
+  assert.ok(!/一句话\n.*==/.test(out.body));
+});
