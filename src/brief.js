@@ -38,7 +38,7 @@ export function eventKeys(i) {
     .filter(Boolean)
     .map((s) => '$' + s);
   if (!ks.length && i.topic) {
-    const t = String(i.topic).toLowerCase().replace(/^(us|u\.s\.)\s+/, '').trim();
+    const t = String(i.topic).split('|')[0].toLowerCase().replace(/^(us|u\.s\.)\s+/, '').trim();
     if (t) ks.push('#' + t);
   }
   return ks;

@@ -780,22 +780,25 @@ var STOP={};('the this that after with from will says new its and for not how wh
 /* 热门话题自动划线：过去 18 小时里条数最多的几个话题（至少 4 条，最多 5 个），
    在属于这个话题的快讯标题里，把话题的名字划出来。话题标签是英文（AI 打的），中文标题里叫什么是算出来的：
    这个话题的标题里大多都有、别的话题的标题里几乎没有的那个词（比如 Houthi 对应“胡塞武装”）。 */
-var HOT={at:0,n:-1,map:{},list:[]};
+var HOT={at:0,n:-1,map:{},list:[],zh:{}};
 function hotTopics(){var now=Date.now();if(now-HOT.at<6e4&&HOT.n===state.items.length)return HOT;
   var win=state.items.filter(function(i){return i.ts>now-18*36e5}),g={},map={};
   function txt(i){var c=TR[i.id];return (i.title+' '+(i.title_tr||'')+' '+((c&&c.t)||'')).toLowerCase();}
   win.forEach(function(i){if(i.dup_of||!i.topic)return;var k=i.topic.toLowerCase();(g[k]=g[k]||{key:k,name:i.topic,items:[]}).items.push(i)});
+  // 话题的中文名：新打的标签自带中文名，同一个话题的旧快讯跟着用（不用重新打标签）
+  var zc={},zh={};state.items.forEach(function(i){if(!i.topic||!i.topic_zh)return;var k=i.topic.toLowerCase(),m=zc[k]=zc[k]||{};m[i.topic_zh]=(m[i.topic_zh]||0)+1;if(!zh[k]||m[i.topic_zh]>m[zh[k]])zh[k]=i.topic_zh;});
   var all=Object.keys(g).map(function(k){return g[k]}).sort(function(a,b){return b.items.length-a.items.length||b.items.filter(isHot).length-a.items.filter(isHot).length||(a.key<b.key?-1:1)});
-  all.filter(function(x){return x.items.length>=4}).slice(0,5).forEach(function(tp){var terms=[tp.key];
+  all.filter(function(x){return x.items.length>=4}).slice(0,5).forEach(function(tp){var terms=[tp.key];if(zh[tp.key])terms.push(zh[tp.key].toLowerCase());
     TK.forEach(function(t){if(t[1].toLowerCase()===tp.key||t[0].toLowerCase()===tp.key)t[2].split('|').forEach(function(a){if(/^[\w一-鿿 ]+$/.test(a)&&terms.indexOf(a)<0)terms.push(a)})});
     var ins=tp.items.map(txt),outs=win.filter(function(i){return !i.topic||i.topic.toLowerCase()!==tp.key}).map(txt),c={};
     ins.forEach(function(t){var u={};(t.match(/[一-鿿]+/g)||[]).forEach(function(run){for(var n=2;n<=4;n++)for(var q=0;q+n<=run.length;q++)u[run.substr(q,n)]=1;});Object.keys(u).forEach(function(w){c[w]=(c[w]||0)+1});});
     var best='',bs=0;Object.keys(c).forEach(function(w){var cov=c[w]/ins.length;if(cov<.6)return;var oc=outs.length?outs.filter(function(t){return t.indexOf(w)>=0}).length/outs.length:0;if(oc>=.06)return;var sc=cov-oc*3+w.length*.01;if(sc>bs){bs=sc;best=w;}});
     if(best&&terms.indexOf(best)<0)terms.push(best);tp.hot=true;map[tp.key]=terms;});
-  HOT={at:now,n:state.items.length,map:map,list:all};return HOT;}
+  HOT={at:now,n:state.items.length,map:map,list:all,zh:zh};return HOT;}
+function tpName(n){var z=state.lang==='zh'&&hotTopics().zh[String(n).toLowerCase()];return z||n;}
 function topicsHtml(){var all=hotTopics().list;if(all.length<3)return '';var many=all.filter(function(x){return x.items.length>1}),one=all.length-many.length,L=many.length>=6?many:all.slice(0,30);
   return '<div class="tps"><div class="sec"><span>'+T('tpAll')+'<small>'+T('tpSub',all.length)+'</small></span></div><div class="tpl">'+L.map(function(x){
-    return '<button class="chipb tp" data-rel="#'+esc(x.name)+'"><bdi>'+(x.hot?'<mark class="k">'+esc(x.name)+'</mark>':esc(x.name))+'</bdi><b class="num">'+x.items.length+'</b></button>'}).join('')+(L===many&&one?'<span class="tpm">'+T('tpMore',one)+'</span>':'')+'</div></div>';}
+    return '<button class="chipb tp" data-rel="#'+esc(x.name)+'"><bdi>'+(x.hot?'<mark class="k">'+esc(tpName(x.name))+'</mark>':esc(tpName(x.name)))+'</bdi><b class="num">'+x.items.length+'</b></button>'}).join('')+(L===many&&one?'<span class="tpm">'+T('tpMore',one)+'</span>':'')+'</div></div>';}
 function topics(list){
   // AI 给了话题标签的快讯够多时，直接按标签归拢（中英文自动对上）；否则退回到数专有名词
   var tg={},nt=0;list.forEach(function(i){if(i.dup_of||!i.topic)return;nt++;var k=i.topic.toLowerCase();(tg[k]=tg[k]||{name:i.topic,tag:true,items:[]}).items.push(i)});
@@ -828,7 +831,7 @@ function tags(i,o){var h='';
   if(state.stars[i.id])h+='<span class="wh">★</span>';
   return h;}
 // 关联关系：统一的小胶囊。g 是简报里的事件分组（有就加“同一事件还有 N 条”，点了进时间线）
-function evLabel(g){var k=g.key||'';return T('dEv')+' · '+(k.charAt(0)==='#'&&g.rep.topic?g.rep.topic:k.replace(/^[$#]/,''));}
+function evLabel(g){var k=g.key||'';return T('dEv')+' · '+(k.charAt(0)==='#'&&g.rep.topic?tpName(g.rep.topic):k.replace(/^[$#]/,''));}
 function rels(i,g){var h='';
   if(i.confirms>0)h+='<span class="rc cfm">'+IC.cf+'<span>'+T('nSrc',nb(i.confirms+1))+'</span></span>';
   if(g){var n=g.items.length-1;if(n>0&&g.key){var ek='g:'+g.rep.id,ids={};g.items.forEach(function(x){ids[x.id]=1});EVS[ek]={ids:ids,label:evLabel(g)};h+='<button class="rc evt" data-ev="'+esc(ek)+'">'+IC.ev+'<span>'+T('related',nb(n))+'</span></button>';}}
@@ -932,7 +935,7 @@ function briefHtml(b){
     return '<button class="tkr'+(o.hot?' h':'')+'" data-tk="'+esc(o.sym)+'"><b dir="ltr">'+esc(o.sym)+'</b><span dir="ltr">'+esc(o.name)+'</span><em class="num">'+o.n+'</em><u style="width:'+Math.max(8,Math.round(o.n/tmx*100))+'%"></u></button>'}).join(''):'<div class="sub" style="margin:0">'+T('tkNone')+'</div>')+'</div>';
   topics(b.filter(function(i){return i.ts>now-18*36e5})).slice(0,2).forEach(function(tp){
     var L=dedupe(tp.items.slice().sort(function(x,y){return (y.score||0)-(x.score||0)||y.ts-x.ts}));
-    h+='<div class="glass tile topic"><div class="rl">'+T('topic')+'</div><h3 data-topic="'+esc((tp.tag?'#':'')+tp.name)+'" role="button" tabindex="0" style="cursor:pointer"><bdi>'+esc(tp.name)+'</bdi><span>'+T('timeline')+'</span></h3><div class="cnt">'+T('topicCnt',tp.items.length,tp.items.filter(isHot).length)+'</div>'+
+    h+='<div class="glass tile topic"><div class="rl">'+T('topic')+'</div><h3 data-topic="'+esc((tp.tag?'#':'')+tp.name)+'" role="button" tabindex="0" style="cursor:pointer"><bdi>'+esc(tp.tag?tpName(tp.name):tp.name)+'</bdi><span>'+T('timeline')+'</span></h3><div class="cnt">'+T('topicCnt',tp.items.length,tp.items.filter(isHot).length)+'</div>'+
       L.slice(0,3).map(function(i){var o=tx(i);return '<div class="li" data-id="'+esc(i.id)+'">'+sc(i)+'<div><span class="lt" dir="auto">'+esc(o.t)+'</span><small>'+esc(shortSrc(i.source))+' · <span class="num">'+hm(i.ts)+'</span></small></div></div>'}).join('')+'</div>';});
   h+='</div>'+topicsHtml();
   return h;
@@ -963,7 +966,7 @@ function detailHtml(i){
   var r=rels(i),hh=hits(i),cs={},cn=[];state.items.forEach(function(x){if(x.dup_of===i.id&&x.source!==i.source&&!cs[x.source]){cs[x.source]=1;cn.push(shortSrc(x.source))}});
   var tkc='';(i.tickers||'').split(',').forEach(function(x){if(x)tkc+='<button class="chipb" data-tk="'+esc(x)+'" dir="ltr">$'+esc(x)+'</button>'});
   if(!tkc){var ct=cleanTitle(i.title),nk=0;TK.forEach(function(k){if(nk<3&&k.re.test(ct)){nk++;tkc+='<button class="chipb" data-tk="'+esc(k[0])+'" dir="ltr">$'+esc(k[0])+'</button>'}});}
-  var tpc=i.topic?'<button class="chipb tp" data-rel="#'+esc(i.topic)+'"><bdi>'+esc(i.topic)+'</bdi></button>':'';
+  var tpc=i.topic?'<button class="chipb tp" data-rel="#'+esc(i.topic)+'"><bdi>'+esc(tpName(i.topic))+'</bdi></button>':'';
   var bfd=briefOf(i.id)||(i.dup_of&&briefOf(i.dup_of))||null;
   var ks=evKeys(i),gk=ks[0]||'',evd=gk?evItems(base(true),{key:gk,items:[i],rep:i}):[];
   var facts=(tkc?'<div><span>'+T('dTk')+'</span><span>'+tkc+'</span></div>':'')+(tpc?'<div><span>'+T('dTp')+'</span><span>'+tpc+'</span></div>':'')+(i.dir?'<div><span>'+T('dDir')+'</span><span><span class="mood '+(i.dir>0?'up':'dn')+'">'+(i.dir>0?'▲ '+T('dUp'):'▼ '+T('dDn'))+'</span></span></div>':'')+(cn.length?'<div><span>'+T('cfBy')+'</span><span>'+esc(shortSrc(i.source)+' · '+cn.join(' · '))+'</span></div>':'')+(hh?'<div><span>'+T('hitL')+'</span><span>'+hh+'</span></div>':'');

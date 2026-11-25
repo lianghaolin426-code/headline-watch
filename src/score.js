@@ -21,8 +21,8 @@ Example: [[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,8,1,"2222","Aramco","energy"]
 // Claude 专用：每行多抄一小段标题开头，用来核对编号有没有串行（实测偶尔会把相邻两条的编号写反）
 const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score] when the score is below 5, otherwise [number, "start", score, direction, "TICKERS", "Topic", "sector"].
 "start" is the first 12 characters of that headline's text (after the [source] tag), copied exactly; it proves the row belongs to that number.
-direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: up to 3 US symbols or 4-digit Tadawul codes of the listed companies it is mainly about, comma-separated, or "". Topic: the subject as a canonical English label of 1-2 words, identical for every headline on that subject (Nvidia, Fed, Oil, Iran), or "". sector: tech, finance, energy, health, consumer, industrial, macro, crypto or other.
-Example: [[0,"Nvidia short",9,-1,"NVDA","Nvidia","tech"],[1,"Analyst rais",2],[2,"Saudi Aramco",8,1,"2222","Aramco","energy"]]`;
+direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: up to 3 US symbols or 4-digit Tadawul codes of the listed companies it is mainly about, comma-separated, or "". Topic: the subject as a canonical English label of 1-2 words, identical for every headline on that subject (Nvidia, Fed, Oil, Iran), then "|" and its usual Simplified Chinese name in at most 6 characters (Nvidia|英伟达, Fed|美联储, Oil|原油, Tariffs|关税), or "". When the user message starts with a "Known topics" line, reuse one of those labels exactly whenever the headline is about that subject (add the Chinese name if the list has none), and make a new label only when none fits; prefer the broad subject (Nasdaq, not Nasdaq 100; AI stocks, not AI chip stocks). sector: tech, finance, energy, health, consumer, industrial, macro, crypto or other.
+Example: [[0,"Nvidia short",9,-1,"NVDA","Nvidia|英伟达","tech"],[1,"Analyst rais",2],[2,"Saudi Aramco",8,1,"2222","Aramco|沙特阿美","energy"]]`;
 
 // 例行新闻的特征词：命中则减分
 const ROUTINE = [
@@ -74,7 +74,9 @@ function cleanTag(t) {
     .filter((x) => /^[A-Z]{1,5}(\.[A-Z])?$|^\d{4}$/.test(x))
     .slice(0, 3)
     .join(',');
-  const topic = String(t.t ?? '').replace(/["<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
+  // 话题写成 "英文统一叫法|中文名"（如 "Nvidia|英伟达"）存在同一列里；归拢和查找只认英文那一半，中文名只用来显示
+  const [en, zh] = String(t.t ?? '').replace(/["<>]/g, '').split('|').map((x) => x.replace(/\s+/g, ' ').trim());
+  const topic = en ? en.slice(0, 30) + (zh && /\p{Script=Han}/u.test(zh) ? '|' + zh.slice(0, 12) : '') : '';
   const sector = String(t.c ?? '').toLowerCase().trim();
   return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '' };
 }
@@ -116,6 +118,16 @@ export function parseTagged(raw, n) {
     if (row.length > 2) tags[i] = cleanTag({ d: row[2], k: row[3], t: row[4], c: row[5] });
   }
   return { scores, tags };
+}
+
+/** 把存着的 "英文|中文" 拆开：topic 只留英文叫法（旧数据本来就只有英文），中文名放进 topic_zh */
+export function splitTopic(row) {
+  if (row && typeof row.topic === 'string' && row.topic.includes('|')) {
+    const [en, zh] = row.topic.split('|');
+    row.topic = en;
+    row.topic_zh = zh;
+  }
+  return row;
 }
 
 const squash = (x) => String(x ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
@@ -178,7 +190,21 @@ export function parseEchoed(raw, titles) {
  * @returns 每条的 AI 原始分（1-10 或 null）的数组；数组上另带 .tags（每条的标签或 null）、.usage（本次用的 token 数）
  *          和 .provider（'claude' 或 'workers'）。两家都失败返回 null
  */
-export async function aiScores(env, items, { tags = false } = {}) {
+/**
+ * 把 AI 给的话题对到已有的话题上（不花钱的归并）：英文叫法相同（不分大小写）就用已有的写法；
+ * 英文不同但中文名相同（如 "Nasdaq 100|纳指" 和 "Nasdaq|纳指"）也并到已有的那个；已有的没有中文名时补上。
+ */
+export function canonTopic(topic, known = []) {
+  if (!topic) return topic;
+  const [en, zh = ''] = topic.split('|');
+  const list = known.map((k) => String(k).split('|'));
+  const hit = list.find((k) => k[0].toLowerCase() === en.toLowerCase()) || (zh ? list.find((k) => k[1] && k[1] === zh) : null);
+  if (!hit) return topic;
+  const z = hit[1] || zh;
+  return hit[0] + (z ? '|' + z : '');
+}
+
+export async function aiScores(env, items, { tags = false, topics = [] } = {}) {
   if (!items.length) return null;
   const system = SYSTEM_PROMPT + '\n' + (tags ? TAG_FORMAT : PLAIN_FORMAT);
   const list = items.map((it, i) => `${i}. [${it.source}] ${it.title}`).join('\n');
@@ -190,7 +216,7 @@ export async function aiScores(env, items, { tags = false } = {}) {
       return null;
     }
     const out = parsed.scores;
-    out.tags = parsed.tags;
+    out.tags = parsed.tags.map((t) => (t && t.topic ? { ...t, topic: canonTopic(t.topic, topics) } : t));
     out.usage = usage;
     out.fixed = parsed.fixed || 0;
     out.dropped = parsed.dropped || 0;
@@ -199,7 +225,9 @@ export async function aiScores(env, items, { tags = false } = {}) {
   };
 
   if (claudeUp(env)) {
-    const res = await claudeText(env, { system: tags ? SYSTEM_PROMPT + '\n' + ECHO_FORMAT : system, user: list, maxTokens: 100 + items.length * (tags ? 70 : 24), kind: 'score' });
+    // 已有话题放在用户消息开头（不放进系统提示词，免得每次变动都让提示词缓存失效）
+    const known = tags && topics.length ? `Known topics: ${topics.join('; ')}\n\n` : '';
+    const res = await claudeText(env, { system: tags ? SYSTEM_PROMPT + '\n' + ECHO_FORMAT : system, user: known + list, maxTokens: 100 + items.length * (tags ? 70 : 24), kind: 'score' });
     const out = res && finish(res.text, { prompt: res.usage.input, completion: res.usage.output }, 'claude');
     if (out) return out;
   }

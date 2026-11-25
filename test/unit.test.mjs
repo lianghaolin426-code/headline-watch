@@ -318,3 +318,18 @@ test('claudeRelate maps the numbers Claude returns back to candidate flashes', a
   assert.deepEqual(hit.map((f) => f.id), ['b']);
   assert.match(prompt, /2\. Nvidia reinstates/);
 });
+
+test('topics: "English|中文" is kept, split for the API, and merged onto known topics', async () => {
+  const { parseEchoed, splitTopic, canonTopic } = await import('../src/score.js');
+  const r = parseEchoed('[[0,"Nvidia short",9,-1,"NVDA","Nvidia|英伟达","tech"],[1,"Fed cuts rat",8,1,"","Fed","macro"],[2,"Odd one here",6,0,"","Oil|Crude","energy"]]', ['Nvidia short sellers', 'Fed cuts rates', 'Odd one here']);
+  assert.equal(r.tags[0].topic, 'Nvidia|英伟达');
+  assert.equal(r.tags[1].topic, 'Fed');
+  assert.equal(r.tags[2].topic, 'Oil'); // 第二段不是中文就不要
+  assert.deepEqual(splitTopic({ topic: 'Nvidia|英伟达' }), { topic: 'Nvidia', topic_zh: '英伟达' });
+  assert.deepEqual(splitTopic({ topic: 'Fed' }), { topic: 'Fed' });
+  const known = ['Nvidia|英伟达', 'Nasdaq|纳指', 'Dell'];
+  assert.equal(canonTopic('nvidia', known), 'Nvidia|英伟达');
+  assert.equal(canonTopic('Nasdaq 100|纳指', known), 'Nasdaq|纳指');
+  assert.equal(canonTopic('Dell|戴尔', known), 'Dell|戴尔');
+  assert.equal(canonTopic('Copper|铜', known), 'Copper|铜');
+});

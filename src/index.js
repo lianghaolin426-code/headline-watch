@@ -3,7 +3,7 @@
 
 import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
-import { aiScores, routinePenalty } from './score.js';
+import { aiScores, routinePenalty, splitTopic } from './score.js';
 import { CLAUDE_MODEL, claudeText, claudeOn, claudeUp, claudeState, claudeUsage, claudeUsd } from './claude.js';
 import { parseCnJson } from './cnfeeds.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
@@ -84,6 +84,31 @@ function enrich(it, cfg) {
   return it;
 }
 
+/**
+ * 最近 24 小时里用过的话题（"英文|中文"，按条数从多到少，最多 40 个）：交给 AI 照着用，同一件事就不会被打成好几种叫法。
+ * 走 5 分以上快讯的部分索引，一次只读几百行；结果缓存 10 分钟。查不到就当没有，不影响打分。
+ */
+async function knownTopics(env, now = Date.now()) {
+  try {
+    return await cached('known_topics', 10 * 60_000, async () => {
+      const rows = (await env.DB.prepare('SELECT topic, COUNT(*) AS n FROM items WHERE ts > ? AND score >= 5 AND dup_of IS NULL AND topic IS NOT NULL GROUP BY topic').bind(now - 24 * 3_600_000).all()).results;
+      const m = new Map();
+      for (const r of rows) {
+        const [en, zh] = String(r.topic || '').split('|');
+        const k = en.toLowerCase();
+        if (!k) continue;
+        const o = m.get(k) || { en, zh: '', n: 0 };
+        o.n += r.n;
+        if (zh && !o.zh) o.zh = zh;
+        m.set(k, o);
+      }
+      return [...m.values()].sort((a, b) => b.n - a.n).slice(0, 40).map((o) => o.en + (o.zh ? '|' + o.zh : ''));
+    });
+  } catch {
+    return [];
+  }
+}
+
 /** 给一批快讯打分并写回数据库：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分；AI 失败时用规则 */
 async function scoreItems(env, cfg, list, report) {
   // AI 很便宜（每条标题只要几十个 token），所以新快讯全部交给 AI 打分；
@@ -91,7 +116,7 @@ async function scoreItems(env, cfg, list, report) {
   const candidates = [...list]
     .sort((a, b) => (b.hits.length > 0) + (b.weight >= 1) - ((a.hits.length > 0) + (a.weight >= 1)) || b.ts - a.ts)
     .slice(0, cfg.maxAi);
-  const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags }) : null;
+  const scores = cfg.aiOn ? await aiScores(env, candidates, { tags: cfg.aiTags, topics: cfg.aiTags ? await knownTopics(env) : [] }) : null;
   if (scores?.usage) await addUsage(env, report, scores.usage, scores.provider);
   if (report && (scores?.fixed || scores?.dropped)) {
     report.renumbered = (report.renumbered || 0) + scores.fixed;
@@ -844,7 +869,7 @@ async function listRows(env, { limit = 200, matched = false, since = 0, before =
   // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
   for (const level of [3, 2, 1]) {
     try {
-      return (await env.DB.prepare(sql(level)).bind(...args).all()).results;
+      return (await env.DB.prepare(sql(level)).bind(...args).all()).results.map(splitTopic);
     } catch {}
   }
   return (await env.DB.prepare(sql(0)).bind(...args).all()).results;
