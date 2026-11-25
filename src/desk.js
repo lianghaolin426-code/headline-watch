@@ -1006,7 +1006,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
 
 // 大盘和相关资产的代表：标普、纳指、原油、黄金、长期美债、沙特股市 ETF（在美国上市，沙特收盘后也有价）
 export const QUOTE_BASE = ['SPY', 'QQQ', 'USO', 'GLD', 'TLT', 'KSA'];
-const qmem = { at: 0, key: '', data: null };
+const qmem = { at: 0, key: '', data: null, src: '' };
 
 /** Tiingo 的批量接口返回的一行 → { t, p, pc, chg }；chg 是相对昨收的涨跌幅（%） */
 export function tidyQuote(x) {
@@ -1020,30 +1020,100 @@ export function tidyQuote(x) {
  * 最新一场选题里出现的美股代码 + 大盘代表的参考价。一次请求全拿到，结果在内存和 meta 里各留 5 分钟。
  * 没配 TIINGO_TOKEN 时返回 { ok: false, error: 'no_token' }。数据按 Tiingo 条款只供内部看。
  */
-export async function deskQuotes(env, { now = Date.now(), fetcher = fetch } = {}) {
-  if (!env.TIINGO_TOKEN) return { ok: false, error: 'no_token' };
-  let tickers = QUOTE_BASE.slice();
-  try {
-    const r = (await env.DB.prepare('SELECT topics FROM desk_runs ORDER BY id DESC LIMIT 1').all()).results?.[0];
-    for (const t of safeJson(r?.topics, [])) for (const k of t.tickers || []) if (/^[A-Z]{1,5}$/.test(k) && !tickers.includes(k)) tickers.push(k);
-  } catch {}
-  tickers = tickers.slice(0, 60);
-  const key = tickers.join(',');
-  const ttl = 5 * 60_000;
-  if (qmem.data && qmem.key === key && now - qmem.at < ttl) return { ok: true, at: qmem.at, quotes: qmem.data };
-  const m = await metaGet(env, 'desk_quotes');
-  if (m?.v?.key === key && now - m.v.at < ttl) {
-    Object.assign(qmem, { at: m.v.at, key, data: m.v.data });
-    return { ok: true, at: m.v.at, quotes: m.v.data };
+/** Yahoo 图表接口返回的一只 → { t, p, pc, chg }；t 用我们自己的代码（2222、TASI），不带 .SR */
+export function tidyYahoo(j, t) {
+  const m = j?.chart?.result?.[0]?.meta;
+  const p = Number(m?.regularMarketPrice);
+  const pc = Number(m?.chartPreviousClose ?? m?.previousClose);
+  if (!Number.isFinite(p) || !Number.isFinite(pc) || pc <= 0) return null;
+  return { t, p, pc, chg: Math.round((p / pc - 1) * 10000) / 100, at: m.regularMarketTime ? m.regularMarketTime * 1000 : undefined };
+}
+const ySym = (t) => (t === 'TASI' ? '^TASI.SR' : /^\d{4}$/.test(t) ? t + '.SR' : t);
+let yBlockedAt = 0;
+const Y_COOL = 6 * 3_600_000; // 被拒一次就停 6 小时（用户自己抓 Yahoo 的经验值）
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Yahoo（不用密钥，美股和沙特股都有，沙特约延迟 15 分钟）。按用户行情文档里的经验求稳：
+ * - 一只一只按顺序请求，中间停一下，不并发、不批量轰；一轮最多 24 只，结果缓存 10 分钟，只有管理模式的页面开着才会请求
+ * - 如实表明自己是谁，不伪装浏览器、不取 cookie
+ * - 一遇到拒绝（429 / 401 / 403）整轮立刻停，6 小时内不再碰 Yahoo（记在数据库里，换了实例也记得），改用备用源
+ * - 连续 3 只拿不到数据也当作被限流，同样停下
+ */
+async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
+  if (!yBlockedAt) yBlockedAt = (await metaGet(env, 'yahoo_block'))?.v?.at || 1;
+  if (now - yBlockedAt < Y_COOL) return { ok: false, error: 'yahoo_blocked', until: yBlockedAt + Y_COOL };
+  const out = [];
+  let status = 0;
+  let empty = 0;
+  for (const t of tickers.slice(0, 24)) {
+    try {
+      const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ySym(t)) + '?interval=1d&range=1d', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
+      if ([401, 403, 429].includes(res.status)) {
+        status = res.status;
+        break;
+      }
+      const q = res.ok ? tidyYahoo(await res.json(), t) : null;
+      if (q) {
+        out.push(q);
+        empty = 0;
+      } else if (++empty >= 3) break;
+    } catch {
+      if (++empty >= 3) break;
+    }
+    if (gap) await sleep(gap);
   }
+  if (status || (!out.length && empty >= 3)) {
+    yBlockedAt = now;
+    try {
+      await metaSet(env, 'yahoo_block', { at: now, status }, now);
+    } catch {}
+    if (!out.length) return { ok: false, error: status ? 'yahoo_http' : 'yahoo_fail', status: status || undefined };
+  }
+  if (!out.length) return { ok: false, error: 'yahoo_fail' };
+  return { ok: true, quotes: out, miss: tickers.length - out.length };
+}
+
+async function tiingoQuotes(env, tickers, fetcher) {
+  const us = tickers.filter((t) => /^[A-Z]{1,5}$/.test(t) && t !== 'TASI');
   try {
-    const res = await fetcher('https://api.tiingo.com/iex/?tickers=' + encodeURIComponent(key), { headers: { Authorization: 'Token ' + env.TIINGO_TOKEN, 'Content-Type': 'application/json' } });
+    const res = await fetcher('https://api.tiingo.com/iex/?tickers=' + encodeURIComponent(us.join(',')), { headers: { Authorization: 'Token ' + env.TIINGO_TOKEN, 'Content-Type': 'application/json' } });
     if (!res.ok) return { ok: false, error: 'quotes_http', status: res.status };
-    const data = (await res.json()).map(tidyQuote).filter(Boolean);
-    Object.assign(qmem, { at: now, key, data });
-    await metaSet(env, 'desk_quotes', { key, at: now, data }, now);
-    return { ok: true, at: now, quotes: data };
+    return { ok: true, quotes: (await res.json()).map(tidyQuote).filter(Boolean) };
   } catch (e) {
     return { ok: false, error: 'quotes_fail', detail: String(e?.message || e).slice(0, 120) };
   }
+}
+
+/**
+ * 最新一场选题里出现的股票 + 大盘代表的参考价，结果在内存和 meta 里各留 5 分钟。
+ * 先试 Yahoo（不用密钥，含沙特股），不行再用 Tiingo（要 TIINGO_TOKEN，只有美股）。两家的条款都只许内部看。
+ */
+export async function deskQuotes(env, { now = Date.now(), fetcher = fetch, gap = 250 } = {}) {
+  let tickers = QUOTE_BASE.concat(['TASI']);
+  try {
+    const r = (await env.DB.prepare('SELECT topics FROM desk_runs ORDER BY id DESC LIMIT 1').all()).results?.[0];
+    for (const t of safeJson(r?.topics, [])) for (const k of t.tickers || []) if (/^([A-Z]{1,5}|\d{4})$/.test(k) && !tickers.includes(k)) tickers.push(k);
+  } catch {}
+  tickers = tickers.slice(0, 24);
+  const key = tickers.join(',');
+  const ttl = 10 * 60_000;
+  if (qmem.data && qmem.key === key && now - qmem.at < ttl) return { ok: true, at: qmem.at, src: qmem.src, quotes: qmem.data };
+  const m = await metaGet(env, 'desk_quotes');
+  if (m?.v?.key === key && now - m.v.at < ttl) {
+    Object.assign(qmem, { at: m.v.at, key, data: m.v.data, src: m.v.src });
+    return { ok: true, at: m.v.at, src: m.v.src, quotes: m.v.data };
+  }
+  let src = env.QUOTES === 'tiingo' ? '' : 'yahoo';
+  let r = src ? await yahooQuotes(env, tickers, now, fetcher, gap) : { ok: false, error: 'off' };
+  const yErr = r.ok ? undefined : { error: r.error, status: r.status };
+  if (!r.ok) {
+    if (!env.TIINGO_TOKEN) return { ok: false, error: env.QUOTES === 'tiingo' ? 'no_token' : r.error, status: r.status, fallback: 'no_token' };
+    src = 'tiingo';
+    r = await tiingoQuotes(env, tickers, fetcher);
+    if (!r.ok) return { ...r, yahoo: yErr };
+  }
+  Object.assign(qmem, { at: now, key, data: r.quotes, src });
+  await metaSet(env, 'desk_quotes', { key, at: now, data: r.quotes, src }, now);
+  return { ok: true, at: now, src, quotes: r.quotes, miss: r.miss || undefined, yahoo: yErr };
 }
