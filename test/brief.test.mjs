@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { groupEvents, needsWrite, briefConfig, tidyBrief, pickSources, runBriefs, listBriefs } from '../src/brief.js';
+import { groupEvents, needsWrite, briefConfig, tidyBrief, pickSources, runBriefs, listBriefs, prevCited, sourceText } from '../src/brief.js';
 import { claudeReset } from '../src/claude.js';
 
 // 用 node 自带的 SQLite 模拟 D1 的接口
@@ -55,7 +55,9 @@ test('when to rewrite: new event, batch of 3, urgent 9+, daily cap, quiet', () =
   assert.equal(needsWrite(ev(more), { ...row, updated: NOW - 31 * 60_000 }, NOW, c), 'batch');
   assert.equal(needsWrite(ev([...base, it('g', { score: 9.5 })]), row, NOW, c), 'urgent');
   assert.equal(needsWrite(ev([...base, it('g')]), { ...row, updated: NOW - 4 * H }, NOW, c), 'stale');
-  assert.equal(needsWrite(ev([...base, it('g', { score: 9.5 })]), { ...row, day_writes: 8 }, NOW, c), null);
+  // 每天次数到顶：普通更新停，9 分以上的新消息照样更新
+  assert.equal(needsWrite(ev(more), { ...row, updated: NOW - 31 * 60_000, day_writes: 24 }, NOW, c), null);
+  assert.equal(needsWrite(ev([...base, it('g', { score: 9.5 })]), { ...row, day_writes: 24 }, NOW, c), 'urgent');
   // 上一版太旧（窗口外）：当成新事件
   assert.equal(needsWrite(ev(base), { ...row, updated: NOW - 40 * H }, NOW, c), 'new');
 });
@@ -138,4 +140,23 @@ test('a brief cut off at max_tokens is reported and not retried for 30 minutes',
   assert.equal(calls, 1);
   await runBriefs(env, { now: NOW + 31 * 60_000 });
   assert.equal(calls, 2);
+});
+
+test('rewrite keeps earlier key reports the last brief cited, as titles only', () => {
+  const row = {
+    body: '## 发生了什么\n董事会宣布。[S1][S3] 股价大涨。[S3]\n## 观点\n- 文章：好。[S4]',
+    srcs: JSON.stringify([
+      { n: 1, id: 'old1', src: 'FT', ts: NOW - 50 * H, url: 'u1', t: 'Nvidia reinstates Huang' },
+      { n: 2, id: 'old2', src: 'CNBC', ts: NOW - 49 * H, url: 'u2', t: 'never cited' },
+      { n: 3, id: 'b', src: 'Reuters', ts: NOW - H, url: 'u3', t: 'Shares soar' },
+      { n: 4, id: 'art', src: '华尔街见闻文章', ts: NOW - H, url: 'u4', t: 'A', art: true },
+    ]),
+  };
+  const prev = prevCited(row, 15);
+  assert.deepEqual(prev.map((p) => p.id), ['b', 'old1']); // 引用多的在前；没引用的、文章不带
+  const s = pickSources([it('b'), it('c')], [], 45, prev);
+  assert.deepEqual(s.map((x) => x.id), ['old1', 'b', 'c']); // old1 补进来，b 已在本轮不重复
+  assert.equal(s[0].prev, true);
+  assert.match(sourceText(s), /\[S1\] .*FT（早前报道/);
+  assert.deepEqual(prevCited(null, 15), []);
 });

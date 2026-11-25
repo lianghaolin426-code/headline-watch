@@ -18,7 +18,8 @@ export function briefConfig(env) {
     windowH: Number(env.BRIEF_WINDOW_HOURS || 36), // 同一件事往前看多久
     minScore: Number(env.BRIEF_ITEM_MIN || 5), // 多少分以上的快讯算进事件
     dailyUsd: Number(env.BRIEF_DAILY_USD || 0.3), // 每天最多花多少美元写简报
-    perDay: Number(env.BRIEF_MAX_PER_DAY || 8), // 每件事每天最多写几次
+    perDay: Number(env.BRIEF_MAX_PER_DAY || 24), // 每件事每天最多写几次（9 分以上的新消息不受这个限制，只受每日花费上限）
+    keepPrev: Number(env.BRIEF_KEEP_PREV || 15), // 重写时带上上一版引用过、已不在窗口里的报道（最多几条），长事件的前情不会丢
     perRun: Number(env.BRIEF_MAX_PER_RUN || 2), // 每分钟最多写几篇（控制单轮耗时）
     batchN: Number(env.BRIEF_BATCH_N || 3), // 攒够几条新报道才更新
     batchMin: Number(env.BRIEF_BATCH_MIN || 30), // 两次更新至少隔多少分钟
@@ -84,12 +85,12 @@ export function needsWrite(ev, row, now, c) {
   if (ev.items.length < c.minItems || !ev.items.some(isBig)) return null;
   const today = new Date(now).toISOString().slice(0, 10);
   if (!row || now - row.updated > c.windowH * H) return 'new';
-  if (row.day === today && row.day_writes >= c.perDay) return null;
   const had = new Set(safeJson(row.ids, []));
   const fresh = ev.items.filter((i) => !had.has(i.id));
   if (!fresh.length) return null;
   const mins = (now - row.updated) / 60_000;
   if (fresh.some((i) => (i.score || 0) >= 9) && mins >= c.urgentMin) return 'urgent';
+  if (row.day === today && row.day_writes >= c.perDay) return null;
   if (fresh.length >= c.batchN && mins >= c.batchMin) return 'batch';
   if (mins >= c.staleH * 60) return 'stale';
   return null;
@@ -108,12 +109,15 @@ export const bjTime = (ts) => new Date(ts + 8 * H).toISOString().slice(5, 16).re
  * 挑出喂给模型的报道：太多时留分数最高的，再按时间排；深度文章附在后面。
  * 返回 [{ n, id, source, title, body, ts, url, score, art }]
  */
-export function pickSources(items, arts, max) {
+export function pickSources(items, arts, max, prev = []) {
   let list = items.slice();
   if (list.length > max) list = list.sort((a, b) => (b.score || 0) - (a.score || 0) || b.ts - a.ts).slice(0, max);
+  // 上一版引用过、这次没选上的报道（多半已滑出时间窗口）：作为“早前报道”带上，只有标题，不用再从数据库读
+  const have = new Set(list.map((i) => i.id).concat(arts.map((a) => a.id)));
+  list = list.concat(prev.filter((p) => !have.has(p.id)).map((p) => ({ ...p, prev: true })));
   list.sort((a, b) => a.ts - b.ts);
   const all = [...list.map((i) => ({ ...i, art: false })), ...arts.slice(0, 12).map((a) => ({ ...a, art: true }))];
-  return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: clean(i.body), ts: i.ts, url: i.url, score: i.score, art: i.art }));
+  return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: clean(i.body), ts: i.ts, url: i.url, score: i.score, art: i.art, prev: i.prev || undefined }));
 }
 
 export function sourceText(srcs) {
@@ -121,7 +125,7 @@ export function sourceText(srcs) {
     .map((s) => {
       let body = s.body;
       if (body && body.startsWith(s.title.slice(0, 30))) body = body.slice(s.title.length).trim();
-      const head = `[S${s.n}] ${bjTime(s.ts)} | ${s.source}${s.art ? '（深度文章）' : ''}${s.score != null && !s.art ? ` | ${Math.round(s.score * 10) / 10}分` : ''} | ${s.title}`;
+      const head = `[S${s.n}] ${bjTime(s.ts)} | ${s.source}${s.art ? '（深度文章）' : ''}${s.prev ? '（早前报道，上一版简报用过）' : ''}${s.score != null && !s.art ? ` | ${Math.round(s.score * 10) / 10}分` : ''} | ${s.title}`;
       return body && body.length > 15 ? `${head}\n    ${body.slice(0, 700)}` : head;
     })
     .join('\n');
@@ -141,6 +145,7 @@ export const BRIEF_SYSTEM = `你是一名财经编辑，为一个只关注美股
 9. 评论文章、分析文章的标题（如"……扼杀了降息希望""……还有三大疑问"）只是作者观点，要写成"某某文章认为……"，并尽量贴近原标题的意思，不能夸大成确定的数字或结论。
 10. 每个数字（涨跌幅、金额、日期、概率）都必须紧跟它的来源编号；括号里的补充说明也一样，没有来源的补充一律不写。
 11. 不要说"某某等媒体称"，只写实际标注了的那一家来源。
+12. 标着"早前报道"的是这件事前期的关键报道（只有标题），用来保留来龙去脉：事件脉络和背景里该写的照样写、照样标注。
 
 写作要求：
 - 简体中文，书面、凝练、通顺，像一流财经媒体的编辑稿，不堆砌、不重复同一事实。外国人名、公司名用通行中文译名，没有通行译名的保留原文。
@@ -226,10 +231,23 @@ async function articlesFor(env, ids) {
   }
 }
 
+/** 上一版正文里引用过的报道（引用次数多的优先），供重写时保留前情 */
+export function prevCited(row, max) {
+  if (!row || !max) return [];
+  const srcs = safeJson(row.srcs, []);
+  const cnt = new Map();
+  String(row.body || '').replace(/\[S(\d+)\]/g, (_, n) => cnt.set(+n, (cnt.get(+n) || 0) + 1));
+  return srcs
+    .filter((x) => !x.art && cnt.has(x.n))
+    .sort((a, b) => cnt.get(b.n) - cnt.get(a.n) || a.ts - b.ts)
+    .slice(0, max)
+    .map((x) => ({ id: x.id, source: x.src, title: x.t, body: '', ts: x.ts, url: x.url, score: null }));
+}
+
 /** 写（或重写）一件事的简报，成功返回新的一行 */
 export async function writeBrief(env, ev, row, c, now) {
   const arts = await articlesFor(env, ev.items.map((i) => i.id));
-  const srcs = pickSources(ev.items, arts, c.maxSrc);
+  const srcs = pickSources(ev.items, arts, c.maxSrc, prevCited(row, c.keepPrev));
   const user = `以下是关于同一事件的 ${srcs.length} 条报道（现在是北京时间 ${bjTime(now)}）：\n\n${sourceText(srcs)}`;
   const res = await claudeText(env, { system: BRIEF_SYSTEM, user, maxTokens: 16000, kind: 'brief', effort: 'low', think: true, timeout: 120_000 });
   if (!res) return null;
@@ -237,7 +255,7 @@ export async function writeBrief(env, ev, row, c, now) {
   if (!out) return null;
   const had = new Set(safeJson(row?.ids, []));
   const fresh = !!row && now - row.updated <= c.windowH * H;
-  const map = srcs.map((s) => ({ n: s.n, id: s.id, src: s.source, ts: s.ts, url: s.url, t: s.title.slice(0, 120), art: s.art || undefined, new: fresh && !s.art && !had.has(s.id) ? 1 : undefined }));
+  const map = srcs.map((s) => ({ n: s.n, id: s.id, src: s.source, ts: s.ts, url: s.url, t: s.title.slice(0, 120), art: s.art || undefined, prev: s.prev || undefined, new: fresh && !s.art && !s.prev && !had.has(s.id) ? 1 : undefined }));
   const today = new Date(now).toISOString().slice(0, 10);
   const next = {
     key: ev.key,
