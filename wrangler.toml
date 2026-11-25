@@ -40,7 +40,7 @@ SOURCES = '''
   {"type": "rss", "name": "Nasdaq", "url": "https://www.nasdaq.com/feed/rssoutbound?category=Markets"},
   {"type": "rss", "name": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
   {"type": "rss", "name": "Federal Reserve", "url": "https://www.federalreserve.gov/feeds/press_all.xml"},
-  {"type": "rss", "name": "PR Newswire", "url": "https://www.prnewswire.com/rss/news-releases-list.rss"},
+  {"type": "rss", "name": "PR Newswire", "skip": "pr", "enOnly": true, "url": "https://www.prnewswire.com/rss/news-releases-list.rss"},
   {"type": "cnjson", "format": "wscn", "name": "华尔街见闻", "focus": true, "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives?channel=global-channel&limit=30"},
   {"type": "cnjson", "format": "wscnArticle", "kind": "article", "name": "华尔街见闻文章", "focus": true, "every": 3, "url": "https://api-one-wscn.awtmt.com/apiv1/content/information-flow?channel=global-channel&accept=article&limit=30"},
   {"type": "cnjson", "format": "gelonghui", "name": "格隆汇", "focus": true, "url": "https://www.gelonghui.com/api/live-channels/all/lives/v4?category=all&limit=30"},
@@ -73,7 +73,7 @@ AI_SCORING = "true"
 BIG_NUMBER_MIN_BILLION = "10"
 
 # 来源加权：加到 AI 分上。快讯类频道更快，加分；综合新闻账号（夹杂科普、生活类）减分，但它们仍可作为“多源互证”的佐证
-SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5, "WSJ (Bluesky)": -1, "AP (Bluesky)": -1, "CNBC (Bluesky)": -0.5, "BBC Business": -0.5, "Arab News": -1, "格隆汇": -0.5}'
+SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5, "WSJ (Bluesky)": -1, "AP (Bluesky)": -1, "CNBC (Bluesky)": -0.5, "BBC Business": -0.5, "Arab News": -1, "格隆汇": -0.5, "Nasdaq": -1}'
 
 # 是否把“含大数字”的快讯也算粗筛命中（如 $24 billion、2万亿美元）
 BIG_NUMBERS = "true"

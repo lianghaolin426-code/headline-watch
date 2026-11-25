@@ -139,3 +139,22 @@ test('waiting-for-score lookups can use the partial index', async () => {
   assert.match(plan("SELECT id FROM items WHERE score_by = 'wait' AND seen_at > ? ORDER BY seen_at LIMIT ?"), /idx_items_wait/);
   assert.match(plan("UPDATE items SET score_by = NULL WHERE seen_at > ? AND seen_at <= ? AND score_by = 'wait'"), /idx_items_wait/);
 });
+
+test('press-release filter: drops foreign-language copies and law-firm ads, keeps real English releases', async () => {
+  const { isForeign, isPrJunk } = await import('../src/index.js');
+  for (const t of [
+    'Hisense refuerza su liderazgo en televisores de pantalla grande en el tercer trimestre de 2026',
+    'Bitmine Immersion Technologies (BMNR) gibt bekannt, dass die ETH-Bestände 6,09 Millionen Token erreicht haben',
+    'Clapp Finance lanceert Crypto Card met 0% transactiekosten en uitgaven via een kredietlijn',
+    'SANY pokazuje przyszłość robotyki opartej od podstaw na AI podczas bauma CHINA 2026',
+  ]) assert.ok(isForeign(t), t);
+  for (const t of [
+    'Sanofi to Acquire Insmed in Strategic Step that Strengthens Long-Term Future',
+    'US Consumer Confidence Surged in November',
+    'Fresh Thyme Market Teams Up with Colts All-Pro Jonathan Taylor to Help Shoppers "Live Like A Pro"',
+    "Huawei Smart String Grid Forming ESS Platform Receives the Industry's First Highest-Level (L4) Grid-Forming Capability Certification from TÜV SÜD",
+  ]) assert.ok(!isForeign(t) && !isPrJunk(t), t);
+  assert.ok(isPrJunk('CDNL Stock Drop Notice: Cardinal Infrastructure 62% Stock Drop Leads to Securities Violations Investigation'));
+  assert.ok(isPrJunk('SHAREHOLDER ALERT: Levi & Korsinsky, LLP Notifies Stockholders of an Investigation into the Fairness of the Sale'));
+  assert.ok(isPrJunk('INVESTOR DEADLINE: Lennar Corporation (LEN) Investors with Substantial Losses May Seek to Lead Class Action'));
+});
