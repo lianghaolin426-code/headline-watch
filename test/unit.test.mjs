@@ -153,14 +153,14 @@ test('tagged score replies', async () => {
   const { parseTagged } = await import('../src/score.js');
   const r = parseTagged('[[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,6,1,"","Fed","macro"],[3,8,1,"$tsla, 2222.SR, not a ticker","Aramco","Energy"]]', 5);
   assert.deepEqual(r.scores, [9, 2, 6, 8, null]);
-  assert.deepEqual(r.tags[0], { dir: -1, tickers: 'NVDA', topic: 'Nvidia', sector: 'tech', story: '' });
+  assert.deepEqual(r.tags[0], { dir: -1, tickers: 'NVDA', topic: 'Nvidia', sector: 'tech', story: '', kind: '', who: '' });
   assert.equal(r.tags[1], null);
-  assert.deepEqual(r.tags[2], { dir: 1, tickers: '', topic: 'Fed', sector: 'macro', story: '' });
+  assert.deepEqual(r.tags[2], { dir: 1, tickers: '', topic: 'Fed', sector: 'macro', story: '', kind: '', who: '' });
   assert.equal(r.tags[3].tickers, 'TSLA,2222');
   assert.equal(r.tags[3].sector, 'energy');
   // 旧格式仍然能用
   assert.deepEqual(parseTagged('[{"i":0,"s":9},{"i":1,"s":3}]', 2).scores, [9, 3]);
-  assert.deepEqual(parseTagged('[{"i":0,"s":9,"d":1,"k":["AAPL"],"t":"Apple","c":"tech"}]', 1).tags[0], { dir: 1, tickers: 'AAPL', topic: 'Apple', sector: 'tech', story: '' });
+  assert.deepEqual(parseTagged('[{"i":0,"s":9,"d":1,"k":["AAPL"],"t":"Apple","c":"tech"}]', 1).tags[0], { dir: 1, tickers: 'AAPL', topic: 'Apple', sector: 'tech', story: '', kind: '', who: '' });
   assert.deepEqual(parseTagged('[7, 2]', 2).scores, [7, 2]);
   assert.equal(parseTagged('nope', 2), null);
 });
@@ -372,4 +372,35 @@ test('stories: near-identical names join the existing story', async () => {
   assert.equal(sameStory('黄仁勋重返英伟达任CEO', known), '');
   assert.equal(sameStory('特朗普称可赦免黄仁勋', known), '');
   assert.equal(sameStory('美国拟加征多国关税', known), '');
+});
+
+test('score: pick score is read from the new row shapes only', async () => {
+  const { parseEchoed } = await import('../src/score.js');
+  const titles = ['Goldman sees four Fed hikes next year', 'Oil tanker ablaze in Hormuz strait', 'Old format row about earnings'];
+  const raw = JSON.stringify([
+    [1, 'Goldman sees', 2, 8, 0, '', 'Fed', '', 'Fed path', 'v', 'Goldman Sachs|高盛'],
+    [2, 'Oil tanker ab', 9, 7],
+    [3, 'Old format ro', 5, 1, 'AAPL', 'Earnings', 'tech'],
+  ]);
+  const r = parseEchoed(raw, titles);
+  assert.deepEqual(r.picks, [8, 7, null]);
+  assert.equal(r.tags[0].kind, 'v');
+  assert.equal(r.tags[0].who, 'Goldman Sachs|高盛');
+});
+
+test('feeds: article list page is parsed into items with summary and time', async () => {
+  const { parseHtmlList } = await import('../src/cnfeeds.js');
+  const now = Date.UTC(2026, 10, 25, 12, 0);
+  const html = `<div><a href="/content/detail/1234567.html"><img src="x.jpg"></a><a href="/content/detail/1234567.html">高盛：预计美联储明年加息四次，上调美债收益率预测</a>
+    <p>高盛首席经济学家在最新报告中表示，通胀回落的速度慢于预期，美联储明年可能加息四次。</p><span>2026-11-25 19:30</span></div>
+    <div><a href="/content/detail/1234568.html">德银将标普 500 目标价上调至 9000 点</a><span>12分钟前</span></div><a href="/about.html">关于我们的一些说明文字</a>`;
+  const src = { type: 'htmllist', format: 'zhitong', name: '智通财经', link: '/content/detail/(\\d+)\\.html', url: 'https://www.zhitongcaijing.com/content/meigu.html' };
+  const items = parseHtmlList(html, src, now);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].id, 'zhitong:1234567');
+  assert.equal(items[0].url, 'https://www.zhitongcaijing.com/content/detail/1234567.html');
+  assert.match(items[0].title, /^高盛/);
+  assert.match(items[0].body, /通胀回落/);
+  assert.equal(items[0].ts, Date.UTC(2026, 10, 25, 11, 30));
+  assert.equal(items[1].ts, now - 12 * 60000);
 });

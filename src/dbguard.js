@@ -5,7 +5,7 @@
 // 以后改查询之前请先看 README 里“数据库读取量”一节。
 
 export const DAILY_LIMIT = 5_000_000;
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 // 写入额度：免费版每天 10 万行（索引的更新也算）。只统计和显示，不限流。
 export const DAILY_WRITE_LIMIT = 100_000;
 
@@ -266,6 +266,11 @@ export async function ensureSchema(env) {
     'ALTER TABLE d1_reads ADD COLUMN writes INTEGER NOT NULL DEFAULT 0',
     // v13：每条 5 分以上的快讯归到一件具体的事（AI 打分时顺带给出），简报和网页按它归拢
     'ALTER TABLE items ADD COLUMN story TEXT',
+    // v14：选题分（能不能当写稿的原料）、类型（f 事实 / v 观点 / d 数据 / w 综述）、观点是谁的；选题会按选题分找观点线索
+    'ALTER TABLE items ADD COLUMN pick REAL',
+    'ALTER TABLE items ADD COLUMN kind TEXT',
+    'ALTER TABLE items ADD COLUMN who TEXT',
+    'CREATE INDEX IF NOT EXISTS idx_items_pick ON items (ts) WHERE pick >= 6',
   ];
   for (const s of stmts) {
     try {

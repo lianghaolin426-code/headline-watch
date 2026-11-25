@@ -79,3 +79,20 @@ test('desk: runDesk asks the stronger model and stores the shortlist', async () 
   assert.equal(r.run.usd, 0.007);
   assert.ok(sql.some((q) => /INSERT INTO desk_runs/.test(q)));
 });
+
+test('desk: opinion leads get their own section and reach the topic card with facts', () => {
+  const rows = [
+    it('a', { story: 'Fed path', score: 9, pick: 9 }),
+    it('v', { story: 'Fed path', score: 2, pick: 8, kind: 'v', who: 'Goldman Sachs|高盛', title: 'Goldman sees four hikes' }),
+    it('w', { score: 3, pick: 7, kind: 'v', who: 'Deutsche Bank|德银', title: 'DB lifts S&P target to 9000' }),
+  ];
+  const inp = deskInput(rows, new Set(), 50);
+  assert.equal(inp.views, 2);
+  assert.match(inp.text, /观点线索/);
+  const nv = inp.list.findIndex((i) => i.id === 'v') + 1;
+  const na = inp.list.findIndex((i) => i.id === 'a') + 1;
+  const topics = parseDesk(JSON.stringify({ topics: [{ title_zh: '美联储路径', title_en: 'Fed path', why_zh: '原因', angle_en: 'x', market: 'US', items: [na, nv], facts: [['高盛预计加息四次', nv], ['编号不存在', 99]], write: true }] }), inp.list);
+  assert.equal(topics.length, 1);
+  assert.deepEqual(topics[0].facts.map((f) => f.id), ['v']);
+  assert.deepEqual(topics[0].views.map((x) => [x.id, x.who]), [['v', 'Goldman Sachs|高盛']]);
+});

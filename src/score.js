@@ -19,11 +19,13 @@ direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: u
 Example: [[0,9,-1,"NVDA","Nvidia","tech"],[1,2],[2,8,1,"2222","Aramco","energy"]]`;
 
 // Claude 专用：每行多抄一小段标题开头，用来核对编号有没有串行（实测偶尔会把相邻两条的编号写反）
-const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score] when the score is below 5, otherwise [number, "start", score, direction, "TICKERS", "Topic", "sector", "Story"].
+const ECHO_FORMAT = `Reply with ONLY a JSON array holding one array per headline, in the same order as the list: [number, "start", score, pick] when score and pick are both below 5, otherwise [number, "start", score, pick, direction, "TICKERS", "Topic", "sector", "Story", "kind", "who"].
+pick: 1-10, how valuable the item is as raw material for an in-depth article for people who trade US or Saudi stocks. Judge it separately from score: a view piece can be score 2 and pick 8. 8-10: a named institution's or famous investor's concrete call, forecast or warning on a major theme ("Goldman: the market has already priced four Fed hikes", "Deutsche Bank sees the S&P 500 at 9000", "Oracle CDS spreads now above Bear Stearns in 2008", "Gundlach: US debt crisis starts in 2029"), a data-rich analysis that explains a big market move or risk, a striking historical comparison, and any event whose score is 8 or more. 5-7: useful analysis or context on a major theme (Fed and rates, AI and megacaps, oil and OPEC+, credit, Aramco, PIF, Tadawul). 1-4: routine, promotional or thin items, and markets this reader does not trade.
+kind: "f" a fact or event, "v" a view, forecast or analysis attributed to an institution or a person, "d" a scheduled data release, "w" a market wrap or anything else. who: for kind "v" the institution or person whose view it is, English name then "|" and the usual Simplified Chinese name (Goldman Sachs|高盛, Jeffrey Gundlach|冈拉克), otherwise "". For kind "v", direction is the stance of the view and Story is the event or debate the view is about (reuse an open story when the view comments on one).
 "start" is the first 12 characters of that headline's text (after the [source] tag), copied exactly; it proves the row belongs to that number.
 direction: 1 bullish for the stocks concerned, -1 bearish, 0 neutral. TICKERS: up to 3 US symbols or 4-digit Tadawul codes of the listed companies it is mainly about, comma-separated, or "". Topic: the subject as a canonical English label of 1-2 words, identical for every headline on that subject (Nvidia, Fed, Oil, Iran), then "|" and its usual Simplified Chinese name in at most 6 characters (Nvidia|英伟达, Fed|美联储, Oil|原油, Tariffs|关税), or "". When the user message starts with a "Known topics" line, reuse one of those labels exactly whenever the headline is about that subject (add the Chinese name if the list has none), and make a new label only when none fits; prefer the broad subject (Nasdaq, not Nasdaq 100; AI stocks, not AI chip stocks). sector: tech, finance, energy, health, consumer, industrial, macro, crypto or other.
 Story: the one specific event the headline reports. A Topic is a subject and holds many stories: headlines on the same development share one story, and separate developments of one subject are separate stories (under Nvidia, "黄仁勋复任英伟达CEO" and "特朗普提议政府入股英伟达" are two stories). When the user message has an "Open stories" line, answer with the id (S3) of the story the headline belongs to; later re-reports of it, reactions to it and price moves it caused belong to it too. Only when none fits, name a new story: a Simplified Chinese phrase of at most 14 characters saying who did what, with no date and no source name; headlines in this list on the same new event must use the identical phrase. Keep stories at the level of one newspaper article: statements, strikes and counter-strikes of the same clash on the same day are one story, not three. "" for market wraps, data roundups and anything that is not one event.
-Example: [[0,"Nvidia short",9,-1,"NVDA","Nvidia|英伟达","tech","S2"],[1,"Analyst rais",2],[2,"Saudi Aramco",8,1,"2222","Aramco|沙特阿美","energy","沙特阿美拟售百亿美元股份"]]`;
+Example: [[0,"Nvidia short",9,8,-1,"NVDA","Nvidia|英伟达","tech","S2","f",""],[1,"Analyst rais",2,2],[2,"Saudi Aramco",8,8,1,"2222","Aramco|沙特阿美","energy","沙特阿美拟售百亿美元股份","f",""],[3,"高盛：市场已替美联储",2,8,-1,"","Fed|美联储","macro","市场定价美联储加息四次","v","Goldman Sachs|高盛"]]`;
 
 // 例行新闻的特征词：命中则减分
 const ROUTINE = [
@@ -79,7 +81,10 @@ function cleanTag(t) {
   const [en, zh] = String(t.t ?? '').replace(/["<>]/g, '').split('|').map((x) => x.replace(/\s+/g, ' ').trim());
   const topic = en ? en.slice(0, 30) + (zh && /\p{Script=Han}/u.test(zh) ? '|' + zh.slice(0, 12) : '') : '';
   const sector = String(t.c ?? '').toLowerCase().trim();
-  return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '', story: String(t.y ?? '').trim() };
+  const kind = String(t.kind ?? '').toLowerCase().trim().charAt(0);
+  // 观点是谁的："英文名|中文名"，和话题一样存在同一列
+  const who = String(t.who ?? '').replace(/["<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return { dir: dir > 0 ? 1 : dir < 0 ? -1 : 0, tickers, topic, sector: SECTORS.includes(sector) ? sector : '', story: String(t.y ?? '').trim(), kind: 'fvdw'.includes(kind) ? kind : '', who: kind === 'v' ? who : '' };
 }
 
 /**
@@ -199,11 +204,15 @@ export function parseEchoed(raw, titles) {
   const fits = (i, e) => e.length >= 4 && (keys[i].startsWith(e.slice(0, 8)) || (keys[i].length < 8 && e.startsWith(keys[i])));
   const scores = new Array(n).fill(null);
   const tags = new Array(n).fill(null);
+  const picks = new Array(n).fill(null);
   let fixed = 0;
   let dropped = 0;
   const put = (i, row) => {
     scores[i] = Math.max(1, Math.min(10, Number(row[2])));
-    tags[i] = row.length > 3 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6], y: row[7] }) : null;
+    // 新格式多一个“选题分”：短行 4 项 [编号, 开头, 分数, 选题分]，长行 9 项以上；5 到 8 项的是旧格式（没有选题分）
+    const neu = row.length === 4 || row.length >= 9;
+    if (neu && row[3] != null && Number.isFinite(Number(row[3]))) picks[i] = Math.max(1, Math.min(10, Number(row[3])));
+    tags[i] = row.length >= 9 ? cleanTag({ d: row[4], k: row[5], t: row[6], c: row[7], y: row[8], kind: row[9], who: row[10] }) : row.length > 4 ? cleanTag({ d: row[3], k: row[4], t: row[5], c: row[6], y: row[7] }) : null;
   };
   const rows = data.filter((row) => Array.isArray(row) && typeof row[1] === 'string' && row[2] != null && Number.isFinite(Number(row[2])));
   const valid = (i) => Number.isInteger(i) && i >= 0 && i < n;
@@ -227,7 +236,7 @@ export function parseEchoed(raw, titles) {
     else if (!hits.length && valid(i) && scores[i] == null && !keys.some((_, k) => fits(k, e))) put(i, row);
     else dropped++;
   }
-  return { scores, tags, fixed, dropped };
+  return { scores, tags, picks, fixed, dropped };
 }
 
 /**
@@ -272,6 +281,7 @@ export async function aiScores(env, items, { tags = false, topics = [], stories 
       if (story && !seen.includes(story)) seen.push(story);
       return { ...t, topic: t.topic ? canonTopic(t.topic, topics) : t.topic, story };
     });
+    out.picks = parsed.picks || [];
     out.usage = usage;
     out.fixed = parsed.fixed || 0;
     out.dropped = parsed.dropped || 0;
@@ -283,7 +293,7 @@ export async function aiScores(env, items, { tags = false, topics = [], stories 
     // 已有话题放在用户消息开头（不放进系统提示词，免得每次变动都让提示词缓存失效）
     const known =
       (tags && topics.length ? `Known topics: ${topics.join('; ')}\n` : '') + (tags && stories.length ? `Open stories: ${stories.map((t, k) => `S${k + 1} ${t}`).join('; ')}\n` : '');
-    const res = await claudeText(env, { system: tags ? SYSTEM_PROMPT + '\n' + ECHO_FORMAT : system, user: (known ? known + '\n' : '') + list, maxTokens: 100 + items.length * (tags ? 90 : 24), kind: 'score' });
+    const res = await claudeText(env, { system: tags ? SYSTEM_PROMPT + '\n' + ECHO_FORMAT : system, user: (known ? known + '\n' : '') + list, maxTokens: 100 + items.length * (tags ? 115 : 24), kind: 'score' });
     const out = res && finish(res.text, { prompt: res.usage.input, completion: res.usage.output }, 'claude');
     if (out) return out;
   }

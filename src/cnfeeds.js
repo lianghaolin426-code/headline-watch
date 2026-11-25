@@ -66,7 +66,8 @@ export function parseCnJson(text, sourceName, format) {
       o = o.resource;
     }
     if (!o || o.id == null) continue;
-    const content = strip(o.content_text || o.content || o.brief || o.summary || (o.data && (o.data.content || o.data.title)) || '');
+    // content_short：华尔街见闻文章接口公开给出的导语（约 150 字；正文不在这个接口里）
+    const content = strip(o.content_text || o.content || o.content_short || o.brief || o.summary || (o.data && (o.data.content || o.data.title)) || '');
     // 很多快讯是“【标题】正文”的格式，取方括号里的做标题
     const bracket = content.match(/^【([^】]{4,120})】/);
     const title = strip(o.title) || (bracket ? bracket[1] : content.slice(0, 280));
@@ -82,4 +83,47 @@ export function parseCnJson(text, sourceName, format) {
     });
   }
   return out;
+}
+
+/**
+ * 从文章列表网页（服务器直接输出的 HTML）里取文章：智通财经美股频道、格隆汇首页这类没有公开 JSON 接口的来源。
+ * src.link 是认文章链接的正则（第一个有值的括号是文章编号）。标题取链接文字，导语和时间取链接后面、下一篇之前的文字。
+ * 只读公开网页上列出的标题和导语，不进文章页。
+ */
+export function parseHtmlList(html, src, now = Date.now()) {
+  const linkRe = new RegExp(src.link);
+  const body = String(html || '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ');
+  const A = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const hits = [];
+  let m;
+  while ((m = A.exec(body))) {
+    const g = m[1].match(linkRe);
+    const id = g && g.slice(1).find((x) => x);
+    if (id) hits.push({ id, href: m[1], text: strip(m[2]), at: m.index, end: A.lastIndex });
+  }
+  const out = new Map();
+  hits.forEach((h, k) => {
+    let o = out.get(h.id);
+    if (!o) out.set(h.id, (o = { id: h.id, href: h.href, title: '', tail: '' }));
+    if (h.text.length > o.title.length) o.title = h.text;
+    // 这篇的最后一个链接之后、别的文章的第一个链接之前的那段文字
+    const next = hits.slice(k + 1).find((x) => x.id !== h.id);
+    if (!hits.slice(k + 1).some((x) => x.id === h.id)) o.tail = strip(body.slice(h.end, Math.min(next ? next.at : h.end + 1500, h.end + 1500)));
+  });
+  const items = [];
+  for (const o of out.values()) {
+    if (o.title.length < 8) continue;
+    let ts = NaN;
+    const abs = o.tail.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
+    const rel = o.tail.match(/(\d+)\s*(分钟|小时)前/);
+    if (abs) ts = toMs(abs[1] + ' ' + abs[2]);
+    else if (rel) ts = now - Number(rel[1]) * (rel[2] === '小时' ? 3_600_000 : 60_000);
+    const sum = o.tail.split(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}|来自主题|\d+\s*(?:分钟|小时)前/)[0].trim();
+    let url = o.href;
+    try {
+      url = new URL(o.href, src.url).href;
+    } catch {}
+    items.push({ id: `${src.format || 'html'}:${o.id}`, source: src.name, title: o.title.slice(0, 280), body: sum.length >= 30 && sum !== o.title ? sum.slice(0, 500) : '', url, ts: Number.isNaN(ts) || ts > now + 600_000 ? now : ts });
+  }
+  return items;
 }

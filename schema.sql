@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS items (
   topic TEXT,     -- AI 标签：话题
   sector TEXT,    -- AI 标签：板块
   story TEXT,     -- AI 标签：属于哪件具体的事（事件名）
+  pick REAL,      -- 选题分：这条作为写稿原材料的价值（和突发分 score 分开）
+  kind TEXT,      -- 类型：f 事实 / v 观点线索 / d 数据发布 / w 行情综述
+  who TEXT,       -- 观点线索是谁说的，"English|中文"
   title_tr TEXT,  -- 标题译文（NULL = 还没翻，空串 = 翻过但没结果）
   body_tr TEXT,   -- 摘要译文
   tr_lang TEXT    -- 译文语言：zh 或 en

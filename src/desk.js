@@ -22,9 +22,11 @@ export function deskConfig(env) {
   return {
     on: env.DESK !== 'false',
     model: env.DESK_MODEL || 'claude-sonnet-5-5',
-    windowH: Number(env.DESK_WINDOW_HOURS || 12), // 选题会看最近多少小时
-    minScore: Number(env.DESK_ITEM_MIN || 6), // 多少分以上的快讯进选题会
-    maxItems: Number(env.DESK_MAX_ITEMS || 170), // 一次最多给模型看多少条
+    windowH: Number(env.DESK_WINDOW_HOURS || 24), // 选题会看最近多少小时
+    minScore: Number(env.DESK_ITEM_MIN || 6), // 突发分多少以上的快讯进选题会
+    minPick: Number(env.DESK_PICK_MIN || 6), // 选题分多少以上的（观点、深度分析）也进选题会，哪怕突发分很低
+    maxTopics: Number(env.DESK_MAX_TOPICS || 8),
+    maxItems: Number(env.DESK_MAX_ITEMS || 220), // 一次最多给模型看多少条
     dailyUsd: Number(env.DESK_DAILY_USD || 0.5), // 选题会 + 档案每天最多花多少美元
     manualMin: Number(env.DESK_MANUAL_MIN || 30), // 手动“现在开一次”至少隔多少分钟
     dossierMin: Number(env.DESK_DOSSIER_MIN || 20), // 同一份档案至少隔多少分钟才重写（贴了新全文不受限）
@@ -105,7 +107,11 @@ export function outlet(source) {
  */
 export function deskInput(rows, articles, max) {
   const groups = new Map();
+  // 观点线索（机构、知名人物、深度媒体怎么看）单独列一节，不和突发事实混在一起
+  const views = rows.filter((r) => r.kind === 'v').sort((a, b) => (b.pick || 0) - (a.pick || 0) || b.ts - a.ts).slice(0, 60);
+  const isView = new Set(views.map((r) => r.id));
   for (const r of rows) {
+    if (r.kind === 'v') continue;
     const k = eventKeys(r)[0] || '';
     const key = r.story ? k : '';
     if (!groups.has(key)) groups.set(key, []);
@@ -121,24 +127,34 @@ export function deskInput(rows, articles, max) {
   const line = (i) => {
     list.push(i);
     const b = bodyOf(i);
-    return `[${list.length}] ${bjTime(i.ts)} | ${i.source}${articles.has(i.source) ? '（深度文章，只有标题）' : ''} | ${Math.round((i.score || 0) * 10) / 10}分${i.tickers ? ' | ' + i.tickers : ''} | ${clean(i.title).slice(0, 260)}${b.length >= 60 ? '\n     摘要：' + b.slice(0, 220) : ''}`;
+    const who = i.who ? String(i.who).split('|').pop() : '';
+    return `[${list.length}] ${bjTime(i.ts)} | ${i.source}${articles.has(i.source) ? '（深度文章）' : ''} | 突发${Math.round((i.score || 0) * 10) / 10}${i.pick != null ? ' 选题' + Math.round(i.pick * 10) / 10 : ''}${who ? ' | 观点方：' + who : ''}${i.tickers ? ' | ' + i.tickers : ''} | ${clean(i.title).slice(0, 260)}${b.length >= 40 ? '\n     摘要：' + b.slice(0, 240) : ''}`;
   };
+  const cap = max - views.length;
   for (const g of gs) {
-    if (list.length >= max) break;
-    const show = g.key === '' ? g.items.slice(0, Math.max(0, max - list.length)) : g.items.slice(0, 6);
+    if (list.length >= cap) break;
+    const show = g.key === '' ? g.items.slice(0, Math.max(0, cap - list.length)) : g.items.slice(0, 6);
     if (!show.length) continue;
     out.push(g.key === '' ? `## 没有归到具体事件的要闻` : `## 事件：${g.key.slice(1)}（共 ${g.items.length} 条，${g.outlets} 家媒体，最新 ${bjTime(g.last)}）`);
     for (const i of show) out.push(line(i));
     if (show.length < g.items.length && g.key !== '') out.push(`    （另有 ${g.items.length - show.length} 条同一事件的报道未列出）`);
   }
-  return { text: out.join('\n'), list, groups: gs };
+  if (views.length) {
+    out.push('## 观点线索：机构、知名人物和深度媒体怎么看（单条不一定够成题，可以并进上面的事件，也可以几条合成一个题）');
+    for (const i of views) out.push(line(i) + (i.story ? `\n     所属事件：${i.story}` : ''));
+  }
+  return { text: out.join('\n'), list, groups: gs, views: isView.size };
 }
 
 export const DESK_SYSTEM = `你是一家面向沙特投资者的财经 app 的选题主编。读者是沙特投资者，交易美股和沙特股（Tadawul），文章用英语发布，每天只做 1 到 2 篇有分量的稿子。
 
-用户消息是一个新闻看板在过去十几个小时里收集到的重要快讯，已经按"同一件事"粗略归好。每条前面有编号 [n]，时间是北京时间，"N分"是看板打的重要性分数（10 分最高）。大部分只有标题，少数带一两句摘要。
+用户消息是一个新闻看板在过去 24 小时里收集到的材料，分两部分：前面是突发事实，已经按"同一件事"粗略归好；最后一节是"观点线索"，是机构、知名人物和深度媒体对市场的看法。每条前面有编号 [n]，时间是北京时间。"突发N"是这条消息有多突发、多重大，"选题N"是它作为写稿原料的价值（都是 10 分最高）。大部分只有标题，少数带一两句摘要。
 
-你的任务：开一次选题会，从中选出最值得做成文章的 5 个选题，按值得做的程度从高到低排列。
+你的任务：开一次选题会，从中选出最值得做成文章的 5 到 8 个选题，按值得做的程度从高到低排列。
+
+选题有两种来路，都要考虑：
+- 一件大事本身。这时把观点线索里和它有关的看法并进来，文章才有深度（比如"加息预期升温"这件事，并入高盛、摩根大通的两条看法）。
+- 几条观点线索合成的一个题（比如几家机构对同一个问题的分歧，或者一个有分量的反常识判断）。单条观点通常不够，但有具体数字或大胆判断、又切中当前市场焦点的，可以单独成题。
 
 怎么判断"值得做"（按重要性排列）：
 1. 市场分量：这件事会不会真的影响价格和资金流向（指数级别、大市值公司、油价、美联储和利率、美元、沙特本地的阿美 / PIF / 银行 / 交易所规则 / 大型 IPO）。
@@ -152,13 +168,14 @@ export const DESK_SYSTEM = `你是一家面向沙特投资者的财经 app 的�
 - 只能依据清单里的内容。理由里可以有你的判断（为什么重要、可以从哪个角度写），但不准补充清单里没有的事实、数字或背景，也不预测涨跌。
 - 例行的行情综述（"美股收高""早盘要闻汇总"）不算选题，除非背后有一件具体的事。
 - 清单里够格的事不足 5 件时，有几件写几件，不要凑数。
+- "facts" 是让主编不点开也能看懂这件事的三条关键事实：每条一句话（不超过 40 个字），必须出自清单里的某一条，并给出那条的编号。
 - "write" 标出今天最值得动笔的选题：最多 2 个，通常就是排在最前面的 1 到 2 个；如果今天没有真正够分量的，可以一个都不标。
 
 只输出一个 JSON 对象，不要任何别的文字，不要代码块标记：
-{"topics":[{"title_zh":"不超过 26 个字的中文选题名，说清是哪件事","title_en":"English topic name, at most 12 words","why_zh":"两句话。第一句：发生了什么、市场为什么在意。第二句：沙特投资者为什么要关心、可以从哪个角度写；材料很薄时在这里直说。","why_en":"The same two sentences in English.","angle_en":"A working English headline for the article, at most 14 words","market":"US 或 Saudi 或 Both","tickers":["最相关的股票代码，最多 4 个，没有就空数组"],"items":[这个选题用到的清单编号，最多 15 个],"write":true}]}`;
+{"topics":[{"title_zh":"不超过 26 个字的中文选题名，说清是哪件事","title_en":"English topic name, at most 12 words","why_zh":"两句话。第一句：发生了什么、市场为什么在意。第二句：沙特投资者为什么要关心、可以从哪个角度写；材料很薄时在这里直说。","why_en":"The same two sentences in English.","angle_en":"A working English headline for the article, at most 14 words","market":"US 或 Saudi 或 Both","tickers":["最相关的股票代码，最多 4 个，没有就空数组"],"facts":[["一句话事实",清单编号],["一句话事实",清单编号],["一句话事实",清单编号]],"items":[这个选题用到的清单编号（事实和观点线索都算），最多 18 个],"write":true}]}`;
 
 /** 从模型的回答里取出 JSON；整理成选题列表（编号换成快讯 id，算出材料厚度） */
-export function parseDesk(text, list) {
+export function parseDesk(text, list, max = 8) {
   const s = String(text || '');
   const a = s.indexOf('{'), b = s.lastIndexOf('}');
   if (a < 0 || b <= a) return null;
@@ -172,8 +189,8 @@ export function parseDesk(text, list) {
   const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
   const topics = [];
   let writes = 0;
-  for (const t of d.topics.slice(0, 5)) {
-    const items = [...new Set((Array.isArray(t.items) ? t.items : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= list.length))].slice(0, 15).map((n) => list[n - 1]);
+  for (const t of d.topics.slice(0, max)) {
+    const items = [...new Set((Array.isArray(t.items) ? t.items : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= list.length))].slice(0, 18).map((n) => list[n - 1]);
     if (!items.length || !str(t.title_zh || t.title_en, 10)) continue;
     const basis = { f: 0, s: 0, h: 0 };
     items.forEach((i) => basis[thickness(i)]++);
@@ -190,6 +207,16 @@ export function parseDesk(text, list) {
       market: /^saudi$/i.test(t.market) ? 'Saudi' : /^both$/i.test(t.market) ? 'Both' : 'US',
       tickers: (Array.isArray(t.tickers) ? t.tickers : []).map((x) => str(x, 12).toUpperCase().replace(/[^A-Z0-9.]/g, '')).filter(Boolean).slice(0, 4),
       ids: items.map((i) => i.id),
+      // 三条关键事实（各带出处）和并进来的观点线索：选题卡上直接显示
+      facts: (Array.isArray(t.facts) ? t.facts : [])
+        .map((f) => (Array.isArray(f) ? { t: str(f[0], 120), i: list[Number(f[1]) - 1] } : null))
+        .filter((f) => f && f.t && f.i)
+        .slice(0, 3)
+        .map((f) => ({ t: f.t, id: f.i.id, src: outlet(f.i.source), url: f.i.url || undefined })),
+      views: items
+        .filter((i) => i.kind === 'v')
+        .slice(0, 6)
+        .map((i) => ({ who: i.who || '', t: clean(i.title).slice(0, 120), dir: i.dir || 0, id: i.id, url: i.url || undefined })),
       stories,
       n: items.length,
       outlets: new Set(items.map((i) => outlet(i.source))).size,
@@ -238,16 +265,30 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
   if (spent >= c.dailyUsd) return { ok: false, error: 'budget', spent };
   // 分数线直接写进语句，用得上部分索引 idx_items_brief（5 分以上、不是重复的）
   const rows = (
-    await env.DB.prepare(`SELECT id, source, title, body, ts, score, confirms, tickers, topic, story FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ${Number(c.minScore) || 6} ORDER BY ts DESC LIMIT 600`)
+    await env.DB.prepare(`SELECT id, source, title, body, url, ts, score, confirms, dir, tickers, topic, story FROM items WHERE ts > ? AND dup_of IS NULL AND score >= ${Number(c.minScore) || 6} ORDER BY ts DESC LIMIT 600`)
       .bind(now - c.windowH * H)
       .all()
   ).results;
+  // 选题分高的（观点、深度分析）另查一次，走部分索引 idx_items_pick；还没有这几列（v14 之前）时跳过
+  try {
+    const have = new Map(rows.map((r) => [r.id, r]));
+    const picked = (
+      await env.DB.prepare(`SELECT id, source, title, body, url, ts, score, confirms, dir, tickers, topic, story, pick, kind, who FROM items WHERE ts > ? AND pick >= ${Number(c.minPick) || 6} AND dup_of IS NULL ORDER BY ts DESC LIMIT 400`)
+        .bind(now - c.windowH * H)
+        .all()
+    ).results;
+    for (const p of picked) {
+      const o = have.get(p.id);
+      if (o) Object.assign(o, { pick: p.pick, kind: p.kind, who: p.who });
+      else rows.push(p);
+    }
+  } catch {}
   if (rows.length < 5) return { ok: false, error: 'too_few', n: rows.length };
   const inp = deskInput(rows, articles, c.maxItems);
-  const user = `现在是北京时间 ${bjTime(now)}。过去 ${c.windowH} 小时里 ${c.minScore} 分以上的要闻共 ${rows.length} 条，下面列出 ${inp.list.length} 条：\n\n${inp.text}`;
-  const res = await claudeText(env, { system: DESK_SYSTEM, user, maxTokens: 12000, kind: 'desk', effort: 'medium', model: c.model, timeout: 150_000 });
+  const user = `现在是北京时间 ${bjTime(now)}。过去 ${c.windowH} 小时里够格的材料共 ${rows.length} 条（其中观点线索 ${inp.views} 条），下面列出 ${inp.list.length} 条：\n\n${inp.text}`;
+  const res = await claudeText(env, { system: DESK_SYSTEM, user, maxTokens: 16000, kind: 'desk', effort: 'medium', model: c.model, timeout: 150_000 });
   if (!res) return { ok: false, error: 'model', detail: claudeState().last_error };
-  const topics = parseDesk(res.text, inp.list);
+  const topics = parseDesk(res.text, inp.list, c.maxTopics);
   if (!topics) return { ok: false, error: 'parse' };
   const usd = claudeUsd(res.usage.input, res.usage.output);
   const r = await env.DB.prepare('INSERT INTO desk_runs (ts, slot, n, topics, usd, model) VALUES (?, ?, ?, ?, ?, ?)').bind(now, slot, rows.length, JSON.stringify(topics), usd, c.model).run();
@@ -402,7 +443,7 @@ export function tidyDossier(text, nS, nP) {
 }
 
 async function topicItems(env, t, c, now) {
-  const cols = 'id, source, title, body, url, ts, score, confirms, tickers, topic, story, dup_of';
+  const cols = 'id, source, title, body, url, ts, score, confirms, tickers, topic, story, dup_of, who';
   const byId = new Map();
   const add = (rows) => rows.forEach((r) => byId.has(r.id) || byId.set(r.id, r));
   const ids = (t.ids || []).slice(0, 40);
@@ -479,4 +520,32 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
     .bind(r.id, t.rank, out.title, out.body, JSON.stringify(map), JSON.stringify(pasted), now, now, usd)
     .run();
   return { ok: true, usd, uncited: out.uncited, n: srcs.length };
+}
+
+/**
+ * 一个选题的全部资料，整理成一份 Markdown：给用户一键复制，拿去别处（别的对话、别的模型）接着写。
+ * 含选题会的理由、关键事实、观点线索、按时间排的全部报道（标题、摘要、链接）、已生成的档案、用户贴进来的全文。
+ */
+export async function deskPack(env, { run, rank, now = Date.now() }) {
+  const c = deskConfig(env);
+  await ensureTables(env);
+  const r = (await env.DB.prepare('SELECT id, ts, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
+  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  if (!t) return { ok: false, error: 'no_topic' };
+  const items = (await topicItems(env, t, c, now)).sort((a, b) => a.ts - b.ts);
+  const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
+  const have = new Set(items.map((i) => i.id));
+  const d = (await env.DB.prepare('SELECT body, pasted, updated FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0];
+  const L = [`# ${t.title_zh}`, `${t.title_en}`, '', `选题会时间：北京时间 ${bjTime(r.ts)}`, '', '## 为什么值得写', t.why_zh, '', t.why_en, '', `Working headline: ${t.angle_en}`];
+  if (t.tickers?.length) L.push('', `相关股票：${t.tickers.join(', ')}`);
+  if (t.facts?.length) L.push('', '## 关键事实', ...t.facts.map((f) => `- ${f.t}（${f.src}）`));
+  if (t.views?.length) L.push('', '## 观点线索', ...t.views.map((v) => `- ${v.who ? String(v.who).split('|')[0] + '：' : ''}${v.t}${v.url ? ' ' + v.url : ''}`));
+  L.push('', `## 全部报道（${items.length + arts.filter((a) => !have.has(a.id)).length} 条，按时间）`);
+  for (const i of items.concat(arts.filter((a) => !have.has(a.id)))) {
+    const b = bodyOf(i);
+    L.push(`- ${bjTime(i.ts)} | ${i.source}${i.who ? ' | ' + String(i.who).split('|')[0] : ''} | ${clean(i.title)}${i.url ? '\n  ' + i.url : ''}${b.length >= 40 ? '\n  ' + b.slice(0, 1800) : ''}`);
+  }
+  if (d?.body) L.push('', `## 专题档案（AI 整理，北京时间 ${bjTime(d.updated)}；方括号里的 S 编号对应生成档案时的材料顺序）`, d.body);
+  for (const p of safeJson(d?.pasted, [])) L.push('', `## 贴入的全文：${p.label || '未注明出处'}`, p.text);
+  return { ok: true, text: L.join('\n'), n: items.length };
 }

@@ -43,6 +43,8 @@ SOURCES = '''
   {"type": "rss", "name": "PR Newswire", "skip": "pr", "enOnly": true, "url": "https://www.prnewswire.com/rss/news-releases-list.rss"},
   {"type": "cnjson", "format": "wscn", "name": "华尔街见闻", "focus": true, "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives?channel=global-channel&limit=30"},
   {"type": "cnjson", "format": "wscnArticle", "kind": "article", "name": "华尔街见闻文章", "focus": true, "every": 3, "url": "https://api-one-wscn.awtmt.com/apiv1/content/information-flow?channel=global-channel&accept=article&limit=30"},
+  {"type": "htmllist", "format": "zhitong", "kind": "article", "name": "智通财经", "focus": true, "every": 5, "link": "/content/detail/(\\d+)\\.html", "url": "https://www.zhitongcaijing.com/content/meigu.html"},
+  {"type": "htmllist", "format": "glhpost", "kind": "article", "name": "格隆汇文章", "focus": true, "every": 5, "link": "gelonghui\\.com/p/(\\d+)|^/p/(\\d+)", "url": "https://www.gelonghui.com/"},
   {"type": "cnjson", "format": "gelonghui", "name": "格隆汇", "focus": true, "url": "https://www.gelonghui.com/api/live-channels/all/lives/v4?category=all&limit=30"},
   {"type": "rss", "name": "Argaam", "tzHours": 3, "url": "https://www.argaam.com/en/rss/ho-main-news?sectionid=1524"},
   {"type": "rss", "name": "Arab News", "url": "https://www.arabnews.com/rss.xml"}

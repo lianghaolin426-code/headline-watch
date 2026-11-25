@@ -5,7 +5,7 @@ import { parseTelegram, parseFeed } from './parse.js';
 import { matchItem, parseKeywords, maxAmountBillions } from './filter.js';
 import { aiScores, routinePenalty, splitTopic } from './score.js';
 import { CLAUDE_MODEL, claudeText, claudeOn, claudeUp, claudeState, claudeUsage, claudeUsd } from './claude.js';
-import { parseCnJson } from './cnfeeds.js';
+import { parseCnJson, parseHtmlList } from './cnfeeds.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
 import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
@@ -14,7 +14,7 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
-import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig } from './desk.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack } from './desk.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -161,6 +161,9 @@ async function scoreItems(env, cfg, list, report) {
       if (it.kwHit) it.score = Math.max(it.score, 6);
       it.scoreBy = 'ai';
       it.tags = scores.tags?.[k] || null;
+      // 选题分：这条能不能当写稿的原料（和突发分分开判断）。够得上大事的，选题分不低于突发分
+      const pk = scores.picks?.[k];
+      it.pick = pk != null ? Math.max(pk, it.score >= 8 ? Math.min(10, it.score) : 0) : null;
     }
   });
   const updates = [];
@@ -189,7 +192,7 @@ async function scoreItems(env, cfg, list, report) {
         )
       );
       // 事件单独写：5 分以下的不归事件；数据库还没有 story 列（v13 之前）时只是不记，不影响别的标签
-      const storied = cfg.stories ? tagged.filter((it) => it.tags.story && (it.score || 0) >= 5) : [];
+      const storied = cfg.stories ? tagged.filter((it) => it.tags.story && ((it.score || 0) >= 5 || (it.pick || 0) >= 6)) : [];
       if (storied.length) {
         try {
           await env.DB.batch(storied.map((it) => env.DB.prepare('UPDATE items SET story = ? WHERE id = ?').bind(it.tags.story, it.id)));
@@ -200,6 +203,15 @@ async function scoreItems(env, cfg, list, report) {
       }
     } catch (e) {
       console.warn('saving tags failed (run migrate-v6.sql?)', e?.message || e);
+    }
+  }
+  // 选题分、类型（事实 / 观点 / 数据 / 综述）、观点是谁的：单独写，数据库还没有这几列（v14 之前）时不影响别的
+  const picked = list.filter((it) => it.pick != null);
+  if (picked.length) {
+    try {
+      await env.DB.batch(picked.map((it) => env.DB.prepare('UPDATE items SET pick = ?, kind = ?, who = ? WHERE id = ?').bind(it.pick, it.tags?.kind || null, it.tags?.who || null, it.id)));
+    } catch (e) {
+      console.warn('saving pick failed (schema v14 not applied yet?)', e?.message || e);
     }
   }
 }
@@ -514,6 +526,8 @@ async function fetchSource(src, env = {}) {
         ? parseTelegram(text, src.channel)
         : src.type === 'cnjson'
           ? parseCnJson(text, src.name, src.format)
+          : src.type === 'htmllist'
+          ? parseHtmlList(text, src)
           : parseFeed(text, src.name || url);
     if (src.name && src.type === 'telegram') items.forEach((i) => (i.source = src.name));
     // 有的源把当地时间当成 UTC 写（如 Argaam 的利雅得时间 UTC+3）：配置 "tzHours": 3 修正
@@ -914,14 +928,14 @@ async function listRows(env, { limit = 200, matched = false, since = 0, before =
   // since（轮询“最近抓到的”）走 seen_at 索引：ORDER BY 写成 +ts，免得数据库为了按 ts 排序而沿 ts 索引把整张表扫一遍
   // （2026-11-24 每 15 秒一次的轮询就是这样一次读 1 万多行）
   const ord = since > 0 && !before && !after && !ids ? '+ts' : 'ts';
-  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''}${level > 3 ? ', story' : ''} FROM items
+  const sql = (level) => `SELECT id, source, title, body, url, ts, seen_at, hits, notified, score, important, score_by, base_score, confirms, dup_of${level > 0 ? ', title_tr, body_tr, tr_lang' : ''}${level > 1 ? ', dir, tickers, topic, sector' : ''}${level > 2 ? ', (SELECT COUNT(*) FROM related WHERE flash_id = items.id OR article_id = items.id) AS rel' : ''}${level > 3 ? ', story' : ''}${level > 4 ? ', pick, kind AS vkind, who' : ''} FROM items
                WHERE seen_at > ? ${before > 0 ? 'AND ts < ?' : ''} ${after > 0 ? 'AND ts > ?' : ''} ${matched ? 'AND important = 1 AND dup_of IS NULL' : ''}
                ${keep ? `AND (score >= 6 OR source IN (${keep.map(() => '?').join(',') || "''"}))` : ''} ${ids ? `AND id IN (${ids.map(() => '?').join(',')})` : ''}
                ORDER BY ${ord} DESC LIMIT ?`;
   // before：只要比这个时间更早的（看板“加载更早的快讯”用）
   const args = [since, ...(before > 0 ? [before] : []), ...(after > 0 ? [after] : []), ...(keep || []), ...(ids || []), Math.min(limit, cap)];
   // 数据库还没跑 migrate-v6.sql（标签列）或 migrate-v5.sql（译文列）时，退回到不带这些列的查询
-  for (const level of [4, 3, 2, 1]) {
+  for (const level of [5, 4, 3, 2, 1]) {
     try {
       return (await env.DB.prepare(sql(level)).bind(...args).all()).results.map(splitTopic);
     } catch {}
@@ -1116,11 +1130,19 @@ const app = {
         return json(await cached('desk', await ttl(env, 60_000), () => deskState(env)));
       }
 
+      case '/api/desk/pack': {
+        // 一个选题的全部资料（含用户贴进来的全文），只有带管理密码才给
+        if (env.ADMIN_KEY && req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        return json(await deskPack(env, { run: url.searchParams.get('run'), rank: url.searchParams.get('rank') }));
+      }
+
       case '/api/desk/run':
       case '/api/desk/pick':
       case '/api/desk/dossier': {
         // 这三个会花钱或写数据库：只接受 POST；每天有花费上限（DESK_DAILY_USD），手动开会和重写档案有最短间隔
+        // 网站是公开的，这些按钮只有用户本人能用：请求头要带管理密码（网页用 ?admin=管理密码 打开一次后记在浏览器里）
         if (req.method !== 'POST') return new Response('POST only', { status: 405 });
+        if (env.ADMIN_KEY && req.headers.get('X-HW-Admin') !== env.ADMIN_KEY && url.searchParams.get('admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
         let b = {};
         try {
           b = await req.json();
@@ -1132,8 +1154,7 @@ const app = {
         else {
           const last = (await deskState(env, { now })).run;
           const wait = last ? deskConfig(env).manualMin * 60_000 - (now - last.ts) : 0;
-          const admin = env.ADMIN_KEY && url.searchParams.get('admin') === env.ADMIN_KEY;
-          r = wait > 0 && !admin ? { ok: false, error: 'too_soon', wait_min: Math.ceil(wait / 60_000) } : await runDesk(env, { now, slot: 'manual', articles: config(env).articles });
+          r = wait > 0 && url.searchParams.get('force') !== '1' ? { ok: false, error: 'too_soon', wait_min: Math.ceil(wait / 60_000) } : await runDesk(env, { now, slot: 'manual', articles: config(env).articles });
           if (r.run) delete r.run;
         }
         const st = await deskState(env);
