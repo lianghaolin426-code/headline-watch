@@ -12,7 +12,7 @@ import { notifyAll, enabledChannels } from './notify.js';
 import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
 import { renderPage, BUILD } from './page.js';
 import { translatePending } from './translate.js';
-import { runBriefs, listBriefs } from './brief.js';
+import { runBriefs, listBriefs, isBig } from './brief.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, LEVELS } from './dbguard.js';
 
@@ -203,6 +203,31 @@ async function findConfirmations(env, cfg, fresh, now) {
   return [...bumped.values()];
 }
 
+// 标题向量在本实例内存里留一份（向量写进去就不会再变，缓存不会过期）：
+// 以前每分钟把最近 2 小时的向量全读一遍（约 250 行），来新文章时还要读 6 小时的（上千行）；现在只读上次之后新增的几行。
+// 实例被回收后第一次运行会整段重读，结果完全一样。
+const VEC = { rows: new Map(), from: Infinity, max: 0 };
+function vecRemember(id, ts, zh, v) {
+  VEC.rows.set(id, { id, ts, zh: zh ? 1 : 0, v });
+  if (ts > VEC.max) VEC.max = ts;
+}
+/** 最近（ts > since）的全部向量：[{id, ts, zh, v}] */
+export async function recentVecs(env, since, now = Date.now()) {
+  for (const [id, r] of VEC.rows) if (r.ts < now - 7 * 3_600_000) VEC.rows.delete(id);
+  if (VEC.from < now - 7 * 3_600_000) VEC.from = now - 7 * 3_600_000;
+  // 缓存覆盖不到这么早，或者太久没更新：整段读；否则只读新增的（往前多读 3 分钟，防止别的实例同时写入的漏掉）
+  const full = since < VEC.from || now - VEC.max > 30 * 60_000;
+  const from = full ? since : Math.max(since, VEC.max - 3 * 60_000);
+  const rows = (await env.DB.prepare('SELECT id, ts, zh, v FROM vecs WHERE ts > ?').bind(from).all()).results;
+  for (const r of rows) if (!VEC.rows.has(r.id)) vecRemember(r.id, r.ts, r.zh, unpack(r.v));
+  if (full) VEC.from = since;
+  if (now > VEC.max) VEC.max = Math.max(VEC.max, now - 60_000);
+  return [...VEC.rows.values()].filter((r) => r.ts > since);
+}
+export function _vecCache() {
+  return VEC;
+}
+
 /**
  * 跨语言互证：给新快讯求向量存起来，再和最近 2 小时“另一种语言”的快讯比相似度。
  * 校准结果：同一件事的中英文标题相似度一般在 0.65 以上，不相关的在 0.6 以下。
@@ -219,11 +244,10 @@ async function crossLanguage(env, cfg, fresh, now) {
   });
   await env.DB.batch(stmts);
   const freshIds = new Set(fresh.map((f) => f.id));
-  const rows = (await env.DB.prepare('SELECT id, zh, v FROM vecs WHERE ts > ?').bind(now - 2 * 3_600_000).all()).results.filter(
-    (r) => !freshIds.has(r.id)
-  );
-  const zhRows = rows.filter((r) => r.zh).map((r) => ({ id: r.id, v: unpack(r.v) }));
-  const enRows = rows.filter((r) => !r.zh).map((r) => ({ id: r.id, v: unpack(r.v) }));
+  const rows = (await recentVecs(env, now - 2 * 3_600_000, now)).filter((r) => !freshIds.has(r.id));
+  for (const f of fresh) vecRemember(f.id, now, f.zh, f.vec);
+  const zhRows = rows.filter((r) => r.zh);
+  const enRows = rows.filter((r) => !r.zh);
   for (const f of fresh) {
     f.xl = new Set();
     f.xlFresh = new Set();
@@ -291,17 +315,23 @@ export async function relate(env, cfg, { arts = [], flashes = [], now = Date.now
       if (v) {
         need.forEach((a, i) => (a.vec = pack(v[i])));
         await env.DB.batch(need.map((a) => env.DB.prepare('INSERT OR REPLACE INTO vecs (id, ts, zh, v) VALUES (?, ?, ?, ?)').bind(a.id, now, isZh(a.title) ? 1 : 0, new Uint8Array(a.vec.buffer))));
+        for (const a of need) vecRemember(a.id, now, isZh(a.title), a.vec);
       }
     }
     for (const x of [...arts, ...flashes]) if (x.vec) vec.set(x.id, x.vec);
-    // 只有新快讯时，只要旧文章的向量（按主键取）；有新文章时才要最近 6 小时全部快讯的向量
+    // 只有新快讯时，只要旧文章的向量（先查本实例缓存，缺的按主键取）；有新文章时才要最近 6 小时全部快讯的向量
+    for (const a of onlyFlashes ? oldArts : []) if (!vec.has(a.id) && VEC.rows.has(a.id)) vec.set(a.id, VEC.rows.get(a.id).v);
     const want = onlyFlashes ? oldArts.map((a) => a.id).filter((id) => !vec.has(id)).slice(0, 90) : null;
     const vr = want
       ? want.length
-        ? (await env.DB.prepare(`SELECT id, v FROM vecs WHERE id IN (${want.map(() => '?').join(',')})`).bind(...want).all()).results
+        ? (await env.DB.prepare(`SELECT id, ts, zh, v FROM vecs WHERE id IN (${want.map(() => '?').join(',')})`).bind(...want).all()).results.map((r) => {
+            const v = unpack(r.v);
+            vecRemember(r.id, r.ts, r.zh, v);
+            return { id: r.id, v };
+          })
         : []
-      : (await env.DB.prepare('SELECT id, v FROM vecs WHERE ts > ?').bind(now - 6 * 3_600_000).all()).results;
-    for (const r of vr) if (!vec.has(r.id)) vec.set(r.id, unpack(r.v));
+      : await recentVecs(env, now - 6 * 3_600_000, now);
+    for (const r of vr) if (!vec.has(r.id)) vec.set(r.id, r.v);
   }
   const same = (a, f) => {
     const va = vec.get(a.id), vf = vec.get(f.id);
@@ -459,17 +489,27 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // 先在内存里去掉，省得每条都去数据库 INSERT OR IGNORE（每条算 1 行读取，一天上百万行）
   let stateRows;
   try {
-    stateRows = (await db.prepare('SELECT key, runs, last_ids FROM source_state').all()).results;
+    stateRows = (await db.prepare('SELECT key, runs, last_ok, last_error, last_error_at, last_ids FROM source_state').all()).results;
   } catch {
-    stateRows = (await db.prepare('SELECT key, runs FROM source_state').all()).results; // 还没加 last_ids 列
+    stateRows = (await db.prepare('SELECT key, runs, last_ok, last_error, last_error_at FROM source_state').all()).results; // 还没加 last_ids 列
   }
   const states = new Map(stateRows.map((r) => [r.key, r.runs]));
+  const stateOf = new Map(stateRows.map((r) => [r.key, r]));
   const lastIds = new Map(stateRows.map((r) => [r.key, r.last_ids]));
   const hasLastIds = stateRows.length === 0 || 'last_ids' in stateRows[0];
 
-  // 有的源限制频率（every: 每隔几分钟抓一次），没到时间的这轮跳过
+  // 有的源限制频率（every: 每隔几分钟抓一次），没到时间的这轮跳过。
+  // 一直失败的源（比如 Arab News 对 Cloudflare 返回 403）：连续失败超过 30 分钟后改成每 10 分钟试一次，恢复后自动回到每分钟
   const minute = Math.floor(now / 60_000);
-  const sources = inputs ? inputs.map((x) => x.src) : cfg.sources.filter((src) => !src.every || minute % src.every === 0);
+  const failing = (src) => {
+    const st = stateOf.get(sourceKey(src));
+    // 从来没成功过的源（新加的）不降频，免得一次偶然失败就要等 10 分钟
+    return !!(st?.last_error && st.last_ok && now - st.last_ok > 30 * 60_000);
+  };
+  const sources = inputs ? inputs.map((x) => x.src) : cfg.sources.filter((src) => (!src.every || minute % src.every === 0) && (!failing(src) || minute % 10 === 0));
+  // source_state 的写入攒成一批（以前每个源单独写一次，每分钟二十多次写入，一天 3 万多行，占免费写入额度的三成）
+  const stateWrites = [];
+  const QUIET_MS = 10 * 60_000; // 源没有变化时，最多隔这么久才写一次状态（看板上“最后成功”的时间最多晚 10 分钟）
   const settled = inputs
     ? inputs.map((x) => (x.error ? { status: 'rejected', reason: new Error(x.error) } : { status: 'fulfilled', value: x.items }))
     : await Promise.allSettled(sources.map((src) => fetchSource(src, env)));
@@ -483,13 +523,17 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     if (res.status === 'rejected') {
       const msg = String(res.reason?.message || res.reason);
       report.errors.push(`${key}: ${msg}`);
-      await db
-        .prepare(
-          `INSERT INTO source_state (key, runs, last_ok, last_error, last_error_at) VALUES (?, 0, NULL, ?, ?)
+      const st = stateOf.get(key);
+      // 同样的错误 10 分钟内已经记过，就不再写
+      if (st && st.last_error === msg && now - (st.last_error_at || 0) < QUIET_MS) continue;
+      stateWrites.push(
+        db
+          .prepare(
+            `INSERT INTO source_state (key, runs, last_ok, last_error, last_error_at) VALUES (?, 0, NULL, ?, ?)
            ON CONFLICT(key) DO UPDATE SET last_error = excluded.last_error, last_error_at = excluded.last_error_at`
-        )
-        .bind(key, msg, now)
-        .run();
+          )
+          .bind(key, msg, now)
+      );
       continue;
     }
     const items = res.value;
@@ -524,7 +568,10 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
     if (backfill) continue;
     const ids = JSON.stringify(items.map((it) => it.id).slice(0, 300));
-    await (hasLastIds
+    // 源和上一轮一模一样（大部分源大部分分钟都是这样）、之前也没有报错：10 分钟内不重复写状态
+    const st = stateOf.get(key);
+    if (hasLastIds && st && !st.last_error && ids === st.last_ids && now - (st.last_ok || 0) < QUIET_MS) continue;
+    stateWrites.push(hasLastIds
       ? db
           .prepare(
             `INSERT INTO source_state (key, runs, last_ok, last_count, last_ids) VALUES (?, 1, ?, ?, ?)
@@ -537,8 +584,9 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
              ON CONFLICT(key) DO UPDATE SET runs = runs + 1, last_ok = excluded.last_ok, last_count = excluded.last_count, last_error = NULL`
           )
           .bind(key, now, items.length)
-    ).run();
+    );
   }
+  if (stateWrites.length) await db.batch(stateWrites);
 
   // 深度文章单独处理：不进攒批、不参与多源确认和推送
   const arts = fresh.filter((it) => cfg.articles.has(it.source));
@@ -680,8 +728,10 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
 
   // 事件简报：重要事件有新报道时滚动重写（每天有花费上限，出错不影响抓取）
   // 为省数据库读取量，平时每 10 分钟看一次（省流时 30 分钟）；本轮有新的重要快讯时立刻看
+  // 只有够得上“大事”（9 分以上，或 8 分以上且有多源证实）的新快讯才立刻看：普通的重要快讯本来就要攒 30 分钟才更新简报，
+  // 以前每来一条 8 分快讯就把 36 小时的事件重读一遍（美股时段几乎每分钟一次）
   const briefEvery = level === 'save' ? 30 : 10;
-  if (!inputs && level !== 'critical' && (report.matched > 0 || minute % briefEvery === 0)) {
+  if (!inputs && level !== 'critical' && (fresh.some(isBig) || minute % briefEvery === 0)) {
     try {
       const b = await runBriefs(env, { now, articles: cfg.articles });
       if (b.written.length) report.briefs = b.written;
@@ -886,9 +936,9 @@ const app = {
         const matched = url.searchParams.get('matched') === '1';
         const before = Number(url.searchParams.get('before') || 0);
         let since = Number(url.searchParams.get('since') || 0);
-        // 轮询的 since 取整到 5 分钟（多给几条不要紧，网页按 id 去重），这样各个标签页、设备能共用同一份缓存；
-        // 太久以前的 since 等于要最新的一页
-        if (since > 0) since = since < now - 3 * HOUR ? 0 : Math.floor(since / 300_000) * 300_000;
+        // 轮询的 since 取整到 1 分钟（同一分钟里的各个标签页、设备共用一份缓存；cron 每分钟才写一次，多给的只是上一轮那几条）；
+        // 太久以前的 since 等于要最新的一页。网页平时只要上次之后新增的，每 5 分钟才回看 30 分钟取一次分数、译文的更新。
+        if (since > 0) since = since < now - 3 * HOUR ? 0 : Math.floor(since / 60_000) * 60_000;
         const b = await budget(env, now);
         const key = `items:${limit}:${matched ? 1 : 0}:${since}:${before}`;
         const d = await cached(key, before ? 60_000 * LEVELS[b.level].ttl : 15_000 * LEVELS[b.level].ttl, async () => ({
@@ -901,7 +951,11 @@ const app = {
       case '/api/briefs': {
         const d = await cached('briefs', await ttl(env, 60_000), async () => ({ briefs: await listBriefs(env) }));
         if (dbBlocked() && !d.briefs?.length) return json({ error: 'db_unavailable', briefs: [] }, 503); // 别让网页把已有的简报清空
-        return json({ now: Date.now(), briefs: d.briefs });
+        // 简报几十 KB，大多数时候没变：网页带上次的版本号 v 来问，没变就只回一句 same（每 3 分钟一次，省流量）
+        const v = (d.briefs || []).map((b) => b.key + ':' + b.updated + ':' + (b.quiet ? 1 : 0)).join('|');
+        const sig = String(v.length) + '-' + [...v].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36);
+        if (url.searchParams.get('v') === sig) return json({ now: Date.now(), same: 1, v: sig });
+        return json({ now: Date.now(), briefs: d.briefs, v: sig });
       }
 
       case '/api/brief-run': {

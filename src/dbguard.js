@@ -5,11 +5,14 @@
 // 以后改查询之前请先看 README 里“数据库读取量”一节。
 
 export const DAILY_LIMIT = 5_000_000;
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
+// 写入额度：免费版每天 10 万行（索引的更新也算）。只统计和显示，不限流。
+export const DAILY_WRITE_LIMIT = 100_000;
 
 // 每个 Worker 实例（isolate）里的状态；实例随时可能被回收，所以只放可以丢的东西
 const S = {
   pending: { web: 0, cron: 0 },
+  writes: { web: 0, cron: 0 },
   queries: { web: 0, cron: 0 },
   lastFlush: 0,
   budget: null, // { at, rows }
@@ -46,6 +49,7 @@ export function guard(env, kind) {
   const raw = env.DB;
   const add = (meta) => {
     S.pending[kind] += meta?.rows_read || 0;
+    S.writes[kind] += meta?.rows_written || 0;
     S.queries[kind]++;
   };
   const wrap = (st) => ({
@@ -101,32 +105,35 @@ export function guard(env, kind) {
   return { ...env, DB: db, __raw: raw };
 }
 
-const READS_TABLE = 'CREATE TABLE IF NOT EXISTS d1_reads (day TEXT NOT NULL, kind TEXT NOT NULL, rows INTEGER NOT NULL DEFAULT 0, queries INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, kind))';
+const READS_TABLE = 'CREATE TABLE IF NOT EXISTS d1_reads (day TEXT NOT NULL, kind TEXT NOT NULL, rows INTEGER NOT NULL DEFAULT 0, queries INTEGER NOT NULL DEFAULT 0, writes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, kind))';
 
 /** 把本实例攒的读取行数写进 d1_reads（cron 每轮写一次；网页请求最多每分钟写一次） */
 export async function flushReads(env, { force = false, now = Date.now() } = {}) {
   const raw = env.__raw || env.DB?.__raw || env.DB;
   if (!raw || dbBlocked(now)) return;
   if (!force && now - S.lastFlush < 60_000) return;
-  const kinds = Object.keys(S.pending).filter((k) => S.pending[k] || S.queries[k]);
+  const kinds = Object.keys(S.pending).filter((k) => S.pending[k] || S.queries[k] || S.writes[k]);
   if (!kinds.length) return;
   S.lastFlush = now;
   const day = today(now);
-  const snap = kinds.map((k) => [k, S.pending[k], S.queries[k]]);
-  for (const k of kinds) (S.pending[k] = 0), (S.queries[k] = 0);
-  const up = (k, rows, q) =>
+  const snap = kinds.map((k) => [k, S.pending[k], S.queries[k], S.writes[k]]);
+  for (const k of kinds) (S.pending[k] = 0), (S.queries[k] = 0), (S.writes[k] = 0);
+  const up = (k, rows, q, w) =>
     raw
-      .prepare('INSERT INTO d1_reads (day, kind, rows, queries) VALUES (?, ?, ?, ?) ON CONFLICT(day, kind) DO UPDATE SET rows = rows + excluded.rows, queries = queries + excluded.queries')
-      .bind(day, k, rows, q);
+      .prepare('INSERT INTO d1_reads (day, kind, rows, queries, writes) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, kind) DO UPDATE SET rows = rows + excluded.rows, queries = queries + excluded.queries, writes = writes + excluded.writes')
+      .bind(day, k, rows, q, w);
   try {
-    await raw.batch(snap.map(([k, r, q]) => up(k, r, q)));
+    await raw.batch(snap.map(([k, r, q, w]) => up(k, r, q, w)));
   } catch (e) {
     try {
       await raw.prepare(READS_TABLE).run();
-      await raw.batch(snap.map(([k, r, q]) => up(k, r, q)));
+      try {
+        await raw.prepare('ALTER TABLE d1_reads ADD COLUMN writes INTEGER NOT NULL DEFAULT 0').run();
+      } catch {}
+      await raw.batch(snap.map(([k, r, q, w]) => up(k, r, q, w)));
     } catch (e2) {
       noteDbError(e2);
-      for (const [k, r, q] of snap) (S.pending[k] += r), (S.queries[k] += q); // 下次再记
+      for (const [k, r, q, w] of snap) (S.pending[k] += r), (S.queries[k] += q), (S.writes[k] += w); // 下次再记
       return;
     }
   }
@@ -218,10 +225,16 @@ export async function readsStatus(env, now = Date.now()) {
   let days = [];
   if (!dbBlocked(now)) {
     try {
-      days = (await (env.__raw || env.DB).prepare('SELECT day, kind, rows, queries FROM d1_reads ORDER BY day DESC, kind LIMIT 14').all()).results;
-    } catch {}
+      days = (await (env.__raw || env.DB).prepare('SELECT day, kind, rows, queries, writes FROM d1_reads ORDER BY day DESC, kind LIMIT 14').all()).results;
+    } catch {
+      try {
+        days = (await (env.__raw || env.DB).prepare('SELECT day, kind, rows, queries FROM d1_reads ORDER BY day DESC, kind LIMIT 14').all()).results;
+      } catch {}
+    }
   }
-  return { ...b, blocked_until: S.blockedUntil || null, last_error: S.lastError || null, days };
+  // 写入量（今天，已记账的部分；最多差一分钟）
+  const writes = days.filter((d) => d.day === b.day).reduce((n, d) => n + (d.writes || 0), 0);
+  return { ...b, writes, writes_limit: DAILY_WRITE_LIMIT, writes_pct: Math.round((writes / DAILY_WRITE_LIMIT) * 1000) / 10, blocked_until: S.blockedUntil || null, last_error: S.lastError || null, days };
 }
 
 /**
@@ -248,6 +261,9 @@ export async function ensureSchema(env) {
     'CREATE INDEX IF NOT EXISTS idx_items_brief ON items (ts) WHERE score >= 5 AND dup_of IS NULL',
     'CREATE INDEX IF NOT EXISTS related_ts ON related (ts)',
     'ALTER TABLE source_state ADD COLUMN last_ids TEXT',
+    // v12：攒批打分的“待评分”条目单独建部分索引。以前每分钟按 seen_at 把最近 30 分钟/3 小时的快讯扫一遍找 score_by = 'wait'（一天约 50 万行读取）
+    "CREATE INDEX IF NOT EXISTS idx_items_wait ON items (seen_at) WHERE score_by = 'wait'",
+    'ALTER TABLE d1_reads ADD COLUMN writes INTEGER NOT NULL DEFAULT 0',
   ];
   for (const s of stmts) {
     try {

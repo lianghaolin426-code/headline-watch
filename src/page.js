@@ -1010,7 +1010,7 @@ function briefHtml2(b,full,hid,extra){if(!b)return '';var nn=b.srcs.filter(funct
   return '<section class="brf'+(full?' full':' glass')+'" lang="zh"><div class="bh"><i class="ai">AI</i><span>'+T('bfH').replace(/^AI\s*/,'')+'</span><small>'+T('bfUpd',hm(b.updated),b.n)+'</small>'+(b.quiet?'<span class="bq">'+T('bfQuiet')+'</span>':'')+(nn&&b.writes>1?'<span class="bnew">'+T('bfNew',nn)+'</span>':'')+'</div>'+
     (b.title?'<div class="bt" dir="auto">'+esc(b.title)+'</div>':'')+briefMd(b,full)+
     (full?'<div class="bnote">'+T('bfNote',src)+'</div>':hid?'<div class="bfoot"><button class="bmore" data-brief="'+esc(hid)+'">'+T('bfMore')+'</button>'+(extra||'')+'</div>':'')+'</section>';}
-async function loadBriefs(){try{var r=await fetch(api('/api/briefs'),{cache:'no-store'});if(!r.ok)return;var d=await r.json(),sig=JSON.stringify((d.briefs||[]).map(function(b){return b.key+b.updated}));
+async function loadBriefs(){try{var r=await fetch(api('/api/briefs'+(state.bV&&state.briefs?'?v='+encodeURIComponent(state.bV):'')),{cache:'no-store'});if(!r.ok)return;var d=await r.json();if(d.same)return;state.bV=d.v||'';var sig=JSON.stringify((d.briefs||[]).map(function(b){return b.key+b.updated}));
   if(sig===state.bSig)return;state.bSig=sig;state.briefs=d.briefs||[];render(true);snapSoon();if(document.body.classList.contains('open-reader'))renderReader();}catch(e){}}
 function relHtml(i){var c=REL[i.id];if(!c||!c.items||!c.items.length)return '';
   return '<div class="d-rel"><div class="d-rel-h">'+T(isArt(i)?'relFlash':'relArts')+' · <span class="num">'+c.items.length+'</span></div>'+c.items.map(function(r){var u=fixUrl(r.url),t=state.lang!=='zh'&&r.title_tr&&r.tr_lang===state.lang?r.title_tr:cleanTitle(r.title);
@@ -1106,7 +1106,10 @@ var unread=0;
 async function load(manual){
   if(state.loading)return;state.loading=true;if(manual)$('live').classList.add('spin');
   try{
-    var r=await fetch(api('/api/items?limit=400&since='+(state.first?(state.bootAt?Math.max(0,Math.min(state.lastSeen,state.bootAt)-18e5):0):Math.max(0,state.lastSeen-18e5))),{cache:'no-store'});
+    // 平时只要上次之后新抓到的（通常几条）；每 5 分钟（和手动刷新时）回看 30 分钟，补上后来才有的分数、译文、多源证实
+    var deep=manual||state.first||Date.now()-(state.deepAt||0)>=3e5;
+    var r=await fetch(api('/api/items?limit=400&since='+(state.first?(state.bootAt?Math.max(0,Math.min(state.lastSeen,state.bootAt)-18e5):0):Math.max(0,state.lastSeen-(deep?18e5:0)))),{cache:'no-store'});
+    if(deep&&r.ok)state.deepAt=Date.now();
     if(r.status===503){if(!state.dbWarned){state.dbWarned=1;tip(T('dbDown'),6000);}state.poll=600;throw new Error('HTTP 503');}
     if(!r.ok)throw new Error('HTTP '+r.status);
     var d=await r.json(),known={},changed=!state.loaded;
