@@ -102,7 +102,7 @@ test('desk: topic status, written match, mood, draft parsing and quotes', async 
   const Hh = 3600000;
   const now = T0;
   const topics = [
-    { rank: 1, ids: ['a', 'b', 'c', 'd'], stories: ['S1'], tsl: [now - Hh, now - 2 * Hh, now - 3 * Hh, now - 20 * Hh] },
+    { rank: 1, ids: ['a', 'b', 'c', 'd'], stories: ['S1'], tsl: [now - Hh, now - 2 * Hh, now - 3 * Hh, now - 4 * Hh, now - 20 * Hh] },
     { rank: 2, ids: ['x'], stories: ['S9'], tsl: [now - Hh] },
     { rank: 3, ids: ['m', 'n', 'o'], stories: ['S3'], tsl: [now - 10 * Hh, now - 12 * Hh, now - 14 * Hh] },
   ];
@@ -115,7 +115,7 @@ test('desk: topic status, written match, mood, draft parsing and quotes', async 
     { id: 3, ts: now - 5 * Hh, title: 'Old piece', run_id: 2, rank: 1, ids: '["zz"]', stories: '["S1"]', off: 0 },
     { id: 2, ts: now - 6 * Hh, title: 'Off board', run_id: null, rank: null, ids: null, stories: null, off: 1 },
   ];
-  assert.deepEqual(matchWritten(topics[0], 9, written), { id: 3, ts: now - 5 * Hh, title: 'Old piece', same: false, fresh: 3 });
+  assert.deepEqual(matchWritten(topics[0], 9, written), { id: 3, ts: now - 5 * Hh, title: 'Old piece', same: false, fresh: 4 });
   assert.equal(matchWritten(topics[1], 9, written), null);
   assert.equal(matchWritten({ rank: 1, ids: [], stories: [], tsl: [] }, 2, written).same, true);
   const rows = [

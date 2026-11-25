@@ -229,7 +229,7 @@ export function parseDesk(text, list, max = 8) {
       views: items
         .filter((i) => i.kind === 'v')
         .slice(0, 6)
-        .map((i) => ({ who: i.who || '', t: clean(i.title).slice(0, 120), dir: i.dir || 0, id: i.id, url: i.url || undefined })),
+        .map((i) => ({ who: realWho(i.who, i.source), t: clean(i.title).slice(0, 120), dir: i.dir || 0, id: i.id, url: i.url || undefined })),
       stories,
       n: items.length,
       outlets: new Set(items.map((i) => outlet(i.source))).size,
@@ -435,6 +435,15 @@ export const DOSSIER_SYSTEM = `你是一家财经 app 的资深编辑。读者�
 
 写作要求：前六个部分用简体中文，书面、凝练，不重复同一事实；外国人名、公司名用通行中文译名，没有通行译名的保留原文。只输出档案正文（Markdown），不要前言后语。`;
 
+// 观点方必须是说话的机构或人；转载它的媒体（格隆汇、华尔街见闻、路透等）不算，遇到就留空
+const RELAY = /格隆汇|华尔街见闻|智通|金十|财联社|Gelonghui|Wallstreetcn|Zhitong|Jin10|Reuters|Bloomberg|CNBC|WSJ|Wall Street Journal|Financial Times|Investing\.com/i;
+export function realWho(who, source) {
+  const w = String(who || '').trim();
+  if (!w || RELAY.test(w)) return '';
+  const o = outlet(source || '');
+  return o && w.split('|').some((x) => x.trim() === o) ? '' : w;
+}
+
 const THICK = { f: '正文', s: '摘要', h: '仅标题' };
 
 /** 给档案挑材料并编号。返回 [{ n, id, source, title, body, ts, url, score, k, art }] */
@@ -610,7 +619,7 @@ export function topicStatus(topics, prev, now) {
     const ts = t.tsl || [];
     const h6 = ts.filter((x) => now - x <= 6 * H).length;
     const h24 = ts.filter((x) => now - x <= 24 * H).length;
-    const before = (h24 - h6) / 3; // 之前 18 小时里平均每 6 小时几条
+    const h12 = ts.filter((x) => now - x > 6 * H && now - x <= 12 * H).length; // 再往前 6 小时
     let since = 0;
     let was = 0;
     prev.forEach((r, k) => {
@@ -621,8 +630,8 @@ export function topicStatus(topics, prev, now) {
     });
     let st = 'flat';
     if (!since) st = 'new';
-    else if (h6 >= 3 && h6 > before * 1.5) st = 'up';
-    else if (h6 === 0 || (before >= 1 && h6 < before * 0.5)) st = 'down';
+    else if (h6 >= 4 && h6 >= h12 * 2) st = 'up';
+    else if (h6 === 0 || h6 * 2 <= h12) st = 'down';
     Object.assign(t, { st, h6, h24, since: since || undefined, was: was || undefined });
   }
   return topics;
@@ -654,7 +663,7 @@ export function deskMood(rows, prev) {
   if (prev && prev.lean != null && out.lean != null) out.delta = out.lean - prev.lean;
   const top = (d) =>
     rows
-      .filter((r) => r.kind === 'v' && r.who && (d > 0 ? r.dir > 0 : r.dir < 0))
+      .filter((r) => r.kind === 'v' && realWho(r.who, r.source) && (d > 0 ? r.dir > 0 : r.dir < 0))
       .sort((a, b) => (b.pick || 0) - (a.pick || 0))
       .slice(0, 3)
       .map((r) => ({ who: r.who, t: clean(r.title).slice(0, 110), id: r.id, url: r.url || undefined }));
@@ -692,7 +701,7 @@ export const DRAFT_SYSTEM = `You are a senior markets writer for a retail invest
 Hard rules on facts
 1. Every fact, number, date and quotation must come from the materials given. Do not add background, history, figures or identities from your own knowledge. If the materials do not say it, do not write it.
 2. Most materials are Chinese paraphrases. Use quotation marks only when the exact English words appear in the materials or in the text the editor pasted. Otherwise paraphrase and attribute ("Goldman Sachs said...").
-3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
+3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
 5. Do not state share prices or percentage moves unless the materials give them. Do not imply that the news caused a price move unless the materials say so.
 6. No investment advice, no "buy/sell", no promises. Neutral, professional tone. On Saudi government policy, report what officials said, neutrally.
@@ -728,7 +737,7 @@ Output exactly these sections, in this order, with these headings and nothing be
 ## CARDS
 (a JSON array of card objects, or [])
 ## CHECK
-(a list, one line each, in Chinese: what the editor must verify or fill in before publishing, e.g. numbers that rest on a headline only, prices to add from licensed data, quotes that need the English original)`;
+(a list of at most 8 lines, most important first, one line each, in Chinese: what the editor must verify or fill in before publishing, e.g. numbers that rest on a headline only, prices to add from licensed data, quotes that need the English original)`;
 
 /** 解析模型写的英文稿。返回 { format, heads, summary, body, cards, checks } 或 null */
 export function parseDraft(text) {
