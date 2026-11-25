@@ -362,3 +362,14 @@ test('stories: scoring files each headline under a specific event', async () => 
   const w = await aiScores({ AI: { run: async () => ({ response: '[[0,8,1,"NVDA","Nvidia","tech"],[1,2],[2,2]]' }) } }, items, { tags: true, stories: known });
   assert.equal(w.tags[0].story, '');
 });
+
+test('stories: near-identical names join the existing story', async () => {
+  const { sameStory, resolveStory } = await import('../src/score.js');
+  const known = ['厦门航空拟购50架波音飞机', '黄仁勋复任英伟达CEO', '特朗普提议政府入股英伟达'];
+  assert.equal(sameStory('厦门航空拟购50架波音飞机，价值74亿美元', known), known[0]);
+  assert.equal(resolveStory('厦门航空拟购50架波音飞机，价值74亿美元', known), known[0]);
+  assert.equal(sameStory('特朗普提议美国政府入股英伟达', known), known[2]);
+  assert.equal(sameStory('黄仁勋重返英伟达任CEO', known), '');
+  assert.equal(sameStory('特朗普称可赦免黄仁勋', known), '');
+  assert.equal(sameStory('美国拟加征多国关税', known), '');
+});

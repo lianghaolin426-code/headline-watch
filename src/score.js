@@ -93,8 +93,39 @@ export function resolveStory(raw, known = []) {
   if (m) return known[+m[1] - 1] || '';
   x = x.replace(/[。.，,；;：:]+$/, '').slice(0, 24);
   if (x.length < 2) return '';
-  const k = squash(x);
-  return known.find((t) => squash(t) === k) || x;
+  return sameStory(x, known) || x;
+}
+
+/**
+ * 新事件名和已有的某件事是不是同一件：去掉标点空格后相同；一个包含另一个（如“厦门航空拟购50架波音飞机”和
+ * “厦门航空拟购50架波音飞机，价值74亿美元”）；或者相邻两字的重合度很高（措辞略有出入）。是就返回已有的那个名字。
+ */
+export function sameStory(name, known = []) {
+  const k = squash(name);
+  if (k.length < 2) return '';
+  const grams = (x) => {
+    const g = new Set();
+    for (let i = 0; i < x.length - 1; i++) g.add(x.slice(i, i + 2));
+    return g;
+  };
+  const a = grams(k);
+  let best = '';
+  let bestScore = 0;
+  for (const t of known) {
+    const q = squash(t);
+    if (q === k) return t;
+    const short = Math.min(q.length, k.length);
+    if (short >= 6 && (q.includes(k) || k.includes(q))) return t;
+    const b = grams(q);
+    let hit = 0;
+    for (const g of a) if (b.has(g)) hit++;
+    const dice = a.size + b.size ? (2 * hit) / (a.size + b.size) : 0;
+    if (dice > bestScore) {
+      bestScore = dice;
+      best = t;
+    }
+  }
+  return bestScore >= 0.72 ? best : '';
 }
 
 /**
@@ -233,7 +264,14 @@ export async function aiScores(env, items, { tags = false, topics = [], stories 
     }
     const out = parsed.scores;
     // 事件只认 Claude 给的（带已有事件清单的那种问法）；后备模型不分事件，网页会退回按股票 / 话题归拢
-    out.tags = parsed.tags.map((t) => (t ? { ...t, topic: t.topic ? canonTopic(t.topic, topics) : t.topic, story: provider === 'claude' ? resolveStory(t.story, stories) : '' } : t));
+    // 同一批里先出现的新事件名也算“已有”：后面措辞略有出入的同一件事会并到它上面
+    const seen = stories.slice();
+    out.tags = parsed.tags.map((t) => {
+      if (!t) return t;
+      const story = provider === 'claude' ? resolveStory(t.story, seen) : '';
+      if (story && !seen.includes(story)) seen.push(story);
+      return { ...t, topic: t.topic ? canonTopic(t.topic, topics) : t.topic, story };
+    });
     out.usage = usage;
     out.fixed = parsed.fixed || 0;
     out.dropped = parsed.dropped || 0;

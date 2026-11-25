@@ -127,6 +127,12 @@ async function knownTags(env, now = Date.now()) {
       return { topics: [...m.values()].sort((a, b) => b.n - a.n).slice(0, 40).map((o) => o.en + (o.zh ? '|' + o.zh : '')), stories: [...recent, ...older].map((o) => o.t) };
     });
   } catch {}
+  // 最近 30 分钟新建的事件：清单缓存里还没有，别的实例刚建的本实例内存里也没有，所以每次打分前从库里补一眼
+  // （走 5 分以上快讯的部分索引，只读这半小时的几十行）。突发新闻头几分钟的几条快讯靠它归到同一件事
+  try {
+    const r = await env.DB.prepare('SELECT DISTINCT story FROM items WHERE ts > ? AND score >= 5 AND dup_of IS NULL AND story IS NOT NULL').bind(now - 30 * 60_000).all();
+    for (const x of r.results) if (x.story && !freshStories.has(x.story)) freshStories.set(x.story, now);
+  } catch {}
   for (const [t, at] of freshStories) if (now - at > 20 * 60_000) freshStories.delete(t);
   const extra = [...freshStories.keys()].filter((t) => !base.stories.includes(t));
   return { topics: base.topics || [], stories: [...extra.reverse(), ...(base.stories || [])].slice(0, 60) };
