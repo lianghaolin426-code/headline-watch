@@ -13,6 +13,7 @@ import { pushToSubscribers, saveSubscription, removeSubscription, getSubscriptio
 import { renderPage, BUILD } from './page.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs } from './brief.js';
+import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, LEVELS } from './dbguard.js';
 
 const UA =
@@ -448,7 +449,8 @@ function sourceKey(src) {
 }
 
 // inputs：外部推进来的数据（GitHub 定时任务抓的 Telegram 页面），格式 [{src, items}]；不传则自己抓 SOURCES
-export async function runOnce(env, { now = Date.now(), notify = true, inputs = null } = {}) {
+// backfill：补抓模式，不更新 source_state（不影响正常抓取的去重记录和状态页）
+export async function runOnce(env, { now = Date.now(), notify = true, inputs = null, backfill = false } = {}) {
   const cfg = config(env);
   const db = env.DB;
   const report = { fetched: 0, inserted: 0, matched: 0, notified: 0, errors: [] };
@@ -520,6 +522,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
         fresh.push(todo[j]);
       });
     }
+    if (backfill) continue;
     const ids = JSON.stringify(items.map((it) => it.id).slice(0, 300));
     await (hasLastIds
       ? db
@@ -1046,6 +1049,34 @@ const app = {
           sample: out.filter((r) => r.tags).slice(0, 12).map((r) => ({ title: r.title.slice(0, 80), ...r.tags })),
           top: out.sort((a, b) => b.score - a.score).slice(0, 15).map((r) => ({ score: r.score, by: r.scoreBy, title: r.title })),
         });
+      }
+
+      case '/api/backfill': {
+        // 补抓数据库停摆期间漏掉的快讯（见 src/backfill.js）。只入库、打分、去重，从不推送。
+        const key = url.searchParams.get('admin');
+        if (!(env.ADMIN_KEY && key === env.ADMIN_KEY) && !(env.BACKFILL_KEY && key === env.BACKFILL_KEY)) return new Response('需要 ?admin=管理密码', { status: 403 });
+        const cfg = config(env);
+        const op = url.searchParams.get('op');
+        if (op === 'sources') return json(cfg.sources.map((s) => ({ name: s.name, pageable: pageable(s), kind: s.kind || null })));
+        if (op === 'ingest') {
+          const body = await req.json();
+          const now = Number(body.now) || Date.now();
+          const by = new Map();
+          for (const it of body.items || []) {
+            const src = cfg.sources.find((s) => s.name === it.source);
+            if (!src || !it.id || !it.title || !(it.ts <= now)) continue;
+            if (!by.has(src)) by.set(src, []);
+            by.get(src).push({ id: String(it.id), source: src.name, title: String(it.title), body: String(it.body || ''), url: String(it.url || ''), ts: Number(it.ts) });
+          }
+          const inputs = [...by].map(([src, items]) => ({ src, items }));
+          if (!inputs.length) return json({ inserted: 0 });
+          return json(await runOnce(env, { now, notify: false, inputs, backfill: true }));
+        }
+        const src = cfg.sources.find((s) => s.name === url.searchParams.get('src'));
+        if (!src) return json({ error: 'unknown src' }, 400);
+        if (op === 'raw') return json(await rawPage(src, url.searchParams.get('q')));
+        if (!pageable(src)) return json({ error: 'not pageable' }, 400);
+        return json(await fetchPage(src, url.searchParams.get('cursor'), { focusFilter, limit: Number(url.searchParams.get('limit') || 100) }));
       }
 
       case '/api/run': // 手动触发一次抓取（测试用）
