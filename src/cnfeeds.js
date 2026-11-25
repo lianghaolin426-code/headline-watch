@@ -93,13 +93,14 @@ export function parseCnJson(text, sourceName, format) {
 export function parseHtmlList(html, src, now = Date.now()) {
   const linkRe = new RegExp(src.link);
   const body = String(html || '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ');
-  const A = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const A = /<a\b[^>]*?href=(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>/gi;
   const hits = [];
   let m;
   while ((m = A.exec(body))) {
-    const g = m[1].match(linkRe);
+    const href = m[1] || m[2] || m[3];
+    const g = href.match(linkRe);
     const id = g && g.slice(1).find((x) => x);
-    if (id) hits.push({ id, href: m[1], text: strip(m[2]), at: m.index, end: A.lastIndex });
+    if (id) hits.push({ id, href, text: strip(m[4]), at: m.index, end: A.lastIndex });
   }
   const out = new Map();
   hits.forEach((h, k) => {
@@ -124,6 +125,12 @@ export function parseHtmlList(html, src, now = Date.now()) {
       url = new URL(o.href, src.url).href;
     } catch {}
     items.push({ id: `${src.format || 'html'}:${o.id}`, source: src.name, title: o.title.slice(0, 280), body: sum.length >= 30 && sum !== o.title ? sum.slice(0, 500) : '', url, ts: Number.isNaN(ts) || ts > now + 600_000 ? now : ts });
+  }
+  // 一条都没解析出来：把页面长什么样记进错误里（长度、有没有文章链接、页面标题），方便判断是被拦了、改版了还是要靠 JS 加载
+  if (!items.length) {
+    const raw = String(html || '');
+    const t = (raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '';
+    throw new Error(`htmllist empty: len=${raw.length} anchors=${(raw.match(/<a\b/gi) || []).length} linkhits=${(raw.match(new RegExp(src.link, 'g')) || []).length} title=${strip(t).slice(0, 60)}`);
   }
   return items;
 }
