@@ -48,3 +48,8 @@ CREATE TABLE IF NOT EXISTS claude_usage (day TEXT NOT NULL, kind TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS related (flash_id TEXT NOT NULL, article_id TEXT NOT NULL, ts INTEGER NOT NULL, PRIMARY KEY (flash_id, article_id));
 CREATE INDEX IF NOT EXISTS related_article ON related (article_id);
 CREATE TABLE IF NOT EXISTS briefs (key TEXT PRIMARY KEY, title TEXT, body TEXT, srcs TEXT, ids TEXT, n INTEGER, created INTEGER, updated INTEGER, writes INTEGER NOT NULL DEFAULT 0, day TEXT, day_writes INTEGER NOT NULL DEFAULT 0);
+
+-- 选题台（代码里自动建表，这里只是备查）：选题会结果、用户的选择、专题档案
+CREATE TABLE IF NOT EXISTS desk_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, slot TEXT, n INTEGER, topics TEXT, usd REAL, model TEXT);
+CREATE TABLE IF NOT EXISTS desk_picks (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, run_id INTEGER NOT NULL, rank INTEGER NOT NULL, verdict TEXT NOT NULL, title TEXT, note TEXT);
+CREATE TABLE IF NOT EXISTS desk_dossiers (run_id INTEGER NOT NULL, rank INTEGER NOT NULL, title TEXT, body TEXT, srcs TEXT, pasted TEXT, created INTEGER, updated INTEGER, writes INTEGER NOT NULL DEFAULT 0, usd REAL, PRIMARY KEY (run_id, rank));

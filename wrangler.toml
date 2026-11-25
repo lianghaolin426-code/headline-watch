@@ -108,3 +108,9 @@ TRANSLATE_PROVIDER = "claude"
 TRANSLATE_FALLBACK = "mymemory"
 TRANSLATE_MIN_SCORE = "6"
 MAX_TRANSLATE_PER_RUN = "10"
+
+# 选题台（小试）：每天两次“选题会”（沙特开盘前、美股开盘前，也可在网页上随时开），用更强的模型从最近 12 小时的要闻里挑 5 个选题；
+# 选中后按需生成专题档案。DESK = "false" 整个关掉。选题会 + 档案合计每天最多花 DESK_DAILY_USD 美元。
+DESK = "true"
+DESK_MODEL = "claude-sonnet-5-5"
+DESK_DAILY_USD = "0.5"

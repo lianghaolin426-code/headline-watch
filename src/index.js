@@ -14,6 +14,7 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig } from './desk.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -821,6 +822,19 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
   }
 
+  // 选题会：沙特开盘前、美股开盘前各开一次（不在那两个时间窗里时不碰数据库）
+  if (!inputs && level !== 'critical') {
+    try {
+      const d = await deskCron(env, { now, articles: cfg.articles });
+      if (d) {
+        report.desk = d.ok ? { topics: d.run.topics.length, usd: d.run.usd } : { error: d.error };
+        if (d.ok) await cacheSet('desk', await deskState(env));
+      }
+    } catch (e) {
+      report.errors.push(`desk: ${e?.message || e}`);
+    }
+  }
+
   // 统计磁贴用的每小时条数：每 10 分钟更新一次（网页读的是存好的结果，不再每次扫 7 天）
   if (!inputs && level !== 'critical' && minute % 10 === 3) {
     try {
@@ -969,10 +983,11 @@ async function statsData(env) {
 // 这样头条、今日要闻、各标签的条数一打开就是最终结果，不用等后面再补一页数据才变（以前会先显示 9 分的头条再跳成 10 分的）。
 async function bootData(env) {
   const now = Date.now();
-  const [items, stats, briefs] = await Promise.all([
+  const [items, stats, briefs, desk] = await Promise.all([
     listItems(env, { limit: 400 }),
     cached('stats', 120_000, () => statsData(env)).catch(() => null),
     cached('briefs', 60_000, async () => ({ briefs: await listBriefs(env) })).then((d) => d.briefs).catch(() => null),
+    cached('desk', 60_000, () => deskState(env)).catch(() => null),
   ]);
   let contig = 0;
   if (items.length >= 400) {
@@ -981,7 +996,7 @@ async function bootData(env) {
     const have = new Set(items.map((x) => x.id));
     for (const x of extra) if (!have.has(x.id)) items.push(x);
   }
-  return { now, contig, items: items.map(liteItem), stats, briefs };
+  return { now, contig, items: items.map(liteItem), stats, briefs, desk };
 }
 
 function liteItem(it) {
@@ -1094,6 +1109,36 @@ const app = {
         // 管理用：立刻（重）写一件事的简报，如 /api/brief-run?admin=…&key=$NVDA；不带 key 就按平常的规则跑一轮
         const cfg = config(env);
         return json(await runBriefs(env, { articles: cfg.articles, force: url.searchParams.get('key') || null }));
+      }
+
+      case '/api/desk': {
+        // 选题台：最新一场选题会、用户的选择、已生成的档案
+        return json(await cached('desk', await ttl(env, 60_000), () => deskState(env)));
+      }
+
+      case '/api/desk/run':
+      case '/api/desk/pick':
+      case '/api/desk/dossier': {
+        // 这三个会花钱或写数据库：只接受 POST；每天有花费上限（DESK_DAILY_USD），手动开会和重写档案有最短间隔
+        if (req.method !== 'POST') return new Response('POST only', { status: 405 });
+        let b = {};
+        try {
+          b = await req.json();
+        } catch {}
+        const now = Date.now();
+        let r;
+        if (url.pathname === '/api/desk/pick') r = await deskPick(env, { run: b.run, rank: b.rank, verdict: b.verdict, note: b.note, now });
+        else if (url.pathname === '/api/desk/dossier') r = await writeDossier(env, { run: b.run, rank: b.rank, paste: b.paste && typeof b.paste === 'object' ? b.paste : null, now });
+        else {
+          const last = (await deskState(env, { now })).run;
+          const wait = last ? deskConfig(env).manualMin * 60_000 - (now - last.ts) : 0;
+          const admin = env.ADMIN_KEY && url.searchParams.get('admin') === env.ADMIN_KEY;
+          r = wait > 0 && !admin ? { ok: false, error: 'too_soon', wait_min: Math.ceil(wait / 60_000) } : await runDesk(env, { now, slot: 'manual', articles: config(env).articles });
+          if (r.run) delete r.run;
+        }
+        const st = await deskState(env);
+        await cacheSet('desk', st);
+        return json({ ...r, desk: st }, r.ok ? 200 : r.error === 'no_topic' || r.error === 'bad_verdict' || r.error === 'paste_short' ? 400 : 200);
       }
 
       case '/api/item': {

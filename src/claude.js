@@ -9,6 +9,8 @@ export const CLAUDE_MODEL = 'claude-haiku-5-5';
 const USD_IN = 0.1;
 const USD_OUT = 0.5;
 export const claudeUsd = (input, output) => Math.round(((input * USD_IN + output * USD_OUT) / 1e6) * 1e6) / 1e6;
+// 选题会和专题档案用更强的模型（调用时用 model 参数指定）。每百万 token 的官方价格：[输入, 输出]
+const PRICES = { 'claude-sonnet-5-5': [2, 10], 'claude-opus-5-5': [4, 20] };
 
 // 密钥失效、欠费这类短时间内不会自己好的错误：先停用一段时间，免得每分钟白跑一趟。
 // （同一个 Worker 实例内有效；实例重启后会再试一次，代价只是一次失败的请求。）
@@ -30,17 +32,18 @@ export function claudeReset() {
  * 发一次请求，返回 { text, usage: { input, output } }；失败、被拒答或被截断时返回 null。
  * @param kind 'score' | 'translate' | 'brief'，只用来分开记用量
  */
-export async function claudeText(env, { system, user, maxTokens, kind = 'score', effort = 'low', think = false, timeout = 20_000 }) {
+export async function claudeText(env, { system, user, maxTokens, kind = 'score', effort = 'low', think = false, timeout = 20_000, model = null }) {
   if (!claudeUp(env)) return null;
   try {
     // CLAUDE_CLIENT 只在测试里注入假的客户端
     const client = env.CLAUDE_CLIENT || new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout });
     const res = await client.messages.create({
-      model: env.CLAUDE_MODEL || CLAUDE_MODEL,
+      model: model || env.CLAUDE_MODEL || CLAUDE_MODEL,
       max_tokens: maxTokens,
       // 打分和翻译都是短平快的活：不要思考过程，省钱也省时间
       // 写事件简报这种需要组织材料的活才打开思考（think=true）
-      thinking: think ? { type: 'adaptive' } : { type: 'disabled' },
+      // 指定了更强的模型时一律让它自己决定想多久（这些模型不接受“关闭思考”）
+      thinking: think || model ? { type: 'adaptive' } : { type: 'disabled' },
       output_config: { effort },
       // 固定的提示词做缓存：每分钟都在调，命中缓存的部分只收一成的钱（提示词太短不够缓存时自动忽略，没有副作用）
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
@@ -51,6 +54,12 @@ export async function claudeText(env, { system, user, maxTokens, kind = 'score',
     const cacheRead = Number(u.cache_read_input_tokens) || 0;
     const cacheWrite = Number(u.cache_creation_input_tokens) || 0;
     const usage = { input: Math.round((Number(u.input_tokens) || 0) + cacheRead * 0.1 + cacheWrite * 1.25), output: Number(u.output_tokens) || 0, cacheRead };
+    // 更贵的模型：记账时把 token 数按价格折成“相当于多少 Haiku token”，这样用量表里 花费 = token x Haiku 单价 对所有模型都成立
+    const pr = model && PRICES[model];
+    if (pr) {
+      usage.input = Math.round((usage.input * pr[0]) / USD_IN);
+      usage.output = Math.round((usage.output * pr[1]) / USD_OUT);
+    }
     await recordUsage(env, kind, usage);
     if (res.stop_reason === 'refusal' || res.stop_reason === 'max_tokens') {
       lastError = `stopped: ${res.stop_reason} (${kind}, ${usage.output} output tokens)`;
