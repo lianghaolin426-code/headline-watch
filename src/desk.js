@@ -18,6 +18,8 @@ export const DESK_TABLES = [
   'CREATE TABLE IF NOT EXISTS desk_dossiers (run_id INTEGER NOT NULL, rank INTEGER NOT NULL, title TEXT, body TEXT, srcs TEXT, pasted TEXT, created INTEGER, updated INTEGER, writes INTEGER NOT NULL DEFAULT 0, usd REAL, PRIMARY KEY (run_id, rank))',
   // 已写记录：榜上的选题点“标为已写”，或者手动记一条榜外的题（off = 1）
   'CREATE TABLE IF NOT EXISTS desk_written (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, title TEXT, run_id INTEGER, rank INTEGER, ids TEXT, stories TEXT, off INTEGER NOT NULL DEFAULT 0, note TEXT, gone INTEGER NOT NULL DEFAULT 0)',
+  // 候选新信源：调研时发现常出好内容的来源，先记下来，用户确认后再加进抓取
+  'CREATE TABLE IF NOT EXISTS desk_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, name TEXT, note TEXT, gone INTEGER NOT NULL DEFAULT 0)',
   // 英文稿：标题、摘要、正文、形式卡片、发稿前要核对的地方
   'CREATE TABLE IF NOT EXISTS desk_drafts (run_id INTEGER NOT NULL, rank INTEGER NOT NULL, format TEXT, heads TEXT, summary TEXT, body TEXT, cards TEXT, checks TEXT, created INTEGER, updated INTEGER, writes INTEGER NOT NULL DEFAULT 0, usd REAL, PRIMARY KEY (run_id, rank))',
 ];
@@ -350,6 +352,7 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
   } catch {}
   topicStatus(topics, prev, now);
   const mood = deskMood(rows, prev[0]?.mood || null);
+  mood.loose = looseHooks(rows, topics);
   const r = await env.DB.prepare('INSERT INTO desk_runs (ts, slot, n, topics, usd, model, mood) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(now, slot, rows.length, JSON.stringify(topics), usd, c.model, JSON.stringify(mood)).run();
   const id = r.meta?.last_row_id;
   try {
@@ -419,7 +422,7 @@ export async function deskCron(env, { now = Date.now(), articles = new Set() } =
 /** 网页用：最新一场选题会、用户的选择、已生成的档案 */
 export async function deskState(env, { now = Date.now() } = {}) {
   const c = deskConfig(env);
-  const out = { now, on: c.on, run: null, picks: {}, dossiers: {}, next: nextSlot(now, c.closeSlot), manual_min: c.manualMin, drafts: {}, written: [], follow: {}, mood: null };
+  const out = { now, on: c.on, run: null, picks: {}, dossiers: {}, next: nextSlot(now, c.closeSlot), manual_min: c.manualMin, drafts: {}, written: [], follow: {}, mood: null, sources: [] };
   if (!c.on) return out;
   try {
     let r;
@@ -454,6 +457,9 @@ export async function deskState(env, { now = Date.now() } = {}) {
       if (m) t.wr = m;
     }
   } catch {}
+  try {
+    out.sources = (await env.DB.prepare('SELECT id, ts, name, note FROM desk_sources WHERE gone = 0 ORDER BY id DESC LIMIT 30').all()).results;
+  } catch {}
   return out;
 }
 
@@ -465,7 +471,7 @@ export function deskPublic(st) {
   const picks = {};
   for (const k of Object.keys(st.picks || {})) picks[k] = { verdict: st.picks[k].verdict, ts: st.picks[k].ts };
   const run = st.run && { ...st.run, topics: st.run.topics.map(({ wr, ...t }) => t) };
-  return { ...st, run, picks, dossiers: {}, drafts: {}, written: [], follow: {}, guest: true };
+  return { ...st, run, picks, dossiers: {}, drafts: {}, written: [], follow: {}, sources: [], guest: true };
 }
 
 /** 记下用户的选择：pick = 就写这个，pass = 这个不对，clear = 撤销 */
@@ -771,6 +777,33 @@ export function deskMood(rows, prev) {
   out.bulls = top(1);
   out.bears = top(-1);
   return out;
+}
+
+/** 没有挂到任何选题上的吸睛资讯：还缺支撑材料，列在榜单下面，等用户决定要不要去调研 */
+export function looseHooks(rows, topics) {
+  const used = new Set();
+  for (const t of topics) {
+    (t.ids || []).forEach((x) => used.add(x));
+    (t.hooks || []).forEach((h) => used.add(h.id));
+  }
+  return rows
+    .filter((r) => (r.hook || 0) >= 2 && !used.has(r.id))
+    .sort((a, b) => (b.hook || 0) - (a.hook || 0) || b.ts - a.ts)
+    .slice(0, 8)
+    .map((r) => ({ id: r.id, title: clean(r.title).slice(0, 160), src: outlet(r.source), url: r.url || undefined, ts: r.ts, hook: r.hook }));
+}
+
+/** 候选新信源：{ name, note } 记一条；{ id, undo: true } 删掉 */
+export async function deskSource(env, { name, note = '', id, undo = false, now = Date.now() }) {
+  await ensureTables(env);
+  if (undo) {
+    await env.DB.prepare('UPDATE desk_sources SET gone = 1 WHERE id = ?').bind(Number(id) || 0).run();
+    return { ok: true };
+  }
+  const n = String(name || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (n.length < 3) return { ok: false, error: 'title_short' };
+  await env.DB.prepare('INSERT INTO desk_sources (ts, name, note) VALUES (?, ?, ?)').bind(now, n, clean(note).slice(0, 300)).run();
+  return { ok: true };
 }
 
 /* ---------- 已写记录 ---------- */

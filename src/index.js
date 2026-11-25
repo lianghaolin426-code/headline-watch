@@ -14,7 +14,7 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
-import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic } from './desk.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource } from './desk.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -1147,6 +1147,7 @@ const app = {
       case '/api/desk/run':
       case '/api/desk/pick':
       case '/api/desk/draft':
+      case '/api/desk/source':
       case '/api/desk/written':
       case '/api/desk/dossier': {
         // 这三个会花钱或写数据库：只接受 POST；每天有花费上限（DESK_DAILY_USD），手动开会和重写档案有最短间隔
@@ -1161,6 +1162,7 @@ const app = {
         let r;
         if (url.pathname === '/api/desk/pick') r = await deskPick(env, { run: b.run, rank: b.rank, verdict: b.verdict, note: b.note, now });
         else if (url.pathname === '/api/desk/draft') r = await writeDraft(env, { run: b.run, rank: b.rank, alt: !!b.alt, now });
+        else if (url.pathname === '/api/desk/source') r = await deskSource(env, { name: b.name, note: b.note, id: b.id, undo: !!b.undo, now });
         else if (url.pathname === '/api/desk/written') r = await deskWritten(env, { run: b.run, rank: b.rank, title: b.title, note: b.note, id: b.id, undo: !!b.undo, now });
         else if (url.pathname === '/api/desk/dossier') r = await writeDossier(env, { run: b.run, rank: b.rank, paste: b.paste && typeof b.paste === 'object' ? b.paste : null, now });
         else {
