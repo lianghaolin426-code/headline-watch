@@ -839,7 +839,7 @@ Hard rules on facts
 2. Most materials are Chinese paraphrases. Use quotation marks only when the exact English words appear in the materials or in the text the editor pasted. Otherwise paraphrase and attribute ("Goldman Sachs said...").
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
-5. Do not state share prices or percentage moves unless the materials give them. Do not imply that the news caused a price move unless the materials say so.
+5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Do not imply that the news caused a price move unless the materials say so.
 6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
 7. Keep figures in their own time frame. A cumulative figure (value lost over a whole selloff) must not be attached to a one-day move, in headlines above all. Do not give the same label ("three-year high") to a different figure than the materials do.
 8. If the US or Saudi market is still trading when you write, say that the figures are intraday.
@@ -858,6 +858,7 @@ Headlines
 
 Cards (optional visual blocks the editor can screenshot into the app)
 - Give 1 to 3 cards only when the materials support them; give none rather than force one. Every string in a card must be supported by the materials.
+- Every card must also carry an Arabic version under the key "ar": an object of the same type and shape with every string translated into clear Modern Standard Arabic as used by Saudi financial media. Keep figures in Western digits (7.4%, $50 billion as 50 مليار دولار), keep tickers in Latin letters, and use the established Arabic name of a company or institution when one exists (أرامكو, الاحتياطي الفيدرالي), otherwise keep the Latin name. Translate meaning, do not add or drop facts.
 - Types, as JSON objects:
   {"type":"numbers","title":"...","items":[{"n":"7.4%","label":"what this number is, at most 12 words"}]}  (3 to 5 items)
   {"type":"versus","title":"...","left":{"h":"Bulls say","items":["..."]},"right":{"h":"Bears say","items":["..."]}}  (2 to 4 items a side, each at most 18 words, name who says it)
@@ -907,6 +908,13 @@ export function parseDraft(text) {
 
 const cs = (v, n) => String(v ?? '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
 function tidyCard(c) {
+  const en = tidyCard1(c);
+  if (!en) return null;
+  // 阿语版：形状要和英文版一样才收，否则只留英文
+  const ar = c.ar && typeof c.ar === 'object' ? tidyCard1({ ...c.ar, type: en.type }) : null;
+  return ar ? { ...en, ar } : en;
+}
+function tidyCard1(c) {
   if (!c || typeof c !== 'object') return null;
   const title = cs(c.title, 90);
   const arr = (a, f, max) => (Array.isArray(a) ? a.map(f).filter(Boolean).slice(0, max) : []);
@@ -957,6 +965,29 @@ export function usOpen(now) {
   return !['Sat', 'Sun'].includes(p.wd) && p.min >= 9 * 60 + 30 && p.min < 16 * 60;
 }
 
+const Q_FMT = {};
+function qWhen(ts, tz) {
+  const f = (Q_FMT[tz] ||= new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }));
+  return f.format(new Date(ts));
+}
+/**
+ * 给英文稿用的参考价：这个选题的股票 + 所在市场的大盘，带上数据时间和时区。
+ * 没有行情、数据太旧（超过 4 天）或没有时间戳的不给。返回 { text, at } 或 null。
+ */
+export function draftQuotes(t, quotes, now) {
+  const want = new Set((t.tickers || []).filter((k) => /^([A-Z]{1,5}|\d{4})$/.test(k)));
+  if (t.market !== 'Saudi') ['SPY', 'QQQ'].forEach((k) => want.add(k));
+  if (t.market !== 'US') want.add('TASI');
+  const NAMES = { SPY: 'S&P 500 ETF (SPY)', QQQ: 'Nasdaq 100 ETF (QQQ)', TASI: 'Tadawul All Share Index (TASI)' };
+  const rows = (quotes || []).filter((q) => q && want.has(q.t) && q.at && now - q.at < 4 * 86_400_000 && now >= q.at - 3_600_000);
+  if (!rows.length) return null;
+  const lines = rows.map((q) => {
+    const sa = q.t === 'TASI' || /^\d{4}$/.test(q.t);
+    return `- ${NAMES[q.t] || q.t}: ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}`;
+  });
+  return { text: lines.join('\n'), at: Math.max(...rows.map((q) => q.at)) };
+}
+
 /** 写（或重写）一个选题的英文稿。alt = true：换一种形式重写 */
 export async function writeDraft(env, { run, rank, alt = false, now = Date.now() }) {
   const c = deskConfig(env);
@@ -978,10 +1009,17 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   const have = new Set(items.map((i) => i.id));
   const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id)), c.maxSrc);
   const views = (t.views || []).map((v) => `- ${v.who ? String(v.who).split('|')[0] + ': ' : ''}${v.t}`).join('\n');
+  // 参考价：用缓存里最近一次拿到的行情（10 分钟内不重复请求，Yahoo 被拒时自动歇 6 小时）；拿不到就照旧不写价格
+  let px = null;
+  try {
+    const q = await deskQuotes(env, { now });
+    if (q.ok) px = draftQuotes(t, q.quotes, now);
+  } catch {}
   const user =
     `${usOpen(now) ? 'The US market is open right now: figures in the materials are intraday.\n' : ''}Topic: ${t.title_en} (${t.title_zh})\nWhy the desk picked it: ${t.why_en || t.why_zh}\nWorking headline from the story meeting: ${t.angle_en}\nMarket: ${t.market}. Tickers the desk tagged: ${(t.tickers || []).join(', ') || 'none'}\nNow: ${bjTime(now)} Beijing time.\n` +
     (alt && old?.format ? `The previous draft used this format: "${old.format}". Choose a clearly different format this time.\n` : '') +
     (views ? `\nInstitution and expert views attached to this topic:\n${views}\n` : '') +
+    (px ? `\nReference prices (the latest the desk has; each line carries its own time):\n${px.text}\n` : '') +
     ((t.hooks || []).length ? `\nEye-catching items the desk attached to this topic (good headline material if, and only if, the article covers them accurately):\n${t.hooks.map((h) => '- ' + h.title).join('\n')}\n` : '') +
     `\nMaterials (〔正文〕 = full text, 〔摘要〕 = a sentence or two, 〔仅标题〕 = headline only; treat headline-only items as thin and list what rests on them under CHECK):\n\n${dossierText(srcs, pasted)}` +
     (d?.body ? `\n\nThe desk's own dossier on this topic (Chinese, built from the same materials; lines starting with 推断 are the desk's inference, not fact):\n${String(d.body).slice(0, 6000)}` : '');
@@ -991,6 +1029,8 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   if (!out) return { ok: false, error: 'parse' };
   const pre = draftLint(out, user);
   if (usOpen(now) && t.market !== 'Saudi') pre.unshift('这篇写于美股盘中，里面的涨跌都是盘中数字，没有收盘数据。收盘后请点“用最新材料重写”，或手动更新数字。');
+  if (px) pre.push(`稿子里的股价和涨跌来自内部参考行情（截至北京时间 ${bjTime(px.at)}），发布前请用你们自己的行情数据核对一遍，对外来源写 Sahm Data。`);
+  if (out.cards.some((c) => c.ar)) pre.push('卡片的阿语是机器翻译，发布前请懂阿语的同事看一遍。');
   out.checks = pre.concat(out.checks).slice(0, 10);
   const usd = claudeUsd(res.usage.input, res.usage.output);
   await env.DB.prepare(
@@ -1002,7 +1042,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   return { ok: true, usd, n: srcs.length };
 }
 
-/* ---------- 行情（第 4 步）：只给管理模式看，不进给读者的稿子 ---------- */
+/* ---------- 行情（第 4 步）：页面上只给管理模式看；英文稿里可以引用，带时间，发布前由用户用自己的数据核对 ---------- */
 
 // 大盘和相关资产的代表：标普、纳指、原油、黄金、长期美债、沙特股市 ETF（在美国上市，沙特收盘后也有价）
 export const QUOTE_BASE = ['SPY', 'QQQ', 'USO', 'GLD', 'TLT', 'KSA'];

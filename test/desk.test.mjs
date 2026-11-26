@@ -213,3 +213,30 @@ test('desk: quotes try Yahoo first (US and Saudi), fall back to Tiingo, and stop
   assert.equal(c.src, 'tiingo');
   assert.equal(urls.length, 1);
 });
+
+test('draftQuotes: topic tickers plus market index, with time and zone; stale or untimed quotes dropped', async () => {
+  const { draftQuotes } = await import('../src/desk.js');
+  const now = Date.UTC(2026, 10, 26, 2, 0);
+  const q = [
+    { t: 'NVDA', p: 182.3, pc: 180, chg: 1.28, at: Date.UTC(2026, 10, 25, 21, 0) },
+    { t: 'SPY', p: 699.19, pc: 700, chg: -0.12, at: Date.UTC(2026, 10, 25, 21, 0) },
+    { t: 'TASI', p: 9913.98, pc: 9900, chg: 0.14, at: Date.UTC(2026, 10, 25, 12, 0) },
+    { t: 'AAPL', p: 1, pc: 1, chg: 0, at: Date.UTC(2026, 10, 25, 21, 0) },
+    { t: 'QQQ', p: 1, pc: 1, chg: 0 },
+  ];
+  const r = draftQuotes({ tickers: ['NVDA'], market: 'US' }, q, now);
+  assert.match(r.text, /NVDA: 182\.3, \+1\.28% versus the previous close, as of Nov 25, 4:00 PM New York time/);
+  assert.match(r.text, /SPY/);
+  assert.ok(!/TASI|AAPL|QQQ/.test(r.text));
+  assert.match(draftQuotes({ tickers: ['2222'], market: 'Saudi' }, q, now).text, /TASI\): 9913\.98.*3:00 PM Riyadh time \(delayed/);
+  assert.equal(draftQuotes({ tickers: ['NVDA'], market: 'US' }, q, now + 10 * 86_400_000), null);
+});
+
+test('parseDraft keeps an Arabic card only when it has the same shape', async () => {
+  const { parseDraft } = await import('../src/desk.js');
+  const body = 'x'.repeat(450);
+  const mk = (cards) => `## FORMAT\nf\n## HEADLINES\na\nb\nc\n## SUMMARY\ns\n## ARTICLE\n${body}\n## CARDS\n${JSON.stringify(cards)}\n## CHECK\n- c`;
+  const en = { type: 'watch', title: 'What to watch', items: ['a', 'b'] };
+  assert.deepEqual(parseDraft(mk([{ ...en, ar: { title: 'ما يجب متابعته', items: ['أ', 'ب'] } }])).cards[0].ar.items, ['أ', 'ب']);
+  assert.equal(parseDraft(mk([{ ...en, ar: { title: 'x' } }])).cards[0].ar, undefined);
+});
