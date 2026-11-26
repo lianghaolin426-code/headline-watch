@@ -20,6 +20,8 @@ import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+// 来源配置 "honestUa": true 时用这个：如实说明是新闻聚合程序，不装成浏览器（富途等新接的源用这个）
+const HONEST_UA = 'HeadlineWatch/1.0 (news aggregator; +https://headline-watch.lianghaolin426.workers.dev)';
 
 function config(env) {
   let sources = [];
@@ -61,6 +63,10 @@ function config(env) {
     relSameVec: env.RELATED_SAME_LANG_VEC === 'true', // 额度宽裕时可开：同语言之间也用向量模型匹配（默认只用词重合）
     relSameMin: Number(env.RELATED_SAME_LANG_MIN || 0.8),
     relClaude: env.RELATED_CLAUDE !== 'false', // 有 Claude 时，让 Claude 判断文章讲的是哪几条快讯（标题评论化时规则很难对上）
+    // "onlyNew": true 的源（富途）：只补我们没有的。和别的源已有的（3 小时内）对上的直接删掉，不打分、不显示；
+    // 这类源本身多是转述，不算多源确认（免得同一条电讯被转一手就加分、补推）
+    onlyNew: new Set(sources.filter((s) => s.onlyNew).map((s) => s.name)),
+    onlyNewSameMin: Number(env.ONLY_NEW_SAME_LANG_MIN || 0.82), // 同语言（中文对中文）向量相似度达到多少算同一条
   };
 }
 
@@ -261,11 +267,13 @@ async function findConfirmations(env, cfg, fresh, now) {
     const srcs = new Set();
     f.matches = [];
     f.freshMatches = [];
+    const relay = cfg.onlyNew.has(f.source);
     for (const r of recent) {
       if (r.source === f.source) continue;
       if (!(f.xl?.has(r.id) || sameStory(f.tok, r.tok, W))) continue;
-      srcs.add(r.source);
       f.matches.push(r);
+      if (relay || cfg.onlyNew.has(r.source)) continue; // 转述源不算多源确认
+      srcs.add(r.source);
       if (!bumped.has(r.id)) bumped.set(r.id, { row: r, add: new Set(), by: [] });
       bumped.get(r.id).add.add(f.source);
       bumped.get(r.id).by.push(f);
@@ -273,8 +281,9 @@ async function findConfirmations(env, cfg, fresh, now) {
     for (const g of fresh) {
       if (g === f || g.source === f.source) continue;
       if (!(f.xlFresh?.has(g) || g.xlFresh?.has(f) || sameStory(f.tok, g.tok, W))) continue;
-      srcs.add(g.source);
       f.freshMatches.push(g);
+      if (relay || cfg.onlyNew.has(g.source)) continue;
+      srcs.add(g.source);
     }
     f.confirms = srcs.size;
   }
@@ -311,6 +320,46 @@ export function _vecCache() {
  * 跨语言互证：给新快讯求向量存起来，再和最近 2 小时“另一种语言”的快讯比相似度。
  * 校准结果：同一件事的中英文标题相似度一般在 0.65 以上，不相关的在 0.6 以下。
  */
+// 只补新内容的源（富途）：这一条和别的源 3 小时内已有的（或同一轮别的源的）是同一件事 → 删掉，不打分、不显示。
+// 每天的条数和最近 40 对“删掉的 ↔ 对上的”记在 meta 'onlynew'，/api/status 的 onlyNew 一栏能看到，方便抽查误删。
+async function dropKnown(env, cfg, fresh, report, now) {
+  const mine = fresh.filter((f) => cfg.onlyNew.has(f.source));
+  if (!mine.length) return;
+  const other = (x) => !cfg.onlyNew.has(x.source);
+  const drop = [];
+  for (const f of mine) {
+    const m = f.matches.filter(other).sort((a, b) => a.ts - b.ts)[0] || f.freshMatches.find(other);
+    if (m) drop.push([f, m]);
+  }
+  if (drop.length) {
+    await env.DB.batch(drop.flatMap(([f]) => [env.DB.prepare('DELETE FROM items WHERE id = ?').bind(f.id), env.DB.prepare('DELETE FROM vecs WHERE id = ?').bind(f.id)]));
+    const gone = new Set(drop.map(([f]) => f));
+    for (let k = fresh.length - 1; k >= 0; k--) if (gone.has(fresh[k])) fresh.splice(k, 1);
+    report.inserted -= drop.length;
+  }
+  report.onlyNewDropped = drop.length;
+  try {
+    await onlyNewStats(env, mine, drop, now);
+  } catch (e) {
+    console.warn('onlynew stats skipped', e?.message || e);
+  }
+}
+
+async function onlyNewStats(env, mine, drop, now) {
+  const day = new Date(now).toISOString().slice(0, 10);
+  const st = (await metaGet(env, 'onlynew'))?.v || { days: {}, samples: [] };
+  for (const f of mine) {
+    const d = (st.days[day] ||= {});
+    const c = (d[f.source] ||= { seen: 0, dropped: 0, kept: 0 });
+    c.seen++;
+  }
+  for (const [f] of drop) st.days[day][f.source].dropped++;
+  for (const f of mine) if (!drop.some(([x]) => x === f)) st.days[day][f.source].kept++;
+  st.samples = [...drop.map(([f, m]) => ({ at: now, src: f.source, t: f.title.slice(0, 80), as: m.source, mt: String(m.title).slice(0, 80), by: f.xl?.has(m.id) || f.xlFresh?.has(m) ? 'vec' : 'words' })), ...st.samples].slice(0, 40);
+  for (const k of Object.keys(st.days).sort().slice(0, -8)) delete st.days[k];
+  await metaSet(env, 'onlynew', st, now);
+}
+
 async function crossLanguage(env, cfg, fresh, now) {
   if (!cfg.xlangOn || !fresh.length) return;
   const vecs = await embed(env, fresh.map((f) => f.title));
@@ -332,6 +381,11 @@ async function crossLanguage(env, cfg, fresh, now) {
     f.xlFresh = new Set();
     for (const r of f.zh ? enRows : zhRows) if (cos(f.vec, r.v) >= cfg.xlangMin) f.xl.add(r.id);
     for (const g of fresh) if (g.zh !== f.zh && cos(f.vec, g.vec) >= cfg.xlangMin) f.xlFresh.add(g);
+    // 只补新内容的源：同语言（中文快讯之间换个说法）也用向量比，门槛更高
+    if (cfg.onlyNew.has(f.source)) {
+      for (const r of f.zh ? zhRows : enRows) if (cos(f.vec, r.v) >= cfg.onlyNewSameMin) f.xl.add(r.id);
+      for (const g of fresh) if (g !== f && g.zh === f.zh && g.source !== f.source && cos(f.vec, g.vec) >= cfg.onlyNewSameMin) f.xlFresh.add(g);
+    }
   }
 }
 
@@ -517,7 +571,7 @@ async function fetchSource(src, env = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 10_000);
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: '*/*' }, signal: ctrl.signal, cf: { cacheTtl: 0 } });
+    const r = await fetch(url, { headers: { 'User-Agent': src.honestUa ? HONEST_UA : UA, Accept: '*/*' }, signal: ctrl.signal, cf: { cacheTtl: 0 } });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     if (src.type === 'telegram' && !r.url.includes('/s/')) throw new Error('Telegram 把请求重定向了（不允许从 Cloudflare 读取频道网页）');
     const text = await r.text();
@@ -632,7 +686,10 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       );
       continue;
     }
-    const items = res.value;
+    let items = res.value;
+    // 只补新内容的源（富途）：每条先等 holdMin 分钟再入库。实测格隆汇常在富途之后 0-2 分钟转发同一条，
+    // 等一等让它们先到，比对才准；否则富途先入库、格隆汇后到，看板上又是两条
+    if (src.onlyNew && !inputs) items = items.filter((it) => it.ts <= now - (src.holdMin ?? 5) * 60_000);
     report.fetched += items.length;
     // 第一次抓某个源时，只入库不推送，避免一上来推几十条旧闻
     const firstRun = !states.get(key);
@@ -728,7 +785,8 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
   // ---- 打分：规则粗筛出候选 → AI 打分 → 来源加权、例行新闻减分 ----
   if (fresh.length) {
     const bumps = await findConfirmations(env, cfg, fresh, now);
-    await scoreItems(env, cfg, fresh, report);
+    if (cfg.onlyNew.size) await dropKnown(env, cfg, fresh, report, now);
+    if (fresh.length) await scoreItems(env, cfg, fresh, report);
     // 同一件事只推一次、看板只显示一条：已有更早的重要快讯（或本轮更早的一条）时，记为它的重复
     const heads = new Set();
     for (const it of [...fresh].sort((a, b) => a.ts - b.ts || (a.id < b.id ? -1 : 1))) {
@@ -1199,6 +1257,7 @@ const app = {
           claude: { enabled: claudeOn(env), model: env.CLAUDE_MODEL || CLAUDE_MODEL, translate: cfg.trProvider === 'claude', ...claudeState(), ...(await claudeUsage(env)) },
           notifyMode: cfg.notifyMode,
           d1: await readsStatus(env),
+          onlyNew: cfg.onlyNew.size ? (await metaGet(env, 'onlynew'))?.v || null : undefined,
           webpush: (await listSubscriptions(env)).map((x) => ({ min: x.min_score, mode: x.mode, quiet: x.quiet_from != null ? `${x.quiet_from}-${x.quiet_to} ${x.tz || ''}`.trim() : null, last_ok: x.last_ok, fails: x.fails, last_error: x.last_error })),
           sources,
         });

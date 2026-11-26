@@ -47,6 +47,7 @@ const URLS = {
   wscnArticle: (o) => o.uri || `https://wallstreetcn.com/articles/${o.id}`,
   gelonghui: (o) => (o.route ? new URL(o.route, 'https://www.gelonghui.com').href : `https://www.gelonghui.com/live/${o.id}`),
   jin10: (o) => `https://flash.jin10.com/detail/${o.id}`,
+  futu: (o) => o.detailUrl || `https://news.futunn.com/flash/${o.id}`,
 };
 
 export function parseCnJson(text, sourceName, format) {
