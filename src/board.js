@@ -195,7 +195,7 @@ export function eventCard(name, items, gts, now) {
     latest: its.slice(0, 3).map(lite),
     views: vs.slice(0, 6).map((i) => ({ who: realWho(i.who, i.source), t: clean(i.title).slice(0, 120), dir: i.dir || 0, id: i.id, url: i.url || undefined })),
     split: bulls && bears ? [bulls, bears] : undefined,
-    hook: hooks.length ? { n: hooks[0].hook, t: clean(hooks[0].title).slice(0, 140), id: hooks[0].id } : undefined,
+    hook: hooks.length ? { n: hooks[0].hook, t: clean(hooks[0].title).slice(0, 140), tr: hooks[0].tr_lang === 'zh' ? clean(hooks[0].title_tr).slice(0, 140) : '', id: hooks[0].id } : undefined,
     tsl: its.map((i) => i.ts),
     ids: its.map((i) => i.id),
   };
