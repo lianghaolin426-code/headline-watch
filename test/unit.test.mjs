@@ -419,3 +419,29 @@ test('fulltext: robots rules, page text extraction, refusals', async () => {
   assert.equal((await fetchFullText({ id: 'x:2', url: 'https://b.example/p/1' }, { fetcher: page(403, 'no') })).error, 'refused');
   assert.equal((await fetchFullText({ id: 'x:3', url: 'https://c.example/private/1' }, { fetcher: page(200, body) })).error, 'robots');
 });
+
+test('events: story list, merge plan, alias chain', async () => {
+  const { storyList, parseGroups, planMerges, plausible, resolveAlias, listText } = await import('../src/events.js');
+  const t = Date.UTC(2026, 10, 26, 8, 0);
+  const rows = [
+    { story: '白宫新关税计划致股市走低', title: 'Stocks slide as White House unveils new tariff plan', ts: t, score: 7, topic: 'Tariffs|关税', tickers: '' },
+    { story: '白宫新关税计划致股市走低', title: '白宫公布新关税计划，美股走低', ts: t + 1000, score: 6, topic: 'Tariffs|关税', tickers: '' },
+    { story: '日本就美国拟对其进口加征15%关税提出抗议', title: 'Japan protests planned 15% US tariff', ts: t + 2000, score: 6, topic: 'Tariffs|关税', tickers: '' },
+    { story: '英伟达暂停对东南亚芯片交付', title: 'Nvidia halts chip deliveries to Southeast Asia', ts: t + 3000, score: 10, topic: 'Nvidia|英伟达', tickers: 'NVDA' },
+    { story: '北欧大西洋航空可能申请破产', title: 'Norse Atlantic may file for bankruptcy', ts: t + 4000, score: 9, topic: 'Norse Atlantic', tickers: '' },
+  ];
+  const list = storyList(rows);
+  assert.equal(list.length, 4);
+  assert.equal(list.find((s) => s.name.startsWith('白宫')).n, 2);
+  assert.match(listText(list), /^1\. 北欧大西洋航空可能申请破产 \| Norse Atlantic \| - \| 1 \| 11-26 16:00 \| Norse/);
+  const idx = (p) => list.findIndex((s) => s.name.startsWith(p)) + 1;
+  // 模型的回答：关税两件并成一件；另把英伟达和航空公司乱并（没有共同之处，应被拦下）
+  const groups = parseGroups(`ok {"groups": [[${idx('白宫')}, ${idx('日本')}], [${idx('英伟达')}, ${idx('北欧')}], [99, 1]]}`, list.length);
+  assert.equal(groups.length, 2);
+  const plan = planMerges(list, groups);
+  assert.deepEqual(plan, [{ canon: '白宫新关税计划致股市走低', aliases: ['日本就美国拟对其进口加征15%关税提出抗议'] }]);
+  assert.equal(plausible(list[idx('英伟达') - 1], list[idx('北欧') - 1]), false);
+  assert.equal(parseGroups('nothing', 3), null);
+  assert.equal(resolveAlias('a', { a: { to: 'b' }, b: { to: 'c' } }), 'c');
+  assert.equal(resolveAlias('x', {}), 'x');
+});
