@@ -240,3 +240,11 @@ test('parseDraft keeps an Arabic card only when it has the same shape', async ()
   assert.deepEqual(parseDraft(mk([{ ...en, ar: { title: 'ما يجب متابعته', items: ['أ', 'ب'] } }])).cards[0].ar.items, ['أ', 'ب']);
   assert.equal(parseDraft(mk([{ ...en, ar: { title: 'x' } }])).cards[0].ar, undefined);
 });
+
+test('draftLint: card strings are not treated as quotations; writing-time notes are flagged', async () => {
+  const { draftLint } = await import('../src/desk.js');
+  const out = { heads: ['A'], summary: 's', body: 'US markets are open as this is written, so figures are intraday.', cards: [{ type: 'numbers', title: 'Five numbers behind the Fed call', items: [{ n: '3.3%', label: 'Core PCE, versus 3.2% forecast' }] }] };
+  const w = draftLint(out, 'nothing');
+  assert.equal(w.length, 1);
+  assert.match(w[0], /as this is written/);
+});

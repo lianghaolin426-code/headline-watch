@@ -181,6 +181,9 @@ export const DESK_SYSTEM = `你是一家财经 app 的选题主编。读者是�
 - 几条吸睛资讯加上清单里的其他材料，如果能合成一个说得通的题，也可以单独成题，在理由里说明是靠哪条吸睛资讯立起来的。
 - 只有噱头、和读者能买卖的东西没有关系的，不用。
 
+编辑部的禁区（用户定的，必须遵守）：
+- 不做以“沙特境内遭到袭击”（导弹、无人机、武装组织袭击沙特的城市或设施）为主题的选题，这类事件太敏感。相关消息不要单独成题，也不要作为别的选题的主事实；如果它带动了油价或大盘，可以只在讲油价或大盘的选题里一句带过市场反应。
+
 怎么判断"值得做"（按重要性排列）：
 1. 市场分量：这件事会不会真的影响价格和资金流向（指数级别、大市值公司、油价、美联储和利率、美元、沙特本地的阿美 / PIF / 银行 / 交易所规则 / 大型 IPO）。
 2. 对这位读者的相关性：这些读者为什么要关心。常见的连接点：油价和 OPEC+；美联储利率（里亚尔盯住美元，沙特央行跟随加减息）；海湾主权基金和沙特企业参与的交易；海湾散户重仓的美股大公司；Tadawul 上市公司的公告和业绩。一件事只涉及美股或只涉及沙特股都可以入选，不要求两个市场都沾边；但和这位读者能买卖的东西完全没有连接点的事（比如纯粹的美国地方新闻）要降级。
@@ -840,9 +843,9 @@ Hard rules on facts
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
 5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Do not imply that the news caused a price move unless the materials say so.
-6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
+6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed", "nothing in the data tells us", "as this is written". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
 7. Keep figures in their own time frame. A cumulative figure (value lost over a whole selloff) must not be attached to a one-day move, in headlines above all. Do not give the same label ("three-year high") to a different figure than the materials do.
-8. If the US or Saudi market is still trading when you write, say that the figures are intraday.
+8. If the US or Saudi market is still trading when you write, mark market figures as intraday in the sentence that gives them ("was down 1.2% in midday trading"). Do not open or close the article with a standalone note about when it was written, and if the article gives no market figures say nothing about it.
 9. No investment advice, no "buy/sell", no promises. Neutral, professional tone. On Saudi government policy, report what officials said, neutrally.
 
 Style
@@ -945,7 +948,10 @@ function tidyCard1(c) {
  */
 export function draftLint(out, sourceText) {
   const src = String(sourceText || '').toLowerCase().replace(/\s+/g, ' ');
-  const text = [out.heads.join('\n'), out.summary, out.body, JSON.stringify(out.cards)].join('\n');
+  // 卡片只取里面的文字：JSON 自带的引号不是引语
+  const cardText = [];
+  JSON.stringify(out.cards, (k, v) => (typeof v === 'string' && k !== 'type' ? (cardText.push(v), v) : k === 'ar' ? undefined : v));
+  const text = [out.heads.join('\n'), out.summary, out.body, cardText.join('\n')].join('\n');
   const warn = [];
   const seen = new Set();
   for (const m of text.matchAll(/["“]([^"“”\n]{12,200})["”]/g)) {
@@ -954,7 +960,7 @@ export function draftLint(out, sourceText) {
     seen.add(q);
     if (!src.includes(q.toLowerCase().replace(/\s+/g, ' '))) warn.push(`引号里的这句不在材料的英文原文里，发稿前请找到英文原话或去掉引号："${q.slice(0, 90)}"`);
   }
-  const meta = text.match(/\b(?:the materials?|per the reports?|sources? reviewed|the dossier)\b[^.\n]{0,60}/i);
+  const meta = text.match(/\b(?:the materials?|per the reports?|sources? reviewed|the dossier|nothing in the data|as this is written)\b[^.\n]{0,60}/i);
   if (meta) warn.push(`稿子里有讲材料或写作过程的话，读者不该看到，请改掉："${meta[0].trim()}"`);
   return warn.slice(0, 4);
 }
