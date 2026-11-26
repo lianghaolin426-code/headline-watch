@@ -66,7 +66,9 @@ export function plain(html) {
 
 const paras = (html) => [...String(html).matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => plain(m[1])).filter(Boolean);
 // 一段像不像正文：够长，或者是一句完整的话；“Sign In”“首页 > 快讯”这类页面零件不算
-const prose = (t) => t.length >= 40 || (t.length >= 6 && /[。.!?！？”"]$/.test(t));
+// 页面零件：登录、版权、cookie 提示、政府网站页头
+const JUNK = /^(forgot password|sign in|log ?in|search result|an official website of|official websites use|a \.gov website|secure \.gov websites|you consent to our cookies|we use cookies|©|&copy;|copyright|all rights reserved|share this|read more|follow us|subscribe)/i;
+const prose = (t) => !JUNK.test(t) && !/cookies if you use this website\.?$/i.test(t) && (t.length >= 40 || (t.length >= 6 && /[。.!?！？”"]$/.test(t)));
 
 /**
  * 从文章网页里取正文。依次试：
@@ -96,7 +98,7 @@ export function htmlText(html) {
   let best = [];
   const size = (ps) => ps.reduce((n, t) => n + t.length, 0);
   for (const m of s.matchAll(/<article\b[\s\S]*?<\/article>/gi)) {
-    const ps = trim(paras(m[0]));
+    const ps = trim(paras(m[0])).filter((t) => !JUNK.test(t));
     if (size(ps) > size(best)) best = ps;
   }
   if (size(best) < 300) {
@@ -150,4 +152,107 @@ export async function fetchFullText(item, { fetcher = fetch, now = Date.now() } 
   } catch (e) {
     return { ok: false, error: 'fetch', detail: String(e?.message || e).slice(0, 120) };
   }
+}
+
+/* ---------- 按需读全文：只在用户点“生成档案 / 写英文稿”时，对这件事下面的几篇文章各读一次，存起来下次不重读 ---------- */
+
+export const FT_TABLE = 'CREATE TABLE IF NOT EXISTS fulltext (id TEXT PRIMARY KEY, source TEXT, ts INTEGER NOT NULL, ok INTEGER NOT NULL, len INTEGER, via TEXT, err TEXT, text TEXT)';
+// 实测（2026-11-26）能合规读到正文的来源。富途（浏览器验证）、WSJ（robots 不允许）、Nasdaq（403）、各家快讯和 Bluesky 帖子不在里面
+const FT_DEFAULT = '华尔街见闻文章,格隆汇文章,CNBC,BBC Business,PR Newswire,Federal Reserve,Investing.com,investingLive,Argaam,Arab News';
+
+export function fullTextConfig(env) {
+  return {
+    on: env.FULLTEXT !== 'false',
+    sources: new Set(String(env.FULLTEXT_SOURCES || FT_DEFAULT).split(',').map((s) => s.trim()).filter(Boolean)),
+    max: Number(env.FULLTEXT_MAX || 4), // 一次最多新读几篇
+    chars: Number(env.FULLTEXT_CHARS || 3000), // 每篇最多留多少字
+    retryH: Number(env.FULLTEXT_RETRY_HOURS || 6), // 读失败的隔多久才再试
+    testAt: Number(env.FULLTEXT_TEST_MINUTE ?? 200), // 每天自检从 UTC 第几分钟开始（每分钟试一个来源）；-1 关掉
+  };
+}
+
+let ftOk = false;
+async function ftTable(env) {
+  if (ftOk) return;
+  await env.DB.prepare(FT_TABLE).run();
+  ftOk = true;
+}
+
+/** 读一篇并存进 fulltext 表（成功失败都记）。返回 fetchFullText 的结果 */
+export async function readAndStore(env, item, { fetcher = fetch, now = Date.now(), chars = 3000 } = {}) {
+  const r = await fetchFullText(item, { fetcher, now });
+  const text = r.ok ? r.text.slice(0, chars) : null;
+  try {
+    await ftTable(env);
+    await env.DB.prepare('INSERT OR REPLACE INTO fulltext (id, source, ts, ok, len, via, err, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(item.id, item.source || '', now, r.ok ? 1 : 0, r.len || 0, r.via || null, r.ok ? null : String(r.error || '') + (r.status ? ' ' + r.status : ''), text)
+      .run();
+  } catch {}
+  return r.ok ? { ...r, text } : r;
+}
+
+/**
+ * 给一组材料（档案/英文稿用的 srcs）补全文：只挑来源在名单里、现在只有标题或摘要、带链接的；深度文章优先，其次分数高的。
+ * 存过的直接用；没存过的最多新读 max 篇（同时读，各自 12 秒超时）。读到的把 body 换成全文、k 改成 'f'、full = true。
+ * 返回 { got: 用上全文的篇数, fetched: 这次新读了几篇, failed: [{ source, error }] }
+ */
+export async function attachFullText(env, srcs, { fetcher = fetch, now = Date.now() } = {}) {
+  const c = fullTextConfig(env);
+  const out = { got: 0, fetched: 0, failed: [] };
+  if (!c.on) return out;
+  const cand = srcs
+    .filter((s) => s.url && s.k !== 'f' && c.sources.has(s.source))
+    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || (b.score || 0) - (a.score || 0))
+    .slice(0, 10);
+  if (!cand.length) return out;
+  let rows = [];
+  try {
+    await ftTable(env);
+    rows = (await env.DB.prepare(`SELECT id, ts, ok, text, err FROM fulltext WHERE id IN (${cand.map(() => '?').join(',')})`).bind(...cand.map((s) => s.id)).all()).results;
+  } catch {}
+  const have = new Map(rows.map((r) => [r.id, r]));
+  const use = (s, text) => {
+    s.body = text;
+    s.k = 'f';
+    s.full = true;
+    out.got++;
+  };
+  const todo = [];
+  for (const s of cand) {
+    const h = have.get(s.id);
+    if (h?.ok && h.text) use(s, h.text);
+    else if (h && now - h.ts < c.retryH * 3_600_000) continue; // 刚失败过，先不再试
+    else if (todo.length < c.max) todo.push(s);
+  }
+  const res = await Promise.all(todo.map((s) => readAndStore(env, s, { fetcher, now, chars: c.chars }).catch((e) => ({ ok: false, error: 'fetch', detail: String(e?.message || e) }))));
+  res.forEach((r, i) => {
+    out.fetched++;
+    if (r.ok) use(todo[i], r.text);
+    else out.failed.push({ source: todo[i].source, error: r.error });
+  });
+  return out;
+}
+
+/**
+ * 每天自检：从 testAt 那一分钟起，每分钟拿一个名单里的来源的最新一篇试读一次（一天十来次请求），
+ * 结果记在 meta 表的 fulltext_health：{ 来源: { ok, len, err, at, fails: 连续失败天数 } }。页面和每日检查靠它发现“抽取坏了”。
+ */
+export async function fullTextSelfTest(env, { now = Date.now(), fetcher = fetch, metaGet, metaSet } = {}) {
+  const c = fullTextConfig(env);
+  if (!c.on || c.testAt < 0) return null;
+  const names = [...c.sources];
+  const k = Math.floor((now % 86_400_000) / 60_000) - c.testAt;
+  if (k < 0 || k >= names.length) return null;
+  const source = names[k];
+  const it = (await env.DB.prepare('SELECT id, source, title, url FROM items WHERE source = ? AND url IS NOT NULL ORDER BY ts DESC LIMIT 1').bind(source).all()).results?.[0];
+  const health = (await metaGet(env, 'fulltext_health'))?.v || {};
+  const prev = health[source] || { fails: 0 };
+  if (!it) health[source] = { ok: false, err: 'no_item', at: now, fails: prev.fails || 0 };
+  else {
+    const r = await readAndStore(env, it, { fetcher, now, chars: c.chars });
+    health[source] = r.ok ? { ok: true, len: r.len, at: now, fails: 0 } : { ok: false, err: String(r.error || '') + (r.status ? ' ' + r.status : ''), len: r.len || 0, at: now, fails: (prev.fails || 0) + 1 };
+  }
+  for (const n of Object.keys(health)) if (!c.sources.has(n)) delete health[n];
+  await metaSet(env, 'fulltext_health', health, now);
+  return { source, ...health[source] };
 }

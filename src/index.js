@@ -14,8 +14,8 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
-import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource } from './desk.js';
-import { fetchFullText } from './fulltext.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource, deskPaste } from './desk.js';
+import { fetchFullText, fullTextSelfTest } from './fulltext.js';
 import { mergeStories, mergeConfig, storyAlias, resolveAlias } from './events.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
@@ -1006,6 +1006,16 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
   }
 
+  // 全文读取自检：每天固定时段每分钟试一个来源（一天十来次请求），结果给页面和每日检查看
+  if (!inputs && level !== 'critical') {
+    try {
+      const t = await fullTextSelfTest(env, { now, metaGet, metaSet });
+      if (t && !t.ok) report.fulltext = `${t.source}: ${t.err}`;
+    } catch (e) {
+      report.errors.push(`fulltext: ${e?.message || e}`);
+    }
+  }
+
   // 事件归并：每隔几分钟把名字不同、其实是同一件事的事件并起来（没有新事件时只读一次库，不调模型）
   if (!inputs && level !== 'critical' && mergeConfig(env).on && minute % mergeConfig(env).everyMin === 6) {
     try {
@@ -1338,6 +1348,7 @@ const app = {
       case '/api/desk/draft':
       case '/api/desk/source':
       case '/api/desk/written':
+      case '/api/desk/paste':
       case '/api/desk/dossier': {
         // 这三个会花钱或写数据库：只接受 POST；每天有花费上限（DESK_DAILY_USD），手动开会和重写档案有最短间隔
         // 网站是公开的，这些按钮只有用户本人能用：请求头要带管理密码（网页用 ?admin=管理密码 打开一次后记在浏览器里）
@@ -1353,6 +1364,7 @@ const app = {
         else if (url.pathname === '/api/desk/draft') r = await writeDraft(env, { run: b.run, rank: b.rank, alt: !!b.alt, now });
         else if (url.pathname === '/api/desk/source') r = await deskSource(env, { name: b.name, note: b.note, id: b.id, undo: !!b.undo, now });
         else if (url.pathname === '/api/desk/written') r = await deskWritten(env, { run: b.run, rank: b.rank, title: b.title, note: b.note, id: b.id, undo: !!b.undo, now });
+        else if (url.pathname === '/api/desk/paste') r = await deskPaste(env, { run: b.run, rank: b.rank, paste: b.paste && typeof b.paste === 'object' ? b.paste : null, drop: b.drop ?? null, now });
         else if (url.pathname === '/api/desk/dossier') r = await writeDossier(env, { run: b.run, rank: b.rank, paste: b.paste && typeof b.paste === 'object' ? b.paste : null, now });
         else {
           const last = (await deskState(env, { now })).run;
@@ -1388,6 +1400,7 @@ const app = {
           claude: { enabled: claudeOn(env), model: env.CLAUDE_MODEL || CLAUDE_MODEL, translate: cfg.trProvider === 'claude', ...claudeState(), ...(await claudeUsage(env)) },
           notifyMode: cfg.notifyMode,
           d1: await readsStatus(env),
+          fulltext: (await metaGet(env, 'fulltext_health'))?.v || null,
           onlyNew: cfg.onlyNew.size ? (await metaGet(env, 'onlynew'))?.v || null : undefined,
           webpush: (await listSubscriptions(env)).map((x) => ({ min: x.min_score, mode: x.mode, quiet: x.quiet_from != null ? `${x.quiet_from}-${x.quiet_to} ${x.tz || ''}`.trim() : null, last_ok: x.last_ok, fails: x.fails, last_error: x.last_error })),
           sources,

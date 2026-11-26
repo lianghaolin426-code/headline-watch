@@ -8,6 +8,7 @@
 
 import { claudeText, claudeUp, claudeUsd, claudeState } from './claude.js';
 import { storyAlias, resolveAlias } from './events.js';
+import { attachFullText } from './fulltext.js';
 import { bjTime, eventKeys } from './brief.js';
 import { metaGet, metaSet } from './dbguard.js';
 
@@ -429,7 +430,7 @@ export async function deskCron(env, { now = Date.now(), articles = new Set() } =
 /** 网页用：最新一场选题会、用户的选择、已生成的档案 */
 export async function deskState(env, { now = Date.now() } = {}) {
   const c = deskConfig(env);
-  const out = { now, on: c.on, run: null, picks: {}, dossiers: {}, next: c.auto ? nextSlot(now, c.closeSlot) : null, manual_min: c.manualMin, drafts: {}, written: [], follow: {}, mood: null, sources: [] };
+  const out = { now, on: c.on, run: null, picks: {}, dossiers: {}, pasted: {}, next: c.auto ? nextSlot(now, c.closeSlot) : null, manual_min: c.manualMin, drafts: {}, written: [], follow: {}, mood: null, sources: [] };
   if (!c.on) return out;
   try {
     let r;
@@ -449,7 +450,12 @@ export async function deskState(env, { now = Date.now() } = {}) {
       else out.picks[p.rank] = { verdict: p.verdict, ts: p.ts, note: p.note || undefined };
     }
     const ds = (await env.DB.prepare('SELECT rank, title, body, srcs, pasted, created, updated, writes FROM desk_dossiers WHERE run_id = ?').bind(r.id).all()).results;
-    for (const d of ds) out.dossiers[d.rank] = { title: d.title, body: d.body, srcs: safeJson(d.srcs, []), updated: d.updated, writes: d.writes, pasted: safeJson(d.pasted, []).map((p) => ({ label: p.label, len: p.text.length })) };
+    for (const d of ds) {
+      const pasted = safeJson(d.pasted, []).map((p) => ({ label: p.label, len: p.text.length }));
+      // 只贴了全文、还没生成档案的：只记贴了什么
+      if (pasted.length) out.pasted[d.rank] = pasted;
+      if (d.body) out.dossiers[d.rank] = { title: d.title, body: d.body, srcs: safeJson(d.srcs, []), updated: d.updated, writes: d.writes, pasted };
+    }
   } catch {
     // 表还没建（还没开过选题会）
   }
@@ -468,6 +474,9 @@ export async function deskState(env, { now = Date.now() } = {}) {
     out.cost = await deskCost(env, c, now);
   } catch {}
   try {
+    out.fulltext = (await metaGet(env, 'fulltext_health'))?.v || null;
+  } catch {}
+  try {
     out.sources = (await env.DB.prepare('SELECT id, ts, name, note FROM desk_sources WHERE gone = 0 ORDER BY id DESC LIMIT 30').all()).results;
   } catch {}
   return out;
@@ -481,7 +490,7 @@ export function deskPublic(st) {
   const picks = {};
   for (const k of Object.keys(st.picks || {})) picks[k] = { verdict: st.picks[k].verdict, ts: st.picks[k].ts };
   const run = st.run && { ...st.run, topics: st.run.topics.map(({ wr, ...t }) => t) };
-  return { ...st, run, picks, dossiers: {}, drafts: {}, written: [], follow: {}, sources: [], cost: undefined, guest: true };
+  return { ...st, run, picks, dossiers: {}, drafts: {}, pasted: {}, written: [], follow: {}, sources: [], cost: undefined, fulltext: undefined, guest: true };
 }
 
 /** 记下用户的选择：pick = 就写这个，pass = 这个不对，clear = 撤销 */
@@ -560,7 +569,7 @@ export function dossierSources(items, arts, max) {
 export function dossierText(srcs, pasted) {
   const a = srcs.map((s) => {
     const head = `[S${s.n}] ${bjTime(s.ts)} | ${s.source}${s.art ? '（深度文章）' : ''} | 〔${THICK[s.k]}〕${s.score != null && !s.art ? ` | ${Math.round(s.score * 10) / 10}分` : ''} | ${s.title}`;
-    return s.k === 'h' ? head : `${head}\n    ${s.body.slice(0, 1800)}`;
+    return s.k === 'h' ? head : `${head}\n    ${s.body.slice(0, s.full ? 3200 : 1800)}`;
   });
   const b = pasted.map((p, k) => `[P${k + 1}] 主编贴进来的全文 | 〔正文〕 | ${p.label || '未注明出处'}\n    ${p.text}`);
   return a.concat(b).join('\n');
@@ -655,6 +664,7 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
   const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
   const have = new Set(items.map((i) => i.id));
   const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id)), c.maxSrc);
+  const ft = await attachFullText(env, srcs, { now }).catch(() => null);
   const user = `选题：${t.title_zh}（${t.title_en}）\n选题会给的理由：${t.why_zh}\n现在是北京时间 ${bjTime(now)}。以下是这个选题的 ${srcs.length + pasted.length} 条材料：\n\n${dossierText(srcs, pasted)}`;
   const res = await claudeText(env, { system: DOSSIER_SYSTEM, user, maxTokens: 14000, kind: 'dossier', effort: 'medium', model: c.model, timeout: 170_000 });
   if (!res) return { ok: false, error: 'model', detail: claudeState().last_error };
@@ -668,7 +678,31 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
   )
     .bind(r.id, t.rank, out.title, out.body, JSON.stringify(map), JSON.stringify(pasted), now, now, usd)
     .run();
-  return { ok: true, usd, uncited: out.uncited, n: srcs.length };
+  return { ok: true, usd, uncited: out.uncited, n: srcs.length, fulltext: ft || undefined };
+}
+
+/**
+ * 只把用户贴进来的全文存起来，不调模型、不花钱。之后生成档案或写英文稿时会用上。
+ * paste = { label, text }；{ drop: 序号 } 删掉已贴的某一段。返回 { ok, n: 现在存了几段 }
+ */
+export async function deskPaste(env, { run, rank, paste = null, drop = null, now = Date.now() }) {
+  const c = deskConfig(env);
+  await ensureTables(env);
+  const r = (await env.DB.prepare('SELECT id, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
+  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  if (!t) return { ok: false, error: 'no_topic' };
+  const old = (await env.DB.prepare('SELECT pasted FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0] || null;
+  const pasted = safeJson(old?.pasted, []);
+  if (drop != null) pasted.splice(Number(drop) || 0, 1);
+  else {
+    const text = clean(String(paste?.text || '').slice(0, c.pasteMax * 2)).slice(0, c.pasteMax);
+    if (text.length < 200) return { ok: false, error: 'paste_short' };
+    pasted.push({ label: clean(paste.label).slice(0, 80), text, ts: now });
+    while (pasted.length > 3) pasted.shift();
+  }
+  if (old) await env.DB.prepare('UPDATE desk_dossiers SET pasted = ? WHERE run_id = ? AND rank = ?').bind(JSON.stringify(pasted), r.id, t.rank).run();
+  else await env.DB.prepare('INSERT INTO desk_dossiers (run_id, rank, title, body, srcs, pasted, created, updated, writes, usd) VALUES (?, ?, ?, NULL, ?, ?, ?, 0, 0, 0)').bind(r.id, t.rank, '', '[]', JSON.stringify(pasted), now).run();
+  return { ok: true, n: pasted.length };
 }
 
 /**
@@ -1058,6 +1092,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
   const have = new Set(items.map((i) => i.id));
   const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id)), c.maxSrc);
+  const ft = await attachFullText(env, srcs, { now }).catch(() => null);
   const views = (t.views || []).map((v) => `- ${v.who ? String(v.who).split('|')[0] + ': ' : ''}${v.t}`).join('\n');
   // 参考价：用缓存里最近一次拿到的行情（10 分钟内不重复请求，Yahoo 被拒时自动歇 6 小时）；拿不到就照旧不写价格
   let px = null;
@@ -1089,7 +1124,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   )
     .bind(r.id, t.rank, out.format, JSON.stringify(out.heads), out.summary, out.body, JSON.stringify(out.cards), JSON.stringify(out.checks), now, now, usd)
     .run();
-  return { ok: true, usd, n: srcs.length };
+  return { ok: true, usd, n: srcs.length, fulltext: ft || undefined };
 }
 
 /* ---------- 行情（第 4 步）：页面上只给管理模式看；英文稿里可以引用，带时间，发布前由用户用自己的数据核对 ---------- */
