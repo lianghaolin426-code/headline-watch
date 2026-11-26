@@ -225,7 +225,8 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
   const fresh = list.filter((s) => !seen[s.name]);
   const untitled = new Set(fresh.map((s) => s.name));
   for (const s of list) if (untitled.size < 30 && !titles[s.name]) untitled.add(s.name);
-  if (list.length < 2 || (!fresh.length && !force)) return { ok: true, list: list.length, fresh: 0, merges: [], moved: 0 };
+  const need = untitled.size - fresh.length; // 没有新事件但还有没起标题的旧事件，也看一遍
+  if (list.length < 2 || (!fresh.length && !need && !force)) return { ok: true, list: list.length, fresh: 0, merges: [], moved: 0 };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down', list: list.length, fresh: fresh.length };
   const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list, untitled), maxTokens: 7000, kind: 'merge', think: true, effort: 'medium', timeout: 60_000 });
   const groups = res && parseGroups(res.text, list.length);
@@ -234,6 +235,8 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
   const got = parseTitles(res.text, list);
   if (dry) return { ok: true, dry: true, list: list.length, fresh: fresh.length, merges, titles: got, names: list.map((s) => `${s.name} (${s.n})`) };
   for (const k of Object.keys(got)) titles[k] = { ...got[k], at: now };
+  // 这次问了但没给标题的，记一笔，免得每一轮都为它再问一次
+  for (const k of untitled) if (!titles[k]) titles[k] = { at: now };
 
   let moved = 0;
   for (const m of merges) {
