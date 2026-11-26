@@ -68,6 +68,9 @@ function config(env) {
     // 这类源本身多是转述，不算多源确认（免得同一条电讯被转一手就加分、补推）
     onlyNew: new Set(sources.filter((s) => s.onlyNew).map((s) => s.name)),
     onlyNewSameMin: Number(env.ONLY_NEW_SAME_LANG_MIN || 0.82), // 同语言（中文对中文）向量相似度达到多少算同一条
+    // 只给 AI 判重挑候选用的宽松门槛（不算重复、不算确认，只是"拿去问一下"）：实测有英文快讯对得上但相似度没到 0.65 的
+    onlyNewCandXl: Number(env.ONLY_NEW_CAND_XL || 0.55),
+    onlyNewCandSame: Number(env.ONLY_NEW_CAND_SAME || 0.72),
     onlyNewAi: env.ONLY_NEW_AI !== 'false', // 有候选时让 Claude 判断是不是同一个事实；"false" 只用词和向量的规则
   };
 }
@@ -370,7 +373,7 @@ async function dropKnown(env, cfg, fresh, report, now) {
   for (const f of mine) {
     const linked = new Set([...f.matches, ...f.freshMatches].filter(other));
     f.cands = pool
-      .map((r) => ({ r, s: Math.max(overlap(f.tokM, r.tokM), linked.has(r) || f.xl?.has(r.id) || f.xlFresh?.has(r) ? 0.5 : 0) }))
+      .map((r) => ({ r, s: Math.max(overlap(f.tokM, r.tokM), linked.has(r) || f.xl?.has(r.id) || f.xlFresh?.has(r) ? 0.5 : 0, f.near?.has(r.id) ? 0.3 + (f.near.get(r.id) - 0.5) : 0) }))
       .filter((x) => x.s >= 0.25)
       .sort((a, b) => b.s - a.s)
       .slice(0, 5)
@@ -442,6 +445,16 @@ async function crossLanguage(env, cfg, fresh, now) {
     for (const g of fresh) if (g.zh !== f.zh && cos(f.vec, g.vec) >= cfg.xlangMin) f.xlFresh.add(g);
     // 只补新内容的源：同语言（中文快讯之间换个说法）也用向量比，门槛更高
     if (cfg.onlyNew.has(f.source)) {
+      f.near = new Map();
+      for (const r of rows) {
+        const c = cos(f.vec, r.v);
+        if (c >= (!r.zh === !f.zh ? cfg.onlyNewCandSame : cfg.onlyNewCandXl)) f.near.set(r.id, c);
+      }
+      for (const g of fresh) {
+        if (g === f || g.source === f.source || !g.vec) continue;
+        const c = cos(f.vec, g.vec);
+        if (c >= (g.zh === f.zh ? cfg.onlyNewCandSame : cfg.onlyNewCandXl)) f.near.set(g.id, c);
+      }
       for (const r of f.zh ? zhRows : enRows) if (cos(f.vec, r.v) >= cfg.onlyNewSameMin) f.xl.add(r.id);
       for (const g of fresh) if (g !== f && g.zh === f.zh && g.source !== f.source && cos(f.vec, g.vec) >= cfg.onlyNewSameMin) f.xlFresh.add(g);
     }
