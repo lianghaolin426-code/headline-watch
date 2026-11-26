@@ -27,6 +27,8 @@ export const DESK_TABLES = [
 export function deskConfig(env) {
   return {
     on: env.DESK !== 'false',
+    auto: env.DESK_AUTO !== 'false', // "false"：不按时间自动开会，只在用户点“现在开一次”时开
+    monthUsd: Number(env.CLAUDE_MONTHLY_USD || 100), // 每月的 Claude 额度，只用来在页面上显示占了多少
     model: env.DESK_MODEL || 'claude-sonnet-5-5',
     windowH: Number(env.DESK_WINDOW_HOURS || 24), // 选题会看最近多少小时
     minScore: Number(env.DESK_ITEM_MIN || 6), // 突发分多少以上的快讯进选题会
@@ -398,7 +400,7 @@ const mem = { done: '', busy: false };
 /** 每分钟的定时任务里调用：到点了（且今天这一场还没开过）就开一次。不在时间窗里时不碰数据库。 */
 export async function deskCron(env, { now = Date.now(), articles = new Set() } = {}) {
   const c = deskConfig(env);
-  const s = c.on && deskSlot(now, c.closeSlot);
+  const s = c.on && c.auto && deskSlot(now, c.closeSlot);
   if (!s) return null;
   const key = s.slot + ':' + s.day;
   if (mem.done === key || mem.busy) return null;
@@ -426,7 +428,7 @@ export async function deskCron(env, { now = Date.now(), articles = new Set() } =
 /** 网页用：最新一场选题会、用户的选择、已生成的档案 */
 export async function deskState(env, { now = Date.now() } = {}) {
   const c = deskConfig(env);
-  const out = { now, on: c.on, run: null, picks: {}, dossiers: {}, next: nextSlot(now, c.closeSlot), manual_min: c.manualMin, drafts: {}, written: [], follow: {}, mood: null, sources: [] };
+  const out = { now, on: c.on, run: null, picks: {}, dossiers: {}, next: c.auto ? nextSlot(now, c.closeSlot) : null, manual_min: c.manualMin, drafts: {}, written: [], follow: {}, mood: null, sources: [] };
   if (!c.on) return out;
   try {
     let r;
@@ -462,6 +464,9 @@ export async function deskState(env, { now = Date.now() } = {}) {
     }
   } catch {}
   try {
+    out.cost = await deskCost(env, c, now);
+  } catch {}
+  try {
     out.sources = (await env.DB.prepare('SELECT id, ts, name, note FROM desk_sources WHERE gone = 0 ORDER BY id DESC LIMIT 30').all()).results;
   } catch {}
   return out;
@@ -475,7 +480,7 @@ export function deskPublic(st) {
   const picks = {};
   for (const k of Object.keys(st.picks || {})) picks[k] = { verdict: st.picks[k].verdict, ts: st.picks[k].ts };
   const run = st.run && { ...st.run, topics: st.run.topics.map(({ wr, ...t }) => t) };
-  return { ...st, run, picks, dossiers: {}, drafts: {}, written: [], follow: {}, sources: [], guest: true };
+  return { ...st, run, picks, dossiers: {}, drafts: {}, written: [], follow: {}, sources: [], cost: undefined, guest: true };
 }
 
 /** 记下用户的选择：pick = 就写这个，pass = 这个不对，clear = 撤销 */
@@ -795,6 +800,41 @@ export function looseHooks(rows, topics) {
     .sort((a, b) => (b.hook || 0) - (a.hook || 0) || b.ts - a.ts)
     .slice(0, 8)
     .map((r) => ({ id: r.id, title: clean(r.title).slice(0, 160), src: outlet(r.source), url: r.url || undefined, ts: r.ts, hook: r.hook }));
+}
+
+/**
+ * 花费一览（只给管理模式）：今天各项花了多少、选题台离每日上限多远、本月累计、照这个速度月底大约多少。
+ * “日”和“月”都按 UTC 算（北京时间早上 8 点切换），和每日上限的算法一致。
+ */
+export async function deskCost(env, c, now) {
+  const day = new Date(now).toISOString().slice(0, 10);
+  const rows = (await env.DB.prepare('SELECT day, kind, input_tokens, output_tokens FROM claude_usage WHERE day >= ?').bind(day.slice(0, 8) + '01').all()).results;
+  const r2 = (x) => Math.round(x * 1000) / 1000;
+  const today = {};
+  let month = 0;
+  let before = 0;
+  for (const r of rows) {
+    const usd = claudeUsd(r.input_tokens, r.output_tokens);
+    month += usd;
+    if (r.day === day) today[r.kind] = (today[r.kind] || 0) + usd;
+    else before += usd;
+  }
+  const d = new Date(now);
+  const dim = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const days = new Set(rows.filter((r) => r.day !== day).map((r) => r.day)).size;
+  const desk = (today.desk || 0) + (today.dossier || 0) + (today.draft || 0);
+  const all = Object.values(today).reduce((a, b) => a + b, 0);
+  return {
+    day,
+    today: r2(all),
+    desk: r2(desk),
+    fixed: r2(all - desk),
+    cap: c.dailyUsd,
+    month: r2(month),
+    credit: c.monthUsd,
+    // 月底估算：已过完的日子的日均 × 剩下的天数；不足 2 个整天时不估
+    est: days >= 2 ? r2(month + (before / days) * (dim - d.getUTCDate())) : null,
+  };
 }
 
 /** 候选新信源：{ name, note } 记一条；{ id, undo: true } 删掉 */

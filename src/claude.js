@@ -110,7 +110,7 @@ async function recordUsage(env, kind, u) {
 /** 最近 31 天的用量和花费，给 /api/status 用 */
 export async function claudeUsage(env) {
   try {
-    const rows = (await env.DB.prepare('SELECT day, kind, calls, input_tokens, output_tokens FROM claude_usage ORDER BY day DESC, kind LIMIT 62').all()).results;
+    const rows = (await env.DB.prepare('SELECT day, kind, calls, input_tokens, output_tokens FROM claude_usage ORDER BY day DESC, kind LIMIT 400').all()).results;
     const days = rows.map((r) => ({ ...r, usd: claudeUsd(r.input_tokens, r.output_tokens) }));
     const month = new Date().toISOString().slice(0, 7);
     const sum = days.filter((r) => r.day.startsWith(month)).reduce((a, r) => a + r.usd, 0);

@@ -248,3 +248,10 @@ test('draftLint: card strings are not treated as quotations; writing-time notes 
   assert.equal(w.length, 1);
   assert.match(w[0], /as this is written/);
 });
+
+test('deskCron does nothing when DESK_AUTO is "false"; deskPublic hides cost', async () => {
+  const { deskCron, deskPublic } = await import('../src/desk.js');
+  const env = { DESK_AUTO: 'false', DB: { prepare() { throw new Error('must not touch the database'); } } };
+  assert.equal(await deskCron(env, { now: Date.UTC(2026, 10, 25, 6, 35) }), null);
+  assert.equal(deskPublic({ run: null, picks: {}, cost: { today: 1 } }).cost, undefined);
+});

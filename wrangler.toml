@@ -114,4 +114,5 @@ MAX_TRANSLATE_PER_RUN = "10"
 # 选中后按需生成专题档案。DESK = "false" 整个关掉。选题会 + 档案合计每天最多花 DESK_DAILY_USD 美元。
 DESK = "true"
 DESK_MODEL = "claude-sonnet-5-5"
-DESK_DAILY_USD = "0.65"
+DESK_DAILY_USD = "1.00"
+DESK_AUTO = "false" # 用户要求：选题会只在点“现在开一次”时开，不按时间自动开
