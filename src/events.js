@@ -221,14 +221,14 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
   const seen = st.seen || {};
   const alias = st.alias || {};
   const titles = st.titles || {};
-  // 新事件，加上还没有显示标题的旧事件（一次最多补 30 个）
+  // 新事件，加上还没有显示标题的旧事件（一次最多补 15 个，多了回答会超长被截断）
   const fresh = list.filter((s) => !seen[s.name]);
   const untitled = new Set(fresh.map((s) => s.name));
-  for (const s of list) if (untitled.size < 30 && !titles[s.name]) untitled.add(s.name);
+  for (const s of list) if (untitled.size < 15 && !titles[s.name]) untitled.add(s.name);
   const need = untitled.size - fresh.length; // 没有新事件但还有没起标题的旧事件，也看一遍
   if (list.length < 2 || (!fresh.length && !need && !force)) return { ok: true, list: list.length, fresh: 0, merges: [], moved: 0 };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down', list: list.length, fresh: fresh.length };
-  const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list, untitled), maxTokens: 7000, kind: 'merge', think: true, effort: 'medium', timeout: 60_000 });
+  const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list, untitled), maxTokens: 14000, kind: 'merge', think: true, effort: 'medium', timeout: 60_000 });
   const groups = res && parseGroups(res.text, list.length);
   if (!groups) return { ok: false, error: 'no_answer', list: list.length, fresh: fresh.length };
   const merges = planMerges(list, groups);
