@@ -64,3 +64,47 @@ test('onlyNew source: matches are deleted, unique items kept, too-new items held
   assert.deepEqual(day, { seen: 3, dropped: 1, kept: 2 });
   assert.equal(st.samples[0].as, '格隆汇');
 });
+
+test('onlyNew source with Claude: AI decides same fact; same speaker saying something else is kept', async () => {
+  const { runOnce } = await import('../src/index.js');
+  const { claudeReset } = await import('../src/claude.js');
+  claudeReset();
+  const db = d1();
+  db.raw.exec('CREATE TABLE IF NOT EXISTS claude_usage (day TEXT NOT NULL, kind TEXT NOT NULL, calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, kind))');
+  const sources = [
+    { type: 'cnjson', format: 'gelonghui', name: '格隆汇', url: 'https://glh.test/' },
+    { type: 'cnjson', format: 'futu', name: '富途', onlyNew: true, url: 'https://futu.test/' },
+  ];
+  const asked = [];
+  const CLAUDE_CLIENT = {
+    messages: {
+      create: async (req) => {
+        const u = req.messages[0].content;
+        if (!/already covered/.test(req.system[0].text)) return { stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'text', text: '[]' }] };
+        asked.push(u);
+        // 假 Claude：只有“谈判内容一致”那条算同一事实
+        const items = u.split(/\n\n/).map((b) => b.split('\n')[0]);
+        const ans = Object.fromEntries(items.map((t, i) => [i + 1, /一致/.test(t) ? 'a' : 0]));
+        return { stop_reason: 'end_turn', usage: { input_tokens: 300, output_tokens: 10 }, content: [{ type: 'text', text: JSON.stringify(ans) }] };
+      },
+    },
+  };
+  const env = { DB: db, SOURCES: JSON.stringify(sources), AI_SCORING: 'false', TRANSLATE: 'false', BRIEFS: 'false', CROSS_LANGUAGE: 'false', CLAUDE_CLIENT };
+  const glh = [['g1', '格隆汇11月26日｜泰国商务部：美国拟对泰国商品征收至高18%的关税，这与此前的谈判内容一致。', T - 40 * 60_000]];
+  let futu = [];
+  globalThis.fetch = async (url) => new Response(String(url).includes('futu') ? futuJson(futu) : glhJson(glh), { status: 200 });
+  await runOnce(env, { now: T, notify: false });
+  futu = [
+    ['f1', '泰国商务部：美国拟对泰国商品征收至高18%的关税，这与此前的谈判内容一致。', T - 20 * 60_000],
+    ['f2', '泰国商务部长：力争将美国关税税率谈判至18%以下。', T - 20 * 60_000],
+    ['f3', '杰富瑞：将迪尔股份(DE.N)目标价从560美元上调至610美元。', T - 20 * 60_000],
+  ];
+  await runOnce(env, { now: T + 60_000, notify: false });
+  const ids = db.raw.prepare('SELECT id FROM items ORDER BY id').all().map((r) => r.id);
+  assert.deepEqual(ids, ['futu:f2', 'futu:f3', 'gelonghui:g1']);
+  assert.equal(asked.length, 1);
+  assert.ok(!/迪尔/.test(asked[0]), 'items with no candidate are not sent to Claude');
+  const st = JSON.parse(db.raw.prepare("SELECT v FROM meta WHERE k = 'onlynew'").get().v);
+  assert.equal(st.samples[0].by, 'ai');
+  assert.equal(db.raw.prepare("SELECT calls FROM claude_usage WHERE kind = 'dedup'").get().calls, 1);
+});

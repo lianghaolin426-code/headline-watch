@@ -7,7 +7,7 @@ import { aiScores, routinePenalty, splitTopic } from './score.js';
 import { CLAUDE_MODEL, claudeText, claudeOn, claudeUp, claudeState, claudeUsage, claudeUsd } from './claude.js';
 import { parseCnJson, parseHtmlList } from './cnfeeds.js';
 import { embed, pack, unpack, cos, isZh } from './embed.js';
-import { tokens, sameStory, confirmBoost, idfWeights } from './similar.js';
+import { tokens, tokensMixed, sameStory, confirmBoost, idfWeights } from './similar.js';
 import { notifyAll, enabledChannels } from './notify.js';
 import { pushToSubscribers, saveSubscription, removeSubscription, getSubscription, listSubscriptions, vapidKeys, sendPush, dailyCounts, SW_JS } from './webpush.js';
 import { renderPage, BUILD } from './page.js';
@@ -67,6 +67,7 @@ function config(env) {
     // 这类源本身多是转述，不算多源确认（免得同一条电讯被转一手就加分、补推）
     onlyNew: new Set(sources.filter((s) => s.onlyNew).map((s) => s.name)),
     onlyNewSameMin: Number(env.ONLY_NEW_SAME_LANG_MIN || 0.82), // 同语言（中文对中文）向量相似度达到多少算同一条
+    onlyNewAi: env.ONLY_NEW_AI !== 'false', // 有候选时让 Claude 判断是不是同一个事实；"false" 只用词和向量的规则
   };
 }
 
@@ -320,17 +321,74 @@ export function _vecCache() {
  * 跨语言互证：给新快讯求向量存起来，再和最近 2 小时“另一种语言”的快讯比相似度。
  * 校准结果：同一件事的中英文标题相似度一般在 0.65 以上，不相关的在 0.6 以下。
  */
+const SAME_FACT_SYSTEM = `You check whether a news flash is already covered by flashes from other outlets (Chinese or English).
+For each numbered item you get the item and lettered candidates. Pick the candidate that reports the SAME specific fact:
+the same statement by the same speaker, the same data point or number, or the same event update (wording and language may differ;
+a longer candidate that contains the fact counts).
+NOT the same: a different statement by the same speaker; a different line of the same data release (e.g. gasoline inventories vs gasoline production);
+a later update with new numbers; a different event of the same kind (e.g. two separate drone interceptions).
+Reply with JSON only, mapping item number to the matching letter or 0, e.g. {"1":"b","2":0}.`;
+
+/** 让 Claude 判断：每条富途快讯是不是候选里某条的同一个事实。返回 Map(快讯 → 对上的那条)；调用失败返回 null */
+async function sameFactAi(env, items) {
+  const L = 'abcde';
+  const user = items
+    .map((f, i) => `${i + 1}. ${f.title}\n` + f.cands.map((c, j) => `   ${L[j]}) [${c.source}] ${String(c.title).slice(0, 200)}`).join('\n'))
+    .join('\n\n');
+  const res = await claudeText(env, { system: SAME_FACT_SYSTEM, user, maxTokens: 20 + items.length * 12, kind: 'dedup' });
+  if (!res) return null;
+  try {
+    const j = JSON.parse((res.text.match(/\{[\s\S]*\}/) || [])[0]);
+    const out = new Map();
+    items.forEach((f, i) => {
+      const k = L.indexOf(String(j[i + 1] ?? j[String(i + 1)] ?? '0').toLowerCase());
+      if (k >= 0 && f.cands[k]) out.set(f, f.cands[k]);
+    });
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // 只补新内容的源（富途）：这一条和别的源 3 小时内已有的（或同一轮别的源的）是同一件事 → 删掉，不打分、不显示。
 // 每天的条数和最近 40 对“删掉的 ↔ 对上的”记在 meta 'onlynew'，/api/status 的 onlyNew 一栏能看到，方便抽查误删。
 async function dropKnown(env, cfg, fresh, report, now) {
   const mine = fresh.filter((f) => cfg.onlyNew.has(f.source));
   if (!mine.length) return;
   const other = (x) => !cfg.onlyNew.has(x.source);
+  // 1) 找候选：词重合（中英混排先断开）、向量相近、同一轮别的源。只挑最像的 5 条
+  const pool = [...(fresh.recent || []).filter(other), ...fresh.filter((g) => other(g) && !cfg.articles.has(g.source))];
+  for (const r of pool) r.tokM ||= tokensMixed(r.title);
+  const W = idfWeights([...pool.map((r) => r.tokM), ...mine.map((f) => (f.tokM = tokensMixed(f.title)))]);
+  const overlap = (a, b) => {
+    let i = 0, wa = 0, wb = 0;
+    for (const t of a) { wa += W(t); if (b.has(t)) i += W(t); }
+    for (const t of b) wb += W(t);
+    return i / Math.max(wa, wb, 1e-9);
+  };
+  for (const f of mine) {
+    const linked = new Set([...f.matches, ...f.freshMatches].filter(other));
+    f.cands = pool
+      .map((r) => ({ r, s: Math.max(overlap(f.tokM, r.tokM), linked.has(r) || f.xl?.has(r.id) || f.xlFresh?.has(r) ? 0.5 : 0) }))
+      .filter((x) => x.s >= 0.25)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 5)
+      .map((x) => x.r);
+  }
+  // 2) 有候选的交给 Claude 判断“是不是同一个事实”；Claude 不可用时退回规则（词或向量对上就算重复）
+  const ask = mine.filter((f) => f.cands.length);
+  const verdict = cfg.onlyNewAi && ask.length ? await sameFactAi(env, ask) : null;
   const drop = [];
   for (const f of mine) {
-    const m = f.matches.filter(other).sort((a, b) => a.ts - b.ts)[0] || f.freshMatches.find(other);
-    if (m) drop.push([f, m]);
+    if (verdict) {
+      const m = verdict.get(f);
+      if (m) drop.push([f, m, 'ai']);
+    } else {
+      const m = f.matches.filter(other).sort((a, b) => a.ts - b.ts)[0] || f.freshMatches.find(other);
+      if (m) drop.push([f, m, f.xl?.has(m.id) || f.xlFresh?.has(m) ? 'vec' : 'words']);
+    }
   }
+  report.onlyNewBy = verdict ? 'ai' : 'rules';
   if (drop.length) {
     await env.DB.batch(drop.flatMap(([f]) => [env.DB.prepare('DELETE FROM items WHERE id = ?').bind(f.id), env.DB.prepare('DELETE FROM vecs WHERE id = ?').bind(f.id)]));
     const gone = new Set(drop.map(([f]) => f));
@@ -355,7 +413,7 @@ async function onlyNewStats(env, mine, drop, now) {
   }
   for (const [f] of drop) st.days[day][f.source].dropped++;
   for (const f of mine) if (!drop.some(([x]) => x === f)) st.days[day][f.source].kept++;
-  st.samples = [...drop.map(([f, m]) => ({ at: now, src: f.source, t: f.title.slice(0, 80), as: m.source, mt: String(m.title).slice(0, 80), by: f.xl?.has(m.id) || f.xlFresh?.has(m) ? 'vec' : 'words' })), ...st.samples].slice(0, 40);
+  st.samples = [...drop.map(([f, m, by]) => ({ at: now, src: f.source, t: f.title.slice(0, 80), as: m.source, mt: String(m.title).slice(0, 80), by })), ...st.samples].slice(0, 40);
   for (const k of Object.keys(st.days).sort().slice(0, -8)) delete st.days[k];
   await metaSet(env, 'onlynew', st, now);
 }
