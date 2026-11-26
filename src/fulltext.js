@@ -164,7 +164,7 @@ export function fullTextConfig(env) {
   return {
     on: env.FULLTEXT !== 'false',
     sources: new Set(String(env.FULLTEXT_SOURCES || FT_DEFAULT).split(',').map((s) => s.trim()).filter(Boolean)),
-    max: Number(env.FULLTEXT_MAX || 4), // 一次最多新读几篇
+    max: Number(env.FULLTEXT_MAX || 6), // 一次最多新读几篇
     chars: Number(env.FULLTEXT_CHARS || 3000), // 每篇最多留多少字
     retryH: Number(env.FULLTEXT_RETRY_HOURS || 6), // 读失败的隔多久才再试
     testAt: Number(env.FULLTEXT_TEST_MINUTE ?? 200), // 每天自检从 UTC 第几分钟开始（每分钟试一个来源）；-1 关掉
@@ -200,10 +200,18 @@ export async function attachFullText(env, srcs, { fetcher = fetch, now = Date.no
   const c = fullTextConfig(env);
   const out = { got: 0, fetched: 0, failed: [] };
   if (!c.on) return out;
-  const cand = srcs
+  let cand = srcs
     .filter((s) => s.url && s.k !== 'f' && c.sources.has(s.source))
-    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || (b.score || 0) - (a.score || 0))
-    .slice(0, 10);
+    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || (b.score || 0) - (a.score || 0));
+  // 先每家来源各取一篇，再取第二篇：免得读到的全是同一家的说法
+  const seen = new Map();
+  for (const s of cand) {
+    s._round = seen.get(s.source) || 0;
+    seen.set(s.source, s._round + 1);
+  }
+  cand.sort((a, b) => a._round - b._round);
+  cand.splice(12);
+  for (const s of cand) delete s._round;
   if (!cand.length) return out;
   let rows = [];
   try {
