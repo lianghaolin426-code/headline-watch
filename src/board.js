@@ -334,10 +334,7 @@ export async function boardState(env, { now = Date.now() } = {}) {
         const q = quotes.get(t);
         if (q && q.typ > 0 && Math.abs(q.chg) >= q.typ * 2 && (!best || Math.abs(q.chg) / q.typ > best.x)) best = { t, chg: q.chg, x: r1(Math.abs(q.chg) / q.typ) };
       }
-      if (best) {
-        card.px = best;
-        if (card.st === 'flat') card.st = 'up';
-      }
+      if (best) card.px = best; // 只当作一个信号和加分项，不单凭它把一件没有新消息的事标成“在升温”
     }
     const { w, why } = weigh(card, now);
     Object.assign(card, {

@@ -59,3 +59,7 @@ CREATE TABLE IF NOT EXISTS desk_dossiers (run_id INTEGER NOT NULL, rank INTEGER 
 
 -- 按需读到的文章全文（只在用户生成档案或写稿时读，访客看不到）
 CREATE TABLE IF NOT EXISTS fulltext (id TEXT PRIMARY KEY, source TEXT, ts INTEGER NOT NULL, ok INTEGER NOT NULL, len INTEGER, via TEXT, err TEXT, text TEXT);
+
+-- 事件榜（src/board.js 首次使用时也会自动建表，这里留一份备查）
+CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'e', members TEXT, title TEXT, title_en TEXT, state TEXT NOT NULL DEFAULT 'new', state_ts INTEGER, note TEXT, seen INTEGER, created INTEGER, topic TEXT, gone INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS ev_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, ev INTEGER NOT NULL, name TEXT, act TEXT NOT NULL, note TEXT, snap TEXT);
