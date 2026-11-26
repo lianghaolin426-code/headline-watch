@@ -412,8 +412,8 @@ test('fulltext: robots rules, page text extraction, refusals', async () => {
   assert.equal(robotsAllows(rules, '/api/x'), false);
   assert.equal(robotsAllows(rules, '/api/public/x'), true);
   assert.equal(robotsAllows(rules, '/a.pdf'), false);
-  const body = '<p>' + '第一段。'.repeat(100) + '</p><p>第二段 &amp; 更多。</p><p>第三段。</p>';
-  assert.match(htmlText(`<html><nav><p>菜单</p></nav><article>${body}</article><script>x()</script></html>`), /^第一段。.*\n第二段 & 更多。\n第三段。$/s);
+  const body = '<p>' + '第一段。'.repeat(100) + '</p><p>第二段 &amp; 更多。</p><p>这是第三段。</p>';
+  assert.match(htmlText(`<html><nav><p>菜单</p></nav><article>${body}</article><script>x()</script></html>`), /^第一段。.*\n第二段 & 更多。\n这是第三段。$/s);
   const page = (status, html) => async (u) => (String(u).endsWith('/robots.txt') ? new Response('User-agent: *\nDisallow: /private/', { status: 200 }) : new Response(html, { status }));
   assert.equal((await fetchFullText({ id: 'x:1', url: 'https://a.example/p/1' }, { fetcher: page(200, `<article>${body}</article>`) })).ok, true);
   assert.equal((await fetchFullText({ id: 'x:2', url: 'https://b.example/p/1' }, { fetcher: page(403, 'no') })).error, 'refused');
@@ -444,4 +444,21 @@ test('events: story list, merge plan, alias chain', async () => {
   assert.equal(parseGroups('nothing', 3), null);
   assert.equal(resolveAlias('a', { a: { to: 'b' }, b: { to: 'c' } }), 'c');
   assert.equal(resolveAlias('x', {}), 'x');
+});
+
+test('fulltext: picks the biggest article, JSON-LD body, entities, challenge pages', async () => {
+  const { htmlText, isChallenge, plain, fetchFullText } = await import('../src/fulltext.js');
+  assert.equal(plain('It&#x27;s &copy; Reuters &amp; co&nbsp;x'), "It's © Reuters & co x");
+  const long = 'The central bank said on Thursday that it would keep rates unchanged for now. '.repeat(6);
+  const html = `<article><p>Teaser card</p></article><div>Sign In</div><article><p>Search Result</p><p>${long}</p><p>${long}</p><p>Share</p></article>`;
+  const t = htmlText(html);
+  assert.ok(t.startsWith('The central bank') && !/Teaser|Search Result|Share$/.test(t));
+  const ld = `<script type="application/ld+json">{"@type":"NewsArticle","articleBody":"${'Saudi Aramco said it would raise output. '.repeat(10)}\\nSecond line."}</script><p>x</p>`;
+  assert.match(htmlText(ld), /^Saudi Aramco said[\s\S]*Second line\.$/);
+  const waf = '<html><title>Document</title><body><noscript>请启用 JavaScript</noscript><script>document.cookie="wafToken=1"</script></body></html>';
+  assert.equal(isChallenge(waf), true);
+  assert.equal(isChallenge(html), false);
+  const f = async (u) => (String(u).endsWith('/robots.txt') ? new Response('', { status: 200 }) : new Response(waf, { status: 200 }));
+  const r = await fetchFullText({ id: 'x:9', url: 'https://w.example/post/1' }, { fetcher: f });
+  assert.equal(r.error, 'refused');
 });

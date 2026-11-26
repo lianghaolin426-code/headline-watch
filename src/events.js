@@ -30,7 +30,10 @@ Different events (keep apart):
 - two separate actions about the same company, person or theme (Nvidia halts chip deliveries to Southeast Asia vs Jensen Huang returns as CEO; an FCC licence for SpaceX vs Musk giving SpaceX shares to children);
 - the same kind of thing happening to different subjects with no common trigger (two unrelated central bank decisions);
 - a general theme or market wrap and a specific event inside it.
+- two things that merely share a word, an agency or a person (a judge blocking an FCC review vs another judge blocking a birthright order; a politician's stock trades in a company vs that company's export halt).
 When unsure, keep them apart.
+
+Put an action and ALL of its responses in ONE group, not several: if a tariff plan drew protests from four countries, that is one group of five or more lines, not pairs. Before answering, check each group: could one newspaper article with one headline cover every line in it? If not, split it or drop the odd line.
 
 Reply with JSON only: {"groups": [[numbers of one event], ...]}. List only groups of two or more lines; every number at most once; {"groups": []} when nothing should merge.`;
 
@@ -77,14 +80,22 @@ export function storyList(rows) {
 }
 
 /** 两件事有没有一点共同之处（同话题、同股票，或名字和样例标题里有共同的词）。模型说要并、这里却一点都对不上的，不并 */
-export function plausible(a, b) {
+export function plausible(a, b, common = () => false) {
   if (a.topic && topicKey(a.topic) === topicKey(b.topic) && !/^(other|market|markets|stocks|economy)$/.test(topicKey(a.topic))) return true;
   if (a.tickers.some((t) => b.tickers.includes(t))) return true;
   const ga = grams(a.name + ' ' + a.sample);
   const gb = grams(b.name + ' ' + b.sample);
   let n = 0;
-  for (const g of ga) if (gb.has(g)) n++;
+  // 清单里到处都是的词（特朗普、法官、关税）不算共同之处
+  for (const g of ga) if (gb.has(g) && !common(g)) n++;
   return n >= 2;
+}
+
+/** 清单里出现在 5 件以上事件中的词算“到处都是” */
+export function commonGrams(list) {
+  const df = new Map();
+  for (const s of list) for (const g of grams(s.name + ' ' + s.sample)) df.set(g, (df.get(g) || 0) + 1);
+  return (g) => (df.get(g) || 0) >= 5;
 }
 
 const bj = (ts) => new Date(ts + 8 * H).toISOString().slice(5, 16).replace('T', ' ');
@@ -125,10 +136,11 @@ export function parseGroups(text, n) {
  */
 export function planMerges(list, groups) {
   const out = [];
+  const common = commonGrams(list);
   for (const g of groups) {
     const items = g.map((i) => list[i]);
-    const canon = items.slice().sort((a, b) => b.n - a.n || a.first - b.first)[0];
-    const aliases = items.filter((s) => s !== canon && plausible(canon, s)).map((s) => s.name);
+    const canon = items.slice().sort((a, b) => b.n - a.n || b.max - a.max || a.first - b.first)[0];
+    const aliases = items.filter((s) => s !== canon && plausible(canon, s, common)).map((s) => s.name);
     if (aliases.length) out.push({ canon: canon.name, aliases });
   }
   return out;
@@ -170,7 +182,7 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
   const fresh = list.filter((s) => !seen[s.name]);
   if (list.length < 2 || (!fresh.length && !force)) return { ok: true, list: list.length, fresh: 0, merges: [], moved: 0 };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down', list: list.length, fresh: fresh.length };
-  const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list), maxTokens: 700, kind: 'merge', timeout: 25_000 });
+  const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list), maxTokens: 5000, kind: 'merge', think: true, effort: 'medium', timeout: 60_000 });
   const groups = res && parseGroups(res.text, list.length);
   if (!groups) return { ok: false, error: 'no_answer', list: list.length, fresh: fresh.length };
   const merges = planMerges(list, groups);

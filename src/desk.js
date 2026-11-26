@@ -7,6 +7,7 @@
 // 读者设定：交易美股或沙特股的人（不一定是沙特人）（只涉及其中一个市场的事也可以入选）；app 里的文章用英语，每天 1 到 2 篇。
 
 import { claudeText, claudeUp, claudeUsd, claudeState } from './claude.js';
+import { storyAlias, resolveAlias } from './events.js';
 import { bjTime, eventKeys } from './brief.js';
 import { metaGet, metaSet } from './dbguard.js';
 
@@ -595,7 +596,9 @@ async function topicItems(env, t, c, now) {
   const ids = (t.ids || []).slice(0, 40);
   if (ids.length) add((await env.DB.prepare(`SELECT ${cols} FROM items WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all()).results);
   // 同一事件下、选题会之后新来的报道也带上
-  const stories = (t.stories || []).slice(0, 8);
+  // 选题会之后被并进别的事件的名字：换成并入的那件
+  const alias = await storyAlias(env, now).catch(() => ({}));
+  const stories = [...new Set((t.stories || []).slice(0, 8).map((x) => resolveAlias(x, alias)))];
   if (stories.length) {
     add(
       (

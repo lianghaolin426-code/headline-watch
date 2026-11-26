@@ -50,25 +50,69 @@ async function robotsFor(origin, fetcher, now) {
   return rules;
 }
 
-/** 从文章网页里取正文：去掉脚本、样式、导航，取 <article> 或段落最多的那一块 */
-export function htmlText(html) {
-  let s = String(html || '').replace(/<(script|style|noscript|svg|nav|header|footer|aside)\b[\s\S]*?<\/\1>/gi, ' ');
-  const art = s.match(/<article\b[\s\S]*?<\/article>/i);
-  if (art) s = art[0];
-  const ps = [...s.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => m[1]);
-  const text = (ps.length >= 3 ? ps.join('\n') : s)
+const NAMED = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", copy: '©', reg: '®', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', mdash: '—', ndash: '–', hellip: '…', middot: '·' };
+/** 去标签、解开 &amp; &#x27; 这类写法、收拾空白 */
+export function plain(html) {
+  return String(html || '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16) || 32))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n) || 32))
+    .replace(/&([a-z]+);/gi, (m, n) => NAMED[n.toLowerCase()] ?? m)
     .replace(/[ \t　]+/g, ' ')
-    .replace(/\n\s*\n+/g, '\n')
+    .replace(/ ?\n\s*\n*/g, '\n')
     .trim();
-  return text;
+}
+
+const paras = (html) => [...String(html).matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => plain(m[1])).filter(Boolean);
+// 一段像不像正文：够长，或者是一句完整的话；“Sign In”“首页 > 快讯”这类页面零件不算
+const prose = (t) => t.length >= 40 || (t.length >= 6 && /[。.!?！？”"]$/.test(t));
+
+/**
+ * 从文章网页里取正文。依次试：
+ * 1 网页自带的结构化数据（JSON-LD 的 articleBody），最干净；
+ * 2 文字最多的那个 <article>（有的网页第一个 <article> 只是推荐卡片）里的段落；
+ * 3 整页里像正文的段落（去掉导航、页头页脚之后）。
+ * 取到的段落里，开头结尾那些不像正文的短句（登录、面包屑、版权）去掉。
+ */
+export function htmlText(html) {
+  const src = String(html || '');
+  for (const m of src.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    const b = m[1].match(/"articleBody"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (!b) continue;
+    try {
+      const t = plain(JSON.parse('"' + b[1] + '"'));
+      if (t.length >= 300) return t;
+    } catch {}
+  }
+  const s = src.replace(/<(script|style|noscript|svg|nav|header|footer|aside|form)\b[\s\S]*?<\/\1>/gi, ' ');
+  const trim = (ps) => {
+    let a = 0;
+    let b = ps.length;
+    while (a < b && !prose(ps[a])) a++;
+    while (b > a && !prose(ps[b - 1])) b--;
+    return ps.slice(a, b);
+  };
+  let best = [];
+  const size = (ps) => ps.reduce((n, t) => n + t.length, 0);
+  for (const m of s.matchAll(/<article\b[\s\S]*?<\/article>/gi)) {
+    const ps = trim(paras(m[0]));
+    if (size(ps) > size(best)) best = ps;
+  }
+  if (size(best) < 300) {
+    const ps = trim(paras(s).filter(prose));
+    if (size(ps) > size(best)) best = ps;
+  }
+  if (best.length >= 2 || size(best) >= 300) return best.join('\n');
+  // 没有分段的网页（少见）：退回去掉标签后的全部文字
+  const art = s.match(/<article\b[\s\S]*?<\/article>/i);
+  return plain(art ? art[0] : s);
+}
+
+/** 网页是不是“请先通过浏览器验证”的拦截页（返回 200 但没有正文）。这种算被拒绝，不去跑它的脚本 */
+export function isChallenge(html) {
+  const h = String(html || '');
+  return h.length < 60_000 && /wafToken|请启用\s*JavaScript|enable JavaScript and cookies|cf-challenge|challenge-platform|captcha-delivery|Just a moment\.\.\./i.test(h) && plain(h.replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/gi, ' ')).length < 400;
 }
 
 /**
@@ -100,8 +144,9 @@ export async function fetchFullText(item, { fetcher = fetch, now = Date.now() } 
     if ([401, 403, 429].includes(r.status)) return { ok: false, error: 'refused', status: r.status };
     if (!r.ok) return { ok: false, error: 'http', status: r.status };
     const html = await r.text();
+    if (isChallenge(html)) return { ok: false, error: 'refused', status: r.status, why: 'challenge' };
     const text = htmlText(html);
-    return text.length >= 300 ? { ok: true, via: 'page', len: text.length, text } : { ok: false, error: 'short', len: text.length, htmlLen: html.length, title: (html.match(/<title[^>]*>([^<]*)/i) || [])[1] };
+    return text.length >= 300 ? { ok: true, via: 'page', len: text.length, text } : { ok: false, error: 'short', len: text.length, htmlLen: html.length, title: (html.match(/<title[^>]*>([^<]*)/i) || [])[1], shape: { article: (html.match(/<article\b/gi) || []).length, p: (html.match(/<p\b/gi) || []).length, ld: /articleBody/.test(html), next: /__NEXT_DATA__|__NUXT__|window\.__INITIAL/.test(html) } };
   } catch (e) {
     return { ok: false, error: 'fetch', detail: String(e?.message || e).slice(0, 120) };
   }
