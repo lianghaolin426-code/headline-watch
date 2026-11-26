@@ -15,6 +15,7 @@ import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
 import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource } from './desk.js';
+import { fetchFullText } from './fulltext.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -1252,6 +1253,21 @@ const app = {
         // 一个选题的全部资料（含用户贴进来的全文），只有带管理密码才给
         if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
         return json(await deskPack(env, { run: url.searchParams.get('run'), rank: url.searchParams.get('rank') }));
+      }
+
+      case '/api/desk/fulltext': {
+        // 试验：看某个来源的文章正文能不能正常读到。只给管理员，一次最多试 4 篇，只回长度和开头，不入库
+        if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        const src = url.searchParams.get('source') || '';
+        const n = Math.min(4, Number(url.searchParams.get('n')) || 3);
+        const rows = (await env.DB.prepare('SELECT id, source, title, url FROM items WHERE source = ? AND url IS NOT NULL ORDER BY ts DESC LIMIT ?').bind(src, n).all()).results;
+        const out = [];
+        for (const it of rows) {
+          const r = await fetchFullText(it);
+          out.push({ id: it.id, title: String(it.title || '').slice(0, 60), ...r, text: r.text ? r.text.slice(0, 160) : undefined, tail: r.text ? r.text.slice(-80) : undefined });
+          await new Promise((res) => setTimeout(res, 800));
+        }
+        return json({ ok: true, source: src, results: out });
       }
 
       case '/api/desk/quotes': {
