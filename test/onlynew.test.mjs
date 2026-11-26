@@ -123,3 +123,25 @@ test('Futu articles: skips sources we already fetch, keeps the original outlet i
   assert.equal(items[0].url, 'https://news.futunn.com/post/2/b');
   assert.equal(items[0].ts, 1795641000000);
 });
+
+test('futuSummaries: adds Futu public abstract to article body, tolerates failures', async () => {
+  const { futuSummaries } = await import('../src/index.js');
+  const orig = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (u, opt) => {
+    seen.push([String(u), opt?.headers?.['User-Agent']]);
+    if (String(u).includes('id=2')) return new Response(JSON.stringify({ code: 0, data: { info: { abstract: '①流动性周期已见顶； ②市场或已步入熊市' } } }));
+    throw new Error('network');
+  };
+  try {
+    const a = { id: 'futuArticle:2', body: '来源：财联社' };
+    const b = { id: 'futuArticle:3', body: '来源：金十数据' };
+    await futuSummaries([a, b]);
+    assert.equal(a.body, '来源：财联社 · ①流动性周期已见顶； ②市场或已步入熊市');
+    assert.equal(b.body, '来源：金十数据');
+    assert.ok(seen[0][0].startsWith('https://news.futunn.com/news-site-api/detail/get-post-info?id='));
+    assert.match(seen[0][1], /^HeadlineWatch\//);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});

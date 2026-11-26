@@ -624,6 +624,26 @@ export async function claudeRelate(env, a, cands) {
   }
 }
 
+// 富途文章摘要：news-site-api/detail/get-post-info?id=N（公开接口，robots.txt 全部允许，不带 cookie）。
+// 拿不到就保持原样，不影响入库
+export async function futuSummaries(list) {
+  await Promise.all(list.map(async (it) => {
+    const id = String(it.id).split(':').pop();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5_000);
+    try {
+      const r = await fetch(`https://news.futunn.com/news-site-api/detail/get-post-info?id=${encodeURIComponent(id)}`, { headers: { 'User-Agent': HONEST_UA, Accept: 'application/json' }, signal: ctrl.signal });
+      if (!r.ok) return;
+      const a = String((await r.json())?.data?.info?.abstract || '').replace(/\s+/g, ' ').trim();
+      if (a && !String(it.body || '').includes(a.slice(0, 20))) it.body = [it.body, a].filter(Boolean).join(' · ').slice(0, 500);
+    } catch {
+      // 摘要只是锦上添花
+    } finally {
+      clearTimeout(timer);
+    }
+  }));
+}
+
 async function fetchSource(src, env = {}) {
   const url = src.type === 'telegram' ? `${src.base || 'https://t.me/s/'}${src.channel}` : src.url;
   const ctrl = new AbortController();
@@ -759,6 +779,9 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       prev = new Set();
     }
     const todo = items.filter((it) => !prev.has(it.id));
+    // 富途文章：列表里没有导语，给新出现的几篇补上富途公开的摘要接口（①②③要点，60-200 字）。
+    // 正文页有网页防护（要先在浏览器里跑验证脚本），按约定不绕过，所以不取正文
+    if (src.format === 'futuArticle' && todo.length && !inputs) await futuSummaries(todo.slice(0, src.summaryMax ?? 4));
     if (todo.length) {
       const stmts = todo.map((it) => {
         enrich(it, cfg);
