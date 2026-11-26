@@ -16,6 +16,7 @@ import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
 import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource } from './desk.js';
 import { fetchFullText } from './fulltext.js';
+import { mergeStories, mergeConfig, storyAlias, resolveAlias } from './events.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -203,6 +204,9 @@ async function scoreItems(env, cfg, list, report) {
       const storied = cfg.stories ? tagged.filter((it) => it.tags.story && ((it.score || 0) >= 5 || (it.pick || 0) >= 6 || (it.tags.hook || 0) >= 2)) : [];
       if (storied.length) {
         try {
+          // 已经并进别的事件的旧名字：换成并入的那件
+          const alias = await storyAlias(env).catch(() => ({}));
+          for (const it of storied) it.tags.story = resolveAlias(it.tags.story, alias);
           await env.DB.batch(storied.map((it) => env.DB.prepare('UPDATE items SET story = ? WHERE id = ?').bind(it.tags.story, it.id)));
           storied.forEach((it) => freshStories.set(it.tags.story, Date.now()));
         } catch (e) {
@@ -989,6 +993,17 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
     }
   }
 
+  // 事件归并：每隔几分钟把名字不同、其实是同一件事的事件并起来（没有新事件时只读一次库，不调模型）
+  if (!inputs && level !== 'critical' && mergeConfig(env).on && minute % mergeConfig(env).everyMin === 6) {
+    try {
+      const m = await mergeStories(env, { now });
+      if (m.merges?.length) report.merged = m.merges.map((x) => `${x.aliases.join(' + ')} → ${x.canon}`);
+      else if (!m.ok) report.errors.push(`merge: ${m.error}`);
+    } catch (e) {
+      report.errors.push(`merge: ${e?.message || e}`);
+    }
+  }
+
   // 统计磁贴用的每小时条数：每 10 分钟更新一次（网页读的是存好的结果，不再每次扫 7 天）
   if (!inputs && level !== 'critical' && minute % 10 === 3) {
     try {
@@ -1291,6 +1306,12 @@ const app = {
           await new Promise((res) => setTimeout(res, 800));
         }
         return json({ ok: true, source: src, results: out });
+      }
+
+      case '/api/events/merge': {
+        // 管理用：看一遍事件归并。默认只看打算怎么并（不改库）；带 apply=1 才真的并
+        if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        return json(await mergeStories(env, { dry: url.searchParams.get('apply') !== '1', force: true }));
       }
 
       case '/api/desk/quotes': {
