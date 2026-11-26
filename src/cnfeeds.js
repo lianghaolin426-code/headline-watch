@@ -41,6 +41,8 @@ function toMs(v) {
   return Date.parse(v);
 }
 
+const FUTU_SKIP = new Set(['华尔街见闻', '格隆汇', '快讯']);
+
 const URLS = {
   cls: (o) => o.shareurl || `https://www.cls.cn/detail/${o.id}`,
   wscn: (o) => o.uri || `https://wallstreetcn.com/livenews/${o.id}`,
@@ -48,6 +50,7 @@ const URLS = {
   gelonghui: (o) => (o.route ? new URL(o.route, 'https://www.gelonghui.com').href : `https://www.gelonghui.com/live/${o.id}`),
   jin10: (o) => `https://flash.jin10.com/detail/${o.id}`,
   futu: (o) => o.detailUrl || `https://news.futunn.com/flash/${o.id}`,
+  futuArticle: (o) => o.uri || `https://news.futunn.com/post/${o.id}`,
 };
 
 export function parseCnJson(text, sourceName, format) {
@@ -65,6 +68,12 @@ export function parseCnJson(text, sourceName, format) {
     if (o && o.resource && typeof o.resource === 'object') {
       if (o.resource_type !== 'article') continue;
       o = o.resource;
+    }
+    // 富途“要闻”文章列表：转载自各家（财联社、金十、智通、券商研究、富途自己的早报等）。
+    // 华尔街见闻和格隆汇的文章我们直接抓了，“快讯”就是快讯栏目的重复，这三类跳过；原出处写进正文开头
+    if (format === 'futuArticle') {
+      if (!o || FUTU_SKIP.has(String(o.source || '').trim())) continue;
+      o = { id: o.newsId, title: o.title, content: [o.source ? `来源：${String(o.source).trim()}` : '', o.abstract || ''].filter(Boolean).join(' · '), ctime: o.timestamp, uri: o.url };
     }
     if (!o || o.id == null) continue;
     // content_short：华尔街见闻文章接口公开给出的导语（约 150 字；正文不在这个接口里）

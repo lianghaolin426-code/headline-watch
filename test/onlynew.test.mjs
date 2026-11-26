@@ -108,3 +108,18 @@ test('onlyNew source with Claude: AI decides same fact; same speaker saying some
   assert.equal(st.samples[0].by, 'ai');
   assert.equal(db.raw.prepare("SELECT calls FROM claude_usage WHERE kind = 'dedup'").get().calls, 1);
 });
+
+test('Futu articles: skips sources we already fetch, keeps the original outlet in the body', async () => {
+  const { parseCnJson } = await import('../src/cnfeeds.js');
+  const json = JSON.stringify({ code: 0, data: { seqMark: 'x', hasMore: true, list: [
+    { newsId: '1', title: '“大空头”Burry转多\n', timestamp: '1795641600', source: '华尔街见闻', url: 'https://news.futunn.com/post/1/a', abstract: '' },
+    { newsId: '2', title: 'SpaceX被曝下调Blackwell GPU租金最高约35%', timestamp: '1795641000', source: '财联社', url: 'https://news.futunn.com/post/2/b', abstract: '' },
+    { newsId: '3', title: '美股收盘：道指翻红', timestamp: '1795640000', source: '快讯', url: 'https://news.futunn.com/post/3/c', abstract: '' },
+  ] } });
+  const items = parseCnJson(json, '富途文章', 'futuArticle');
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, 'futuArticle:2');
+  assert.equal(items[0].body, '来源：财联社');
+  assert.equal(items[0].url, 'https://news.futunn.com/post/2/b');
+  assert.equal(items[0].ts, 1795641000000);
+});

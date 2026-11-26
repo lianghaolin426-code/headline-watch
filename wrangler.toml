@@ -44,6 +44,7 @@ SOURCES = '''
   {"type": "cnjson", "format": "wscn", "name": "华尔街见闻", "focus": true, "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives?channel=global-channel&limit=30"},
   {"type": "cnjson", "format": "wscnArticle", "kind": "article", "name": "华尔街见闻文章", "focus": true, "every": 3, "url": "https://api-one-wscn.awtmt.com/apiv1/content/information-flow?channel=global-channel&accept=article&limit=30"},
   {"type": "htmllist", "format": "glhpost", "kind": "article", "name": "格隆汇文章", "focus": true, "every": 5, "link": "gelonghui\\.com/p/(\\d+)|^/p/(\\d+)", "url": "https://www.gelonghui.com/"},
+  {"type": "cnjson", "format": "futuArticle", "kind": "article", "name": "富途文章", "focus": true, "honestUa": true, "every": 5, "url": "https://news.futunn.com/news-site-api/main/get-market-list?size=50"},
   {"type": "cnjson", "format": "futu", "name": "富途", "focus": true, "onlyNew": true, "honestUa": true, "every": 2, "url": "https://news.futunn.com/news-site-api/main/get-flash-list?pageSize=50"},
   {"type": "cnjson", "format": "gelonghui", "name": "格隆汇", "focus": true, "url": "https://www.gelonghui.com/api/live-channels/all/lives/v4?category=all&limit=30"},
   {"type": "rss", "name": "Argaam", "tzHours": 3, "url": "https://www.argaam.com/en/rss/ho-main-news?sectionid=1524"},
