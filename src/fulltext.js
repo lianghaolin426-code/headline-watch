@@ -1,6 +1,8 @@
 // 文章全文（试验）：按需、一篇一篇地读公开网页上的正文，给写档案和写稿当材料用。
 // 守规矩：如实报上自己的身份，先看 robots.txt，被拒或要付费就停，不伪装浏览器、不带 cookie、不走代理。
 
+import { countedAs } from './origin.js';
+
 const UA = 'headline-watch/1.0 (private news dashboard)';
 const robotsMem = new Map(); // origin -> { at, rules }
 
@@ -206,8 +208,10 @@ export async function attachFullText(env, srcs, { fetcher = fetch, now = Date.no
   // 先每家来源各取一篇，再取第二篇：免得读到的全是同一家的说法
   const seen = new Map();
   for (const s of cand) {
-    s._round = seen.get(s.source) || 0;
-    seen.set(s.source, s._round + 1);
+    // 转述别家的（“据彭博社报道”）记在最初那家名下：三家都在转同一篇，读一篇就够
+    const who = countedAs(s);
+    s._round = seen.get(who) || 0;
+    seen.set(who, s._round + 1);
   }
   cand.sort((a, b) => a._round - b._round);
   cand.splice(12);

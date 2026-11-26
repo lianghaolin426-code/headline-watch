@@ -17,6 +17,8 @@ import { runBriefs, listBriefs, isBig } from './brief.js';
 import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource, deskPaste } from './desk.js';
 import { fetchFullText, fullTextSelfTest } from './fulltext.js';
 import { mergeStories, mergeConfig, storyAlias, resolveAlias } from './events.js';
+import { boardState, boardPublic, eventDetail, evAct } from './board.js';
+import { fullTextConfig } from './fulltext.js';
 import { pageable, fetchPage, rawPage } from './backfill.js';
 import { guard, flushReads, budget, cached, ensureSchema, dbBlocked, noteDbError, readsStatus, metaGet, metaSet, cacheSet, LEVELS } from './dbguard.js';
 
@@ -999,7 +1001,7 @@ export async function runOnce(env, { now = Date.now(), notify = true, inputs = n
       const d = await deskCron(env, { now, articles: cfg.articles });
       if (d) {
         report.desk = d.ok ? { topics: d.run.topics.length, usd: d.run.usd } : { error: d.error };
-        if (d.ok) await cacheSet('desk', await deskState(env));
+        if (d.ok) await cacheSet('desk', await boardState(env));
       }
     } catch (e) {
       report.errors.push(`desk: ${e?.message || e}`);
@@ -1179,7 +1181,7 @@ async function bootData(env) {
     listItems(env, { limit: 400 }),
     cached('stats', 120_000, () => statsData(env)).catch(() => null),
     cached('briefs', 60_000, async () => ({ briefs: await listBriefs(env) })).then((d) => d.briefs).catch(() => null),
-    cached('desk', 60_000, () => deskState(env)).then(deskPublic).catch(() => null),
+    cached('desk', 90_000, () => boardState(env)).then(boardPublic).catch(() => null),
   ]);
   let contig = 0;
   if (items.length >= 400) {
@@ -1306,8 +1308,31 @@ const app = {
       case '/api/desk': {
         // 选题台：最新一场选题会、用户的选择、已生成的档案
         // 没发表的稿子、档案、已写记录只给带管理密码的请求；访客只看得到选题榜本身
-        const full = await cached('desk', await ttl(env, 60_000), () => deskState(env));
-        return json(env.ADMIN_KEY && req.headers.get('X-HW-Admin') === env.ADMIN_KEY ? full : deskPublic(full));
+        const full = await cached('desk', await ttl(env, 90_000), () => boardState(env));
+        return json(env.ADMIN_KEY && req.headers.get('X-HW-Admin') === env.ADMIN_KEY ? full : boardPublic(full));
+      }
+
+      case '/api/ev': {
+        // 一件事的全部消息（事件页的时间线）。访客也能看；全文读到没有、上次看到哪里只给管理员
+        const admin = !!env.ADMIN_KEY && req.headers.get('X-HW-Admin') === env.ADMIN_KEY;
+        const id = Number(url.searchParams.get('id')) || 0;
+        if (admin) return json(await eventDetail(env, { id, admin: true, ftSources: fullTextConfig(env).sources }));
+        return json(await cached('ev:' + id, await ttl(env, 120_000), () => eventDetail(env, { id })));
+      }
+
+      case '/api/ev/act': {
+        // 改一件事的状态、把一条消息移出事件、标记看过：只有带管理密码才行，都不花钱
+        if (req.method !== 'POST') return new Response('POST only', { status: 405 });
+        if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
+        let b = {};
+        try {
+          b = await req.json();
+        } catch {}
+        const r = await evAct(env, { id: b.id, act: b.act, state: b.state, note: b.note, item: b.item, snap: b.snap && typeof b.snap === 'object' ? b.snap : null });
+        if (r.quiet) return json(r);
+        const st = await boardState(env);
+        await cacheSet('desk', st);
+        return json({ ...r, desk: st }, r.ok ? 200 : 400);
       }
 
       case '/api/desk/pack': {
@@ -1340,7 +1365,14 @@ const app = {
       case '/api/desk/quotes': {
         // 参考价只供内部看（数据源条款）：只有带管理密码才给。也用来让网页确认管理密码对不对
         if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'admin' }, 403);
-        return json({ admin: true, ...(await deskQuotes(env)) });
+        // 要哪些股票：榜上靠前的事件里出现的（用缓存里的榜，不为这个重算）
+        let extra = null;
+        try {
+          const bd = await cached('desk', await ttl(env, 90_000), () => boardState(env));
+          extra = [];
+          for (const t of (bd?.run?.topics || []).slice(0, 14)) for (const k of t.tickers || []) if (!extra.includes(k)) extra.push(k);
+        } catch {}
+        return json({ admin: true, ...(await deskQuotes(env, { extra })) });
       }
 
       case '/api/desk/run':
@@ -1372,7 +1404,7 @@ const app = {
           r = wait > 0 && url.searchParams.get('force') !== '1' ? { ok: false, error: 'too_soon', wait_min: Math.ceil(wait / 60_000) } : await runDesk(env, { now, slot: 'manual', articles: config(env).articles });
           if (r.run) delete r.run;
         }
-        const st = await deskState(env);
+        const st = await boardState(env);
         await cacheSet('desk', st);
         return json({ ...r, desk: st }, r.ok ? 200 : r.error === 'no_topic' || r.error === 'bad_verdict' || r.error === 'paste_short' || r.error === 'title_short' ? 400 : 200);
       }

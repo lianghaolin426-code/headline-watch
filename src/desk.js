@@ -11,6 +11,8 @@ import { storyAlias, resolveAlias } from './events.js';
 import { attachFullText } from './fulltext.js';
 import { bjTime, eventKeys } from './brief.js';
 import { metaGet, metaSet } from './dbguard.js';
+import { eventTopic, evDrafted, applyDeskRun } from './board.js';
+import { countedAs, originOf } from './origin.js';
 
 const H = 3_600_000;
 
@@ -366,6 +368,9 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
   try {
     if (prev[0] && id) await carryOver(env, prev[0], id, topics);
   } catch {}
+  try {
+    if (id) await applyDeskRun(env, { id, topics }, { now });
+  } catch {}
   return { ok: true, run: { id, ts: now, slot, n: rows.length, topics, usd, mood } };
 }
 
@@ -493,6 +498,17 @@ export function deskPublic(st) {
   return { ...st, run, picks, dossiers: {}, drafts: {}, pasted: {}, written: [], follow: {}, sources: [], cost: undefined, fulltext: undefined, guest: true };
 }
 
+/** 取出一个选题：run = 0 时是事件榜上的一件事（rank = 事件编号），否则是某一场选题会里的第几个。返回 { r: { id }, t } 或 null */
+async function topicOf(env, run, rank, now) {
+  if (Number(run) === 0) {
+    const t = await eventTopic(env, rank, now);
+    return t ? { r: { id: 0, ts: now }, t } : null;
+  }
+  const r = (await env.DB.prepare('SELECT id, ts, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
+  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  return t ? { r, t } : null;
+}
+
 /** 记下用户的选择：pick = 就写这个，pass = 这个不对，clear = 撤销 */
 export async function deskPick(env, { run, rank, verdict, note = '', now = Date.now() }) {
   if (!['pick', 'pass', 'clear', 'fu_yes', 'fu_no', 'fu_clear'].includes(verdict)) return { ok: false, error: 'bad_verdict' };
@@ -514,7 +530,7 @@ export const DOSSIER_SYSTEM = `你是一家财经 app 的资深编辑。读者�
 1. 事实、数字、引语只能来自材料里明确写出的内容。材料大多是中文转述：英文部分只有当英文原话出现在材料或用户贴入的全文里时才能加引号，其余一律转述，不要把中文转述翻回英文再加引号。不准补充任何你自己知道的背景、数字、人物身份、历史对比。材料没说的，就不写。
 2. 除"为什么重要"里的推断、"还不知道什么"和"可以怎么写"之外，每一句话结尾都用方括号标来源编号，如 [S3] 或 [S3][P1]。一句话里的每个事实都要能在所标来源里找到。
 3. 〔仅标题〕的材料只能支持标题字面上说的那一点，不能从标题推出细节。评论、分析文章的标题只是作者观点，要写成"某某文章认为……"。
-4. "据某某报道""知情人士称"这类未经证实的消息，保留消息来源的措辞，不写成既成事实。来源之间数字不一致时写明分歧并分别标注。
+4. "据某某报道""知情人士称"这类未经证实的消息，保留消息来源的措辞，不写成既成事实。标了“转述 X 的报道”的材料，说法算 X 的，不算转述它的那家媒体的；几条材料转述的是同一家的同一篇报道时，只算一个来源，不能当成互相印证。来源之间数字不一致时写明分歧并分别标注。
 5. 观点要写明是谁的观点。档案本身不给投资建议、不预测涨跌。
 6. 你自己的分析只允许出现在"为什么重要"里，并且每一句都以"推断："开头，推断必须建立在前面已标注来源的事实上。
 7. 材料里混进了和这个选题无关的消息，忽略它们。
@@ -563,12 +579,12 @@ export function dossierSources(items, arts, max) {
   }
   list.sort((a, b) => a.ts - b.ts);
   const all = [...list.map((i) => ({ ...i, art: false })), ...arts.slice(0, 10).map((a) => ({ ...a, art: true }))];
-  return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: bodyOf(i), ts: i.ts, url: i.url, score: i.score, k: thickness(i), art: i.art }));
+  return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: bodyOf(i), ts: i.ts, url: i.url, score: i.score, k: thickness(i), art: i.art, from: originOf(i) || undefined }));
 }
 
 export function dossierText(srcs, pasted) {
   const a = srcs.map((s) => {
-    const head = `[S${s.n}] ${bjTime(s.ts)} | ${s.source}${s.art ? '（深度文章）' : ''} | 〔${THICK[s.k]}〕${s.score != null && !s.art ? ` | ${Math.round(s.score * 10) / 10}分` : ''} | ${s.title}`;
+    const head = `[S${s.n}] ${bjTime(s.ts)} | ${s.source}${s.from ? '（转述 ' + s.from + ' 的报道）' : ''}${s.art ? '（深度文章）' : ''} | 〔${THICK[s.k]}〕${s.score != null && !s.art ? ` | ${Math.round(s.score * 10) / 10}分` : ''} | ${s.title}`;
     return s.k === 'h' ? head : `${head}\n    ${s.body.slice(0, s.full ? 3200 : 1800)}`;
   });
   const b = pasted.map((p, k) => `[P${k + 1}] 主编贴进来的全文 | 〔正文〕 | ${p.label || '未注明出处'}\n    ${p.text}`);
@@ -645,8 +661,7 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
   const c = deskConfig(env);
   if (!c.on) return { ok: false, error: 'off' };
   await ensureTables(env);
-  const r = (await env.DB.prepare('SELECT id, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
-  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  const { r, t } = (await topicOf(env, run, rank, now)) || {};
   if (!t) return { ok: false, error: 'no_topic' };
   const old = (await env.DB.prepare('SELECT * FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0] || null;
   const pasted = safeJson(old?.pasted, []);
@@ -671,7 +686,7 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
   const out = tidyDossier(res.text, srcs.length, pasted.length);
   if (!out) return { ok: false, error: 'parse' };
   const usd = claudeUsd(res.usage.input, res.usage.output);
-  const map = srcs.map((s) => ({ n: s.n, id: s.id, src: s.source, ts: s.ts, url: s.url, t: s.title.slice(0, 140), k: s.k, art: s.art || undefined }));
+  const map = srcs.map((s) => ({ n: s.n, id: s.id, src: s.source, ts: s.ts, url: s.url, t: s.title.slice(0, 140), k: s.k, art: s.art || undefined, from: s.from, full: s.full || undefined }));
   await env.DB.prepare(
     `INSERT INTO desk_dossiers (run_id, rank, title, body, srcs, pasted, created, updated, writes, usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
      ON CONFLICT(run_id, rank) DO UPDATE SET title = excluded.title, body = excluded.body, srcs = excluded.srcs, pasted = excluded.pasted, updated = excluded.updated, writes = writes + 1, usd = COALESCE(usd, 0) + excluded.usd`
@@ -688,8 +703,7 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
 export async function deskPaste(env, { run, rank, paste = null, drop = null, now = Date.now() }) {
   const c = deskConfig(env);
   await ensureTables(env);
-  const r = (await env.DB.prepare('SELECT id, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
-  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  const { r, t } = (await topicOf(env, run, rank, now)) || {};
   if (!t) return { ok: false, error: 'no_topic' };
   const old = (await env.DB.prepare('SELECT pasted FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0] || null;
   const pasted = safeJson(old?.pasted, []);
@@ -712,8 +726,7 @@ export async function deskPaste(env, { run, rank, paste = null, drop = null, now
 export async function deskPack(env, { run, rank, now = Date.now() }) {
   const c = deskConfig(env);
   await ensureTables(env);
-  const r = (await env.DB.prepare('SELECT id, ts, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
-  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  const { r, t } = (await topicOf(env, run, rank, now)) || {};
   if (!t) return { ok: false, error: 'no_topic' };
   const items = (await topicItems(env, t, c, now)).sort((a, b) => a.ts - b.ts);
   const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
@@ -1067,7 +1080,8 @@ export function draftQuotes(t, quotes, now) {
   if (!rows.length) return null;
   const lines = rows.map((q) => {
     const sa = q.t === 'TASI' || /^\d{4}$/.test(q.t);
-    return `- ${NAMES[q.t] || q.t}: ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}`;
+    const ext = q.ext && now - q.ext.at < 3 * 3_600_000 ? `; in ${q.ext.s === 'pre' ? 'pre-market' : 'after-hours'} trading ${q.ext.p}, ${q.ext.chg > 0 ? '+' : ''}${q.ext.chg}% versus that close, as of ${qWhen(q.ext.at, 'America/New_York')} New York time (thin trading, say so if you use it)` : '';
+    return `- ${NAMES[q.t] || q.t}: ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}${ext}`;
   });
   return { text: lines.join('\n'), at: Math.max(...rows.map((q) => q.at)) };
 }
@@ -1077,8 +1091,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   const c = deskConfig(env);
   if (!c.on) return { ok: false, error: 'off' };
   await ensureTables(env);
-  const r = (await env.DB.prepare('SELECT id, topics FROM desk_runs WHERE id = ?').bind(Number(run) || 0).all()).results?.[0];
-  const t = r && safeJson(r.topics, []).find((x) => x.rank === Number(rank));
+  const { r, t } = (await topicOf(env, run, rank, now)) || {};
   if (!t) return { ok: false, error: 'no_topic' };
   const old = (await env.DB.prepare('SELECT format, updated FROM desk_drafts WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0] || null;
   if (old && now - old.updated < c.draftMin * 60_000) return { ok: true, cached: true, wait_min: Math.ceil((c.draftMin * 60_000 - (now - old.updated)) / 60_000) };
@@ -1124,6 +1137,7 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   )
     .bind(r.id, t.rank, out.format, JSON.stringify(out.heads), out.summary, out.body, JSON.stringify(out.cards), JSON.stringify(out.checks), now, now, usd)
     .run();
+  if (r.id === 0) await evDrafted(env, t.rank, now);
   return { ok: true, usd, n: srcs.length, fulltext: ft || undefined };
 }
 
@@ -1147,11 +1161,39 @@ export function tidyQuote(x) {
  */
 /** Yahoo 图表接口返回的一只 → { t, p, pc, chg }；t 用我们自己的代码（2222、TASI），不带 .SR */
 export function tidyYahoo(j, t) {
-  const m = j?.chart?.result?.[0]?.meta;
+  const res = j?.chart?.result?.[0];
+  const m = res?.meta;
   const p = Number(m?.regularMarketPrice);
-  const pc = Number(m?.chartPreviousClose ?? m?.previousClose);
+  // 一个月日线：最后一根是最近一个交易日，昨收取倒数第二根的收盘；只有一天的数据时用接口给的昨收
+  const closes = (res?.indicators?.quote?.[0]?.close || []).filter((x) => Number.isFinite(x) && x > 0);
+  let pc = closes.length >= 3 ? closes[closes.length - 2] : Number(m?.chartPreviousClose ?? m?.previousClose);
   if (!Number.isFinite(p) || !Number.isFinite(pc) || pc <= 0) return null;
-  return { t, p, pc, chg: Math.round((p / pc - 1) * 10000) / 100, at: m.regularMarketTime ? m.regularMarketTime * 1000 : undefined };
+  const out = { t, p, pc: Math.round(pc * 10000) / 10000, chg: Math.round((p / pc - 1) * 10000) / 100, at: m.regularMarketTime ? m.regularMarketTime * 1000 : undefined };
+  // 平时一天动多少：最近约 20 个交易日每天涨跌幅（绝对值）的中位数，不含今天
+  if (closes.length >= 8) {
+    const moves = [];
+    for (let i = Math.max(1, closes.length - 21); i < closes.length - 1; i++) moves.push(Math.abs(closes[i] / closes[i - 1] - 1) * 100);
+    moves.sort((a, b) => a - b);
+    const typ = moves.length ? moves[Math.floor(moves.length / 2)] : 0;
+    if (typ > 0) out.typ = Math.round(Math.max(typ, 0.15) * 100) / 100;
+  }
+  return out;
+}
+
+/** 美股现在是盘前（纽约 4:00 到 9:30）、盘后（16:00 到 20:00），还是都不是 */
+export function usExtended(now) {
+  const p = parts(now, 'America/New_York');
+  if (['Sat', 'Sun'].includes(p.wd)) return '';
+  return p.min >= 4 * 60 && p.min < 9 * 60 + 30 ? 'pre' : p.min >= 16 * 60 && p.min < 20 * 60 ? 'post' : '';
+}
+
+/** Yahoo 5 分钟线（含盘前盘后）→ 最后一笔 { p, at }；没有就 null */
+export function tidyYahooExt(j) {
+  const res = j?.chart?.result?.[0];
+  const ts = res?.timestamp || [];
+  const cl = res?.indicators?.quote?.[0]?.close || [];
+  for (let i = Math.min(ts.length, cl.length) - 1; i >= 0; i--) if (Number.isFinite(cl[i]) && cl[i] > 0) return { p: cl[i], at: ts[i] * 1000 };
+  return null;
 }
 const ySym = (t) => (t === 'TASI' ? '^TASI.SR' : /^\d{4}$/.test(t) ? t + '.SR' : t);
 let yBlockedAt = 0;
@@ -1173,7 +1215,7 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
   let empty = 0;
   for (const t of tickers.slice(0, 24)) {
     try {
-      const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ySym(t)) + '?interval=1d&range=1d', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
+      const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ySym(t)) + '?interval=1d&range=1mo', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
       if ([401, 403, 429].includes(res.status)) {
         status = res.status;
         break;
@@ -1187,6 +1229,23 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
       if (++empty >= 3) break;
     }
     if (gap) await sleep(gap);
+  }
+  // 美股盘前盘后：正常时段的价格不动了，再各取一次带盘前盘后的 5 分钟线（最多 8 只美股，同样一只一只来，被拒就停）
+  const ext = !status && out.length ? usExtended(now) : '';
+  if (ext) {
+    for (const q of out.filter((x) => /^[A-Z]{1,5}$/.test(x.t) && x.t !== 'TASI').slice(0, 8)) {
+      try {
+        const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.t) + '?interval=5m&range=1d&includePrePost=true', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
+        if ([401, 403, 429].includes(res.status)) {
+          status = res.status;
+          break;
+        }
+        const e = res.ok ? tidyYahooExt(await res.json()) : null;
+        // 只有确实晚于正常时段最后一笔、且是这两个小时内的，才算盘前 / 盘后价
+        if (e && q.at && e.at > q.at + 60_000 && now - e.at < 2 * 3_600_000) q.ext = { s: ext, p: e.p, chg: Math.round((e.p / q.p - 1) * 10000) / 100, at: e.at };
+      } catch {}
+      if (gap) await sleep(gap);
+    }
   }
   if (status || (!out.length && empty >= 3)) {
     yBlockedAt = now;
@@ -1214,18 +1273,20 @@ async function tiingoQuotes(env, tickers, fetcher) {
  * 最新一场选题里出现的股票 + 大盘代表的参考价，结果在内存和 meta 里各留 5 分钟。
  * 先试 Yahoo（不用密钥，含沙特股），不行再用 Tiingo（要 TIINGO_TOKEN，只有美股）。两家的条款都只许内部看。
  */
-export async function deskQuotes(env, { now = Date.now(), fetcher = fetch, gap = 250 } = {}) {
+export async function deskQuotes(env, { now = Date.now(), fetcher = fetch, gap = 250, extra = null } = {}) {
   let tickers = QUOTE_BASE.concat(['TASI']);
-  try {
+  for (const k of extra || []) if (/^([A-Z]{1,5}|\d{4})$/.test(k) && !tickers.includes(k)) tickers.push(k);
+  if (!extra) try {
     const r = (await env.DB.prepare('SELECT topics FROM desk_runs ORDER BY id DESC LIMIT 1').all()).results?.[0];
     for (const t of safeJson(r?.topics, [])) for (const k of t.tickers || []) if (/^([A-Z]{1,5}|\d{4})$/.test(k) && !tickers.includes(k)) tickers.push(k);
   } catch {}
   tickers = tickers.slice(0, 24);
   const key = tickers.join(',');
   const ttl = 10 * 60_000;
-  if (qmem.data && qmem.key === key && now - qmem.at < ttl) return { ok: true, at: qmem.at, src: qmem.src, quotes: qmem.data };
+  // 榜上的股票随时在变：10 分钟内已经拿过一轮的，不因为名单变了就再请求一轮
+  if (qmem.data && (qmem.key === key || extra) && now - qmem.at < ttl) return { ok: true, at: qmem.at, src: qmem.src, quotes: qmem.data };
   const m = await metaGet(env, 'desk_quotes');
-  if (m?.v?.key === key && now - m.v.at < ttl) {
+  if ((m?.v?.key === key || extra) && m?.v && now - m.v.at < ttl) {
     Object.assign(qmem, { at: m.v.at, key, data: m.v.data, src: m.v.src });
     return { ok: true, at: m.v.at, src: m.v.src, quotes: m.v.data };
   }

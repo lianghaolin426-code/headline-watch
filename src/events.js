@@ -35,7 +35,9 @@ When unsure, keep them apart.
 
 Put an action and ALL of its responses in ONE group, not several: if a tariff plan drew protests from four countries, that is one group of five or more lines, not pairs. Before answering, check each group: could one newspaper article with one headline cover every line in it? If not, split it or drop the odd line.
 
-Reply with JSON only: {"groups": [[numbers of one event], ...]}. List only groups of two or more lines; every number at most once; {"groups": []} when nothing should merge.`;
+Second job, display titles. Lines whose number is followed by * are new. For each of them write a short display title an editor can scan in a list: "zh" in Simplified Chinese, at most 16 characters, a complete phrase that says who did what (never cut off mid-word, no trailing punctuation); "en" in English, at most 9 words, headline style. Base them on the name and the sample headline only; add no facts.
+
+Reply with JSON only: {"groups": [[numbers of one event], ...], "titles": [[number, "zh title", "English title"], ...]}. In "groups" list only groups of two or more lines; every number at most once; "groups": [] when nothing should merge. In "titles" give one entry per * line.`;
 
 const squash = (s) => String(s || '').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
 const topicKey = (t) => String(t || '').split('|')[0].trim().toLowerCase();
@@ -99,8 +101,26 @@ export function commonGrams(list) {
 }
 
 const bj = (ts) => new Date(ts + 8 * H).toISOString().slice(5, 16).replace('T', ' ');
-export const listText = (list) =>
-  list.map((s, i) => `${i + 1}. ${s.name} | ${s.topic || '-'} | ${s.tickers.join(',') || '-'} | ${s.n} | ${bj(s.first)} | ${s.sample}`).join('\n');
+export const listText = (list, fresh = null) =>
+  list.map((s, i) => `${i + 1}${fresh && fresh.has(s.name) ? '*' : ''}. ${s.name} | ${s.topic || '-'} | ${s.tickers.join(',') || '-'} | ${s.n} | ${bj(s.first)} | ${s.sample}`).join('\n');
+
+/** 解析模型给的显示标题：{ 事件名: { zh, en } } */
+export function parseTitles(text, list) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  const out = {};
+  if (!m) return out;
+  try {
+    const j = JSON.parse(m[0]);
+    for (const t of Array.isArray(j.titles) ? j.titles : []) {
+      const s = Array.isArray(t) ? list[Number(t[0]) - 1] : null;
+      const tidy = (x, n) => String(x || '').replace(/[<>|]/g, '').replace(/\s+/g, ' ').replace(/[。.，,；;：:]+$/, '').trim().slice(0, n);
+      const zh = tidy(t?.[1], 22);
+      const en = tidy(t?.[2], 90);
+      if (s && (zh.length >= 4 || en.length >= 6)) out[s.name] = { zh: zh.length >= 4 ? zh : undefined, en: en.length >= 6 ? en : undefined };
+    }
+  } catch {}
+  return out;
+}
 
 /** 解析模型的回答：[[1,3],[2,5,6]]；编号越界、重复的丢掉，只剩一个的组丢掉 */
 export function parseGroups(text, n) {
@@ -166,6 +186,27 @@ export function _resetAlias() {
 }
 
 /**
+ * 事件并了以后，事件榜上的那一行也跟着并：留下的那件还没有编号时，直接把并掉的那行改名（状态、深读、稿件都跟过来）；
+ * 两边都有编号时，留下状态更靠后的那个（用户动过的），另一行隐藏。事件榜的表还没建时什么都不做。
+ */
+async function followMerge(env, canon, aliases) {
+  const order = ['new', 'skip', 'follow', 'write', 'drafted', 'published'];
+  try {
+    for (const a of aliases) {
+      const from = (await env.DB.prepare('SELECT id, state FROM events WHERE name = ? AND gone = 0').bind(a).all()).results?.[0];
+      if (!from) continue;
+      const to = (await env.DB.prepare('SELECT id, state, gone FROM events WHERE name = ?').bind(canon).all()).results?.[0];
+      if (!to) await env.DB.prepare('UPDATE events SET name = ? WHERE id = ?').bind(canon, from.id).run();
+      else if (to.gone || order.indexOf(from.state) > order.indexOf(to.state)) {
+        // 用户动过的是并掉的那行：让它接着用留下的名字，原来那行隐藏
+        await env.DB.prepare('UPDATE events SET name = ?, gone = 1 WHERE id = ?').bind('x:' + to.id + ':' + canon, to.id).run();
+        await env.DB.prepare('UPDATE events SET name = ? WHERE id = ?').bind(canon, from.id).run();
+      } else await env.DB.prepare('UPDATE events SET gone = 1 WHERE id = ?').bind(from.id).run();
+    }
+  } catch {}
+}
+
+/**
  * 看一遍还在进行的事件，把同一件事的并起来。
  * dry=true 只返回打算怎么并，不改数据库。force=true 即使没有新事件也看一遍。
  * 返回 { ok, list: 件数, fresh: 新事件数, merges: [{ canon, aliases }], moved: 改了几条消息 }
@@ -179,14 +220,20 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
   const st = (await metaGet(env, 'story_alias'))?.v || {};
   const seen = st.seen || {};
   const alias = st.alias || {};
+  const titles = st.titles || {};
+  // 新事件，加上还没有显示标题的旧事件（一次最多补 30 个）
   const fresh = list.filter((s) => !seen[s.name]);
+  const untitled = new Set(fresh.map((s) => s.name));
+  for (const s of list) if (untitled.size < 30 && !titles[s.name]) untitled.add(s.name);
   if (list.length < 2 || (!fresh.length && !force)) return { ok: true, list: list.length, fresh: 0, merges: [], moved: 0 };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down', list: list.length, fresh: fresh.length };
-  const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list), maxTokens: 5000, kind: 'merge', think: true, effort: 'medium', timeout: 60_000 });
+  const res = await claudeText(env, { system: MERGE_SYSTEM, user: listText(list, untitled), maxTokens: 7000, kind: 'merge', think: true, effort: 'medium', timeout: 60_000 });
   const groups = res && parseGroups(res.text, list.length);
   if (!groups) return { ok: false, error: 'no_answer', list: list.length, fresh: fresh.length };
   const merges = planMerges(list, groups);
-  if (dry) return { ok: true, dry: true, list: list.length, fresh: fresh.length, merges, names: list.map((s) => `${s.name} (${s.n})`) };
+  const got = parseTitles(res.text, list);
+  if (dry) return { ok: true, dry: true, list: list.length, fresh: fresh.length, merges, titles: got, names: list.map((s) => `${s.name} (${s.n})`) };
+  for (const k of Object.keys(got)) titles[k] = { ...got[k], at: now };
 
   let moved = 0;
   for (const m of merges) {
@@ -198,6 +245,7 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
     }
     moved += ids.length;
     for (const a of m.aliases) alias[a] = { to: m.canon, at: now };
+    await followMerge(env, m.canon, m.aliases);
     // 留下的那件还没有简报、并掉的有：把简报挪过去，免得重写一遍
     try {
       const have = (await env.DB.prepare('SELECT key FROM briefs WHERE key = ?').bind('~' + m.canon).all()).results.length;
@@ -207,7 +255,8 @@ export async function mergeStories(env, { now = Date.now(), dry = false, force =
   for (const s of list) seen[s.name] = now;
   for (const k of Object.keys(seen)) if (now - seen[k] > (c.windowH + 12) * H) delete seen[k];
   for (const k of Object.keys(alias)) if (now - alias[k].at > 72 * H) delete alias[k];
-  await metaSet(env, 'story_alias', { seen, alias }, now);
+  for (const k of Object.keys(titles)) if (now - (titles[k].at || 0) > 96 * H) delete titles[k];
+  await metaSet(env, 'story_alias', { seen, alias, titles }, now);
   aliasMemo = { at: now, map: alias };
   return { ok: true, list: list.length, fresh: fresh.length, merges, moved };
 }
