@@ -171,13 +171,13 @@ export const BRIEF_SYSTEM = `你是一名财经编辑，为一个只关注美股
 - 全文 500–900 字（不含来源标注）。
 - 只输出简报正文（Markdown），不要前言后语。`;
 
-/** 事件脉络按开头的 "MM-DD HH:MM" 从早到晚排（没有时间的条目留在原位置之后） */
+/** 事件脉络按开头的 "MM-DD HH:MM" 从晚到早排，最新的在最上面（没有时间的条目留在最后） */
 export function sortTimeline(body) {
   return body.replace(/(##\s*事件脉络[^\n]*\n)([\s\S]*?)(?=\n##|$)/, (all, h, sec) => {
     const L = sec.split('\n');
-    const key = (l) => (l.match(/^\s*[-*]?\s*(\d{2}-\d{2}(?: \d{2}:\d{2})?)/) || [])[1] || '~';
+    const key = (l) => (l.match(/^\s*[-*]?\s*(\d{2}-\d{2}(?: \d{2}:\d{2})?)/) || [])[1] || '';
     const items = L.map((l, k) => ({ l, k })).filter((x) => x.l.trim());
-    items.sort((a, b) => (key(a.l) < key(b.l) ? -1 : key(a.l) > key(b.l) ? 1 : a.k - b.k));
+    items.sort((a, b) => (key(a.l) > key(b.l) ? -1 : key(a.l) < key(b.l) ? 1 : a.k - b.k));
     return h + items.map((x) => x.l.replace(/^(\s*[-*]?\s*\d{2}-\d{2}) 00:00(?=\s)/, '$1')).join('\n');
   });
 }

@@ -162,10 +162,10 @@ test('rewrite keeps earlier key reports the last brief cited, as titles only', (
   assert.deepEqual(prevCited(null, 15), []);
 });
 
-test('timeline lines are put in date order', () => {
+test('timeline lines are put newest first', () => {
   const b = '## 一句话\nx [S1]\n## 事件脉络\n- 11-24 07:18 后 [S2]\n- 11-23 23:00 前 [S1]\n- 无时间 [S3]\n## 市场反应\ny [S1]';
   const out = sortTimeline(b);
-  assert.match(out, /11-23 23:00 前 \[S1\]\n- 11-24 07:18 后 \[S2\]\n- 无时间 \[S3\]\n## 市场反应/);
+  assert.match(out, /11-24 07:18 后 \[S2\]\n- 11-23 23:00 前 \[S1\]\n- 无时间 \[S3\]\n## 市场反应/);
   assert.equal(sortTimeline('## 一句话\nx'), '## 一句话\nx');
 });
 
@@ -191,5 +191,5 @@ test('events follow the story when the scorer gave one, so one ticker can hold s
 
 test('timeline: invented 00:00 is dropped and date-only lines sort by date', () => {
   const out = sortTimeline('## 事件脉络\n11-24 00:53 b [S1]\n11-08 00:00 a [S2]\n## x\ny');
-  assert.match(out, /^## 事件脉络\n11-08 a \[S2\]\n11-24 00:53 b \[S1\]\n## x/);
+  assert.match(out, /^## 事件脉络\n11-24 00:53 b \[S1\]\n11-08 a \[S2\]\n## x/);
 });
