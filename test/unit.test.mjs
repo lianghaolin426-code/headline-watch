@@ -404,3 +404,18 @@ test('feeds: article list page is parsed into items with summary and time', asyn
   assert.equal(items[0].ts, Date.UTC(2026, 10, 25, 11, 30));
   assert.equal(items[1].ts, now - 12 * 60000);
 });
+
+test('fulltext: robots rules, page text extraction, refusals', async () => {
+  const { parseRobots, robotsAllows, htmlText, fetchFullText } = await import('../src/fulltext.js');
+  const rules = parseRobots('User-agent: *\nDisallow: /api/\nAllow: /api/public\nDisallow: /*.pdf$\n\nUser-agent: badbot\nDisallow: /');
+  assert.equal(robotsAllows(rules, '/p/123'), true);
+  assert.equal(robotsAllows(rules, '/api/x'), false);
+  assert.equal(robotsAllows(rules, '/api/public/x'), true);
+  assert.equal(robotsAllows(rules, '/a.pdf'), false);
+  const body = '<p>' + '第一段。'.repeat(100) + '</p><p>第二段 &amp; 更多。</p><p>第三段。</p>';
+  assert.match(htmlText(`<html><nav><p>菜单</p></nav><article>${body}</article><script>x()</script></html>`), /^第一段。.*\n第二段 & 更多。\n第三段。$/s);
+  const page = (status, html) => async (u) => (String(u).endsWith('/robots.txt') ? new Response('User-agent: *\nDisallow: /private/', { status: 200 }) : new Response(html, { status }));
+  assert.equal((await fetchFullText({ id: 'x:1', url: 'https://a.example/p/1' }, { fetcher: page(200, `<article>${body}</article>`) })).ok, true);
+  assert.equal((await fetchFullText({ id: 'x:2', url: 'https://b.example/p/1' }, { fetcher: page(403, 'no') })).error, 'refused');
+  assert.equal((await fetchFullText({ id: 'x:3', url: 'https://c.example/private/1' }, { fetcher: page(200, body) })).error, 'robots');
+});
