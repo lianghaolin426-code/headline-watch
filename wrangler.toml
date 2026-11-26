@@ -119,6 +119,6 @@ DESK_MODEL = "claude-sonnet-5-5"
 DESK_DAILY_USD = "1.00"
 DESK_AUTO = "false" # 用户要求：选题会只在点“现在开一次”时开，不按时间自动开
 
-# 事件归并：每隔几分钟把名字不同、其实是同一件事的事件并成一件（Haiku，一次不到 0.001 美元）。"false" 关掉
+# 事件归并：每隔几分钟把名字不同、其实是同一件事的事件并成一件（Haiku）。"false" 关掉
 EVENT_MERGE = "true"
-EVENT_MERGE_EVERY_MIN = "10"
+EVENT_MERGE_EVERY_MIN = "20" # 实测一次约 0.002 美元（带思考），20 分钟一次一天最多约 0.15 美元
