@@ -789,11 +789,13 @@ export async function deskPack(env, { run, rank, now = Date.now() }) {
   const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
   const have = new Set(items.map((i) => i.id));
   const d = (await env.DB.prepare('SELECT body, pasted, updated FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0];
-  const L = [`# ${t.title_zh}`, `${t.title_en}`, '', `选题会时间：北京时间 ${bjTime(r.ts)}`, '', '## 为什么值得写', t.why_zh, '', t.why_en, '', `Working headline: ${t.angle_en}`];
+  const L = [`# ${t.title_zh}`, `${t.title_en}`, '', `导出时间：北京时间 ${bjTime(now)}`, '',
+    '这是一件新闻事件的整包资料，分两类。标题带【原始材料】的是媒体报道和原文，可以当事实依据；标题带【AI 生成】的是我们系统自己写的选题理由、深读、英文稿和检查清单，可能有错，只能当参考，不能当事实来源。每条报道都带北京时间、来源和链接。',
+    '', '## 【AI 生成】为什么值得写', t.why_zh, '', t.why_en, '', `Working headline: ${t.angle_en}`];
   if (t.tickers?.length) L.push('', `相关股票：${t.tickers.join(', ')}`);
-  if (t.facts?.length) L.push('', '## 关键事实', ...t.facts.map((f) => `- ${f.t}（${f.src}）`));
-  if (t.hooks?.length) L.push('', '## 吸睛资讯（可以当标题或开头的钩子）', ...t.hooks.map((h) => `- ${h.title}（${h.src}）：${h.t}${h.url ? ' ' + h.url : ''}`));
-  if (t.views?.length) L.push('', '## 观点线索', ...t.views.map((v) => `- ${v.who ? String(v.who).split('|')[0] + '：' : ''}${v.t}${v.url ? ' ' + v.url : ''}`));
+  if (t.facts?.length) L.push('', '## 【AI 生成】关键事实（从报道里摘的）', ...t.facts.map((f) => `- ${f.t}（${f.src}）`));
+  if (t.hooks?.length) L.push('', '## 【原始材料】吸睛资讯（可以当标题或开头的钩子）', ...t.hooks.map((h) => `- ${h.title}（${h.src}）：${h.t}${h.url ? ' ' + h.url : ''}`));
+  if (t.views?.length) L.push('', '## 【原始材料】观点线索', ...t.views.map((v) => `- ${v.who ? String(v.who).split('|')[0] + '：' : ''}${v.t}${v.url ? ' ' + v.url : ''}`));
   // 真的全部：每条消息都带上；系统读到过的原文全文整篇放进来（不截短）；标出“这次不用”的
   const all = items.concat(arts.filter((a) => !have.has(a.id)));
   const excl = await exclOf(env, r, t).catch(() => new Set());
@@ -804,16 +806,22 @@ export async function deskPack(env, { run, rank, now = Date.now() }) {
       for (const x of (await env.DB.prepare(`SELECT id, text FROM fulltext WHERE ok = 1 AND id IN (${part.map(() => '?').join(',')})`).bind(...part).all()).results) if (x.text) full.set(x.id, x.text);
     }
   } catch {}
-  L.push('', `## 全部报道（${all.length} 条，按时间；其中 ${full.size} 条带系统读到的原文全文）`);
+  L.push('', `## 【原始材料】全部报道（${all.length} 条，按时间；其中 ${full.size} 条带系统读到的原文全文）`);
   for (const i of all) {
     const b = full.get(i.id) || bodyOf(i);
     L.push(`- ${bjTime(i.ts)} | ${i.source}${i.who ? ' | ' + String(i.who).split('|')[0] : ''} | ${clean(i.title)}${excl.has(i.id) ? ' | （你点了“这次不用”，写稿时不会读）' : ''}${i.url ? '\n  ' + i.url : ''}${b.length >= 40 ? '\n  ' + (full.has(i.id) ? '〔原文全文〕' + b : b.slice(0, 1800)) : ''}`);
   }
-  if (d?.body) L.push('', `## 专题档案（AI 整理，北京时间 ${bjTime(d.updated)}；方括号里的 S 编号对应生成档案时的材料顺序）`, d.body);
-  for (const p of safeJson(d?.pasted, [])) L.push('', `## 贴入的全文：${p.label || '未注明出处'}`, p.text);
+  if (d?.body) L.push('', `## 【AI 生成】深读（北京时间 ${bjTime(d.updated)}；方括号里的 S 编号对应生成档案时的材料顺序）`, d.body);
+  for (const p of safeJson(d?.pasted, [])) L.push('', `## 【原始材料】主编贴入的原文全文：${p.label || '未注明出处'}`, p.text);
   try {
-    const f = (await env.DB.prepare('SELECT heads, summary, body, updated FROM desk_drafts WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0];
-    if (f?.body) L.push('', `## 已生成的英文稿（北京时间 ${bjTime(f.updated)}）`, safeJson(f.heads, []).join('\n'), '', f.summary || '', '', f.body);
+    const f = (await env.DB.prepare('SELECT format, heads, summary, body, cards, checks, updated FROM desk_drafts WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0];
+    if (f?.body) {
+      L.push('', `## 【AI 生成】英文稿（北京时间 ${bjTime(f.updated)}）`, '### 备选标题', ...safeJson(f.heads, []).map((h) => '- ' + h), '', '### 摘要', f.summary || '', '', '### 正文', f.body);
+      const cards = safeJson(f.cards, []);
+      if (cards.length) L.push('', '### 截图卡片内容（英文和阿语）', JSON.stringify(cards, null, 1));
+      const ck = safeJson(f.checks, []);
+      if (ck.length) L.push('', '## 【AI 生成】发稿前检查清单（针对上面这篇英文稿）', ...ck.map((x) => '- ' + x));
+    }
   } catch {}
   return { ok: true, text: L.join('\n'), n: all.length, full: full.size, pasted: safeJson(d?.pasted, []).length };
 }
