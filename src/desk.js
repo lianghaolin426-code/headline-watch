@@ -1015,7 +1015,9 @@ Style
   - Avoid stock commentary phrasing: "it's worth noting", "notably", "amid" as a catch-all link, "underscores", "highlights the", "signals a shift", "raises questions", "a perfect storm", "in a nutshell", "not just X but Y", lists of exactly three for rhythm, and dashes used to bolt on an afterthought.
   - Vary sentence length and paragraph shape the way a person does. Use a list or table only where the content really is a list or a comparison, not to make the piece look organised.
 - If the user message lists the structures recent drafts used, do not repeat the most recent one unless this story plainly calls for it. If the editor asks for a different structure than last time, choose another one.
-- Stocks: mention a listed company only where it is genuinely part of the story, and say what is at stake for it in concrete terms, so a curious reader wants to look it up. First mention as Name (TICKER), e.g. Nvidia (NVDA), Aramco (2222). Never add a list of "stocks to watch" just to have one, never write calls to action like "check out".
+- Stocks: mention a listed company only where it is genuinely part of the story. Never add a list of "stocks to watch" just to have one, never write calls to action like "check out" or "keep an eye on".
+- Tickers: the editor links every Name (TICKER) to the stock's page in the app, so readers can tap it wherever they are in the piece. Write a listed company as Name (TICKER), e.g. Nvidia (NVDA), Aramco (2222), the first time it appears in EACH paragraph and in each bullet or table row; later mentions inside the same paragraph use the plain name. This applies to every US- or Saudi-listed company in the piece, including ones mentioned once in passing (a rival, a supplier, a customer). Do not put a ticker in headlines, in subheadings, inside a direct quote, or on a possessive (write "shares of Nvidia (NVDA)", not "Nvidia (NVDA)'s shares"). Use only a ticker you are sure of or that the materials give; if unsure, write the name alone and list it in CHECK as "ticker to confirm".
+- Give the reader a reason to tap through, by reporting and not by asking. Next to a company, when the materials have it, put the thing a holder would want to check next: the latest price move with its time, how far the stock is from a recent high or low, how much of its revenue or orders the news touches, and the next dated event (earnings, a lockup expiry, a hearing, a ruling). If the market has not traded on the news yet, say so and say when it next trades. Never invent any of these, and never tell the reader to go and look.
 
 Headlines
 - Give 5 headlines, all about this article's main story (not a side item), each taking a different angle (newest fact; the key number; the cause or another concrete fact; the consequence or next step; the counterparty or a surprising detail).
@@ -1130,7 +1132,11 @@ export function draftLint(out, sourceText) {
   if (label) warn.push(`稿子里有栏目式的小标题，读起来像模板，建议改成说具体内容的："${label[0].replace(/[#*]/g, '').trim()}"`);
   const stock = body.match(/\b(?:here(?:['’]s| is| are) (?:what|why|how|the|five|four|three)|let['’]s break (?:it|this) down|it['’]s worth noting|remains to be seen|only time will tell|will be watching closely|in a nutshell)\b[^.\n]{0,50}/i);
   if (stock) warn.push(`稿子里有套话，建议删掉或改写："${stock[0].trim()}"`);
-  return warn.slice(0, 5);
+  // 稿子里带了代码的股票列出来，方便编辑逐个关联、顺手核对代码
+  const tk = [...new Set([...body.matchAll(/\(([A-Z]{1,5}|\d{4})\)/g)].map((m) => m[1]))].slice(0, 12);
+  const out5 = warn.slice(0, 5);
+  if (tk.length) out5.push(`稿子里带代码的股票有 ${tk.length} 只：${tk.join('、')}。关联前请核对代码。`);
+  return out5;
 }
 
 /** 现在美股是不是在交易（周一到周五 9:30 到 16:00，纽约时间；不含节假日） */
