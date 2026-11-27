@@ -197,7 +197,8 @@ export async function readAndStore(env, item, { fetcher = fetch, now = Date.now(
 export function ftCandidates(srcs, c) {
   const cand = srcs
     .filter((s) => s.url && s.k !== 'f' && c.sources.has(s.source))
-    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || (b.score || 0) - (a.score || 0));
+    // 分数是 AI 只看标题和摘要打的，看不出哪篇写得更全；所以分数四舍五入后一样就算差不多，挑更新的那篇（后续报道通常更完整）
+    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || Math.round(b.score || 0) - Math.round(a.score || 0) || (b.ts || 0) - (a.ts || 0));
   // 先每家来源各取一篇，再取第二篇：免得读到的全是同一家的说法
   const seen = new Map();
   const round = new Map();
@@ -224,14 +225,14 @@ export async function fullTextPlan(env, srcs, { now = Date.now() } = {}) {
   let rows = [];
   try {
     await ftTable(env);
-    rows = (await env.DB.prepare(`SELECT id, ts, ok, length(text) AS tl FROM fulltext WHERE id IN (${cand.map(() => '?').join(',')})`).bind(...cand.map((s) => s.id)).all()).results;
+    rows = (await env.DB.prepare(`SELECT id, ts, ok, len, length(text) AS tl FROM fulltext WHERE id IN (${cand.map(() => '?').join(',')})`).bind(...cand.map((s) => s.id)).all()).results;
   } catch {}
   const have = new Map(rows.map((r) => [r.id, r]));
   let todo = 0;
   return cand.map((s) => {
     const h = have.get(s.id);
     const st = h?.ok && h.tl ? 'have' : h && now - h.ts < c.retryH * 3_600_000 ? 'fail' : todo++ < c.max ? 'new' : 'over';
-    return { id: s.id, source: s.source, title: s.title, url: s.url, from: s.from, st };
+    return { id: s.id, source: s.source, title: s.title, url: s.url, from: s.from, ts: s.ts, st, len: st === 'have' ? h.len || h.tl : undefined };
   });
 }
 
