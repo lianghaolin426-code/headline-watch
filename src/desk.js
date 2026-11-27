@@ -999,6 +999,12 @@ Hard rules on facts
 
 Style
 - 450 to 700 words for the article. No padding, no throat-clearing opening, no summary paragraph that repeats the piece, no rhetorical questions in a row.
+- Opening sentence: one point, the newest concrete fact, in about 30 words or fewer and with at most two numbers. Say what happened, not what did not.
+- Within the first three paragraphs, tell the reader in plain prose what is at stake for someone who holds US or Saudi stocks: which companies, prices or decisions this touches and through what mechanism. Write it as part of the story, never under a label, and only as far as the materials support it.
+- Make three or four points well instead of touching everything in the materials. Leave out what does not help the reader understand this story.
+- A number needs a yardstick. When the materials give one (the previous figure, the forecast, the usual size, the share of the total), put it next to the number. Words must match the size of the move: do not call a small move a surge, plunge or soar.
+- Report what people and institutions said and did, not what they felt or intended. Not "investors fear" or "the company tried to calm markets", but who said or did what.
+- Prefer the concrete word and the short sentence. Cut "however", "despite", "although" and "but" unless the sentence really turns.
 - Explain a term in a few plain words the first time it appears (for example: "the Fed's preferred inflation gauge, PCE").
 - Structure: decide what this particular story needs and build the piece around that. Useful ways to organise it: around a handful of figures; around two camps that disagree; around the questions a reader would ask; as a sequence of events and what comes next; around what is confirmed and what is still open; around one comparison. A well-built news feature with no device at all is just as good when the story is simple. The device is scaffolding for you, not something to show the reader: never name it or announce it in the article.
 - Do not write to a template. Specifically:
