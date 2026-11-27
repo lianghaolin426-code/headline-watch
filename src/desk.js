@@ -1000,7 +1000,15 @@ Hard rules on facts
 Style
 - 450 to 700 words for the article. No padding, no throat-clearing opening, no summary paragraph that repeats the piece, no rhetorical questions in a row.
 - Explain a term in a few plain words the first time it appears (for example: "the Fed's preferred inflation gauge, PCE").
-- Pick ONE format that fits this story, and make it feel fresh rather than a standard news write-up. Options: "Five numbers" (the story told through five figures), "Bulls vs bears" (the two camps side by side), "Q&A" (the questions a reader would ask, answered), "Timeline, then what's next", "Known / unknown", "One chart's worth" (one comparison explained), or another format you can justify. If the editor asks for a different format than last time, choose another one.
+- Structure: decide what this particular story needs and build the piece around that. Useful ways to organise it: around a handful of figures; around two camps that disagree; around the questions a reader would ask; as a sequence of events and what comes next; around what is confirmed and what is still open; around one comparison. A well-built news feature with no device at all is just as good when the story is simple. The device is scaffolding for you, not something to show the reader: never name it or announce it in the article.
+- Do not write to a template. Specifically:
+  - No signpost sentences that tell the reader what the article is about to do ("Here is what is settled and what is not", "Here's what you need to know", "Here's why it matters", "Let's break it down", "Here are five numbers").
+  - Subheadings must say something about this story (a fact, a claim, a number, a name). Never use a category label as a subheading or list header: no "Known", "Unknown", "What we know", "What we don't know", "The bull case", "The bear case", "What to watch", "Why it matters", "The bottom line", "Key takeaways", "The big picture", "By the numbers". Two to four subheadings are enough; a short piece may have none.
+  - Open with the news itself in a normal sentence. Do not set the opening paragraph in bold and do not end it with a line that introduces the rest.
+  - End on the last real piece of information. No closing paragraph that sums up, draws a moral or looks ahead in general terms ("remains to be seen", "investors will be watching closely", "only time will tell").
+  - Avoid stock commentary phrasing: "it's worth noting", "notably", "amid" as a catch-all link, "underscores", "highlights the", "signals a shift", "raises questions", "a perfect storm", "in a nutshell", "not just X but Y", lists of exactly three for rhythm, and dashes used to bolt on an afterthought.
+  - Vary sentence length and paragraph shape the way a person does. Use a list or table only where the content really is a list or a comparison, not to make the piece look organised.
+- If the user message lists the structures recent drafts used, do not repeat the most recent one unless this story plainly calls for it. If the editor asks for a different structure than last time, choose another one.
 - Stocks: mention a listed company only where it is genuinely part of the story, and say what is at stake for it in concrete terms, so a curious reader wants to look it up. First mention as Name (TICKER), e.g. Nvidia (NVDA), Aramco (2222). Never add a list of "stocks to watch" just to have one, never write calls to action like "check out".
 
 Headlines
@@ -1019,7 +1027,7 @@ Cards (optional visual blocks the editor can screenshot into the app)
 
 Output exactly these sections, in this order, with these headings and nothing before or after:
 ## FORMAT
-(one line: the format you chose and, in a few words, why)
+(one line for the editor only: how you organised the piece and, in a few words, why)
 ## HEADLINES
 (5 lines, one headline per line, no numbering)
 ## SUMMARY
@@ -1111,7 +1119,12 @@ export function draftLint(out, sourceText) {
   }
   const meta = text.match(/\b(?:the materials?|per the reports?|sources? reviewed|the dossier|nothing in the data|as this is written)\b[^.\n]{0,60}/i);
   if (meta) warn.push(`稿子里有讲材料或写作过程的话，读者不该看到，请改掉："${meta[0].trim()}"`);
-  return warn.slice(0, 4);
+  const body = String(out.body || '');
+  const label = body.match(/^(?:#{1,4}\s*|\*\*)\s*(?:known|unknown|what we (?:don['’]t )?know|what(?:['’]s| is) (?:known|not known|unknown|settled)|the bull case|the bear case|what to watch|why it matters|the bottom line|key takeaways|the big picture|by the numbers)\b[^\n]{0,40}$/im);
+  if (label) warn.push(`稿子里有栏目式的小标题，读起来像模板，建议改成说具体内容的："${label[0].replace(/[#*]/g, '').trim()}"`);
+  const stock = body.match(/\b(?:here(?:['’]s| is| are) (?:what|why|how|the|five|four|three)|let['’]s break (?:it|this) down|it['’]s worth noting|remains to be seen|only time will tell|will be watching closely|in a nutshell)\b[^.\n]{0,50}/i);
+  if (stock) warn.push(`稿子里有套话，建议删掉或改写："${stock[0].trim()}"`);
+  return warn.slice(0, 5);
 }
 
 /** 现在美股是不是在交易（周一到周五 9:30 到 16:00，纽约时间；不含节假日） */
@@ -1172,9 +1185,14 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
     const q = await deskQuotes(env, { now });
     if (q.ok) px = draftQuotes(t, q.quotes, now);
   } catch {}
+  let recent = [];
+  try {
+    recent = (await env.DB.prepare('SELECT format FROM desk_drafts WHERE NOT (run_id = ? AND rank = ?) AND format IS NOT NULL ORDER BY updated DESC LIMIT 4').bind(r.id, t.rank).all()).results.map((x) => String(x.format || '').slice(0, 120)).filter(Boolean);
+  } catch {}
   const user =
     `${usOpen(now) ? 'The US market is open right now: figures in the materials are intraday.\n' : ''}Topic: ${t.title_en} (${t.title_zh})\nWhy the desk picked it: ${t.why_en || t.why_zh}\nWorking headline from the story meeting: ${t.angle_en}\nMarket: ${t.market}. Tickers the desk tagged: ${(t.tickers || []).join(', ') || 'none'}\nNow: ${bjTime(now)} Beijing time.\n` +
-    (alt && old?.format ? `The previous draft used this format: "${old.format}". Choose a clearly different format this time.\n` : '') +
+    (alt && old?.format ? `The previous draft of this topic was organised this way: "${old.format}". Organise it in a clearly different way this time.\n` : '') +
+    (recent.length ? `How the desk's most recent drafts on other topics were organised (newest first), so this one does not read like a copy of them:\n${recent.map((x) => '- ' + x).join('\n')}\n` : '') +
     (views ? `\nInstitution and expert views attached to this topic:\n${views}\n` : '') +
     (px ? `\nReference prices (the latest the desk has; each line carries its own time):\n${px.text}\n` : '') +
     ((t.hooks || []).length ? `\nEye-catching items the desk attached to this topic (good headline material if, and only if, the article covers them accurately):\n${t.hooks.map((h) => '- ' + h.title).join('\n')}\n` : '') +
