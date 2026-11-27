@@ -14,7 +14,7 @@ import { renderPage, BUILD } from './page.js';
 import { iconName, iconResponse, faviconSvg, ICON_VERSION, LOGO_STYLES, DEFAULT_LOGO } from './icons.js';
 import { translatePending } from './translate.js';
 import { runBriefs, listBriefs, isBig } from './brief.js';
-import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource, deskPaste } from './desk.js';
+import { deskCron, deskState, deskPick, runDesk, writeDossier, deskConfig, deskPack, writeDraft, deskWritten, deskQuotes, deskPublic, deskSource, deskPaste, readPlan } from './desk.js';
 import { fetchFullText, fullTextSelfTest } from './fulltext.js';
 import { mergeStories, mergeConfig, storyAlias, resolveAlias } from './events.js';
 import { boardState, boardPublic, eventDetail, evAct } from './board.js';
@@ -1318,6 +1318,12 @@ const app = {
         const id = Number(url.searchParams.get('id')) || 0;
         if (admin) return json(await eventDetail(env, { id, admin: true, ftSources: fullTextConfig(env).sources }));
         return json(await cached('ev:' + id, await ttl(env, 120_000), () => eventDetail(env, { id })));
+      }
+
+      case '/api/ev/plan': {
+        // 写稿或深读前的清单：会读哪些全文、哪些读不到。只给管理员；按规则算，不花钱
+        if (!env.ADMIN_KEY || req.headers.get('X-HW-Admin') !== env.ADMIN_KEY) return json({ ok: false, error: 'forbidden' }, 403);
+        return json(await readPlan(env, { run: 0, rank: Number(url.searchParams.get('id')) || 0 }));
       }
 
       case '/api/ev/act': {

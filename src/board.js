@@ -5,7 +5,7 @@
 // - “帮我挑今天写什么”仍然是那场选题会，但结果落到事件上：一个选题对应一件事，跨了几件事的合成一行（“包含 3 件事”）。
 // 深读和稿件沿用选题台的档案和英文稿两张表：run_id = 0，rank = 事件编号。
 
-import { metaGet } from './dbguard.js';
+import { metaGet, metaSet } from './dbguard.js';
 import { storyAlias, resolveAlias } from './events.js';
 import { originOf, countedAs } from './origin.js';
 import { deskConfig, deskCost, nextSlot, realWho, matchWritten } from './desk.js';
@@ -540,6 +540,18 @@ export async function evAct(env, { id, act, state, note = '', item, snap = null,
   const row = await rowOf(env, id);
   if (!row) return { ok: false, error: 'no_event' };
   const log = (a, n) => env.DB.prepare('INSERT INTO ev_log (ts, ev, name, act, note, snap) VALUES (?, ?, ?, ?, ?, ?)').bind(now, row.id, row.name, a, String(n || '').slice(0, 300), snap ? JSON.stringify(snap).slice(0, 1200) : null).run();
+  if (act === 'excl') {
+    // 这条消息写稿和深读时不用（再点一次恢复）。只记在 meta 表，不动消息本身，也不影响排序
+    const iid = String(item || '').slice(0, 80);
+    if (!iid) return { ok: false, error: 'no_item' };
+    const key = 'ev_excl_' + row.id;
+    const cur = (await metaGet(env, key))?.v;
+    let list = Array.isArray(cur) ? cur : [];
+    const on = !list.includes(iid);
+    list = on ? [...list, iid].slice(-60) : list.filter((x) => x !== iid);
+    await metaSet(env, key, list, now);
+    return { ok: true, on };
+  }
   if (act === 'seen') {
     await env.DB.prepare('UPDATE events SET seen = ? WHERE id = ?').bind(now, row.id).run();
     return { ok: true, quiet: true };

@@ -8,7 +8,7 @@
 
 import { claudeText, claudeUp, claudeUsd, claudeState } from './claude.js';
 import { storyAlias, resolveAlias } from './events.js';
-import { attachFullText } from './fulltext.js';
+import { attachFullText, fullTextPlan, fullTextConfig } from './fulltext.js';
 import { bjTime, eventKeys } from './brief.js';
 import { metaGet, metaSet } from './dbguard.js';
 import { eventTopic, evDrafted, applyDeskRun } from './board.js';
@@ -653,6 +653,51 @@ async function topicItems(env, t, c, now) {
   return [...byId.values()];
 }
 
+/** 编辑在事件页点了“这次不用”的消息（只对事件有效，记在 meta 表） */
+async function exclOf(env, r, t) {
+  if (!r || r.id !== 0) return new Set();
+  try {
+    const v = (await metaGet(env, 'ev_excl_' + t.rank))?.v;
+    return new Set(Array.isArray(v) ? v : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * 写稿或深读之前先告诉编辑：会读哪些全文、哪些分量重但我们读不到（可以自己去拿来贴）、哪些被标了“这次不用”。
+ * 全是按规则算的，不调用 AI，不去读外面的网页。
+ */
+export async function readPlan(env, { run = 0, rank, now = Date.now() }) {
+  const c = deskConfig(env);
+  await ensureTables(env);
+  const { r, t } = (await topicOf(env, run, rank, now)) || {};
+  if (!t) return { ok: false, error: 'no_topic' };
+  const excl = await exclOf(env, r, t);
+  const all = await topicItems(env, t, c, now);
+  const items = all.filter((i) => !excl.has(i.id));
+  const have = new Set(all.map((i) => i.id));
+  const artsAll = (await topicArticles(env, all.filter((i) => !i.dup_of).map((i) => i.id))).filter((a) => !have.has(a.id));
+  const srcs = dossierSources(items, artsAll.filter((a) => !excl.has(a.id)), c.maxSrc);
+  const read = await fullTextPlan(env, srcs, { now });
+  const inRead = new Set(read.map((x) => x.id));
+  const fc = fullTextConfig(env);
+  const want = [];
+  const seen = new Set();
+  const heavy = srcs.filter((s) => s.k !== 'f' && !inRead.has(s.id) && !fc.sources.has(s.source) && (s.score || 0) >= 8).sort((a, b) => (a.from ? 1 : 0) - (b.from ? 1 : 0) || (b.score || 0) - (a.score || 0) || b.ts - a.ts); // 原始报道排在转述前面
+  for (const s of heavy) {
+    const who = countedAs(s);
+    if (seen.has(who)) continue;
+    seen.add(who);
+    want.push({ id: s.id, source: s.source, title: s.title, url: s.url, from: s.from, score: s.score });
+    if (want.length >= 3) break;
+  }
+  const body = srcs.filter((s) => s.k === 'f').length;
+  const willRead = read.filter((x) => x.st === 'have' || x.st === 'new').length;
+  const out = [...all, ...artsAll].filter((i) => excl.has(i.id)).map((i) => ({ id: i.id, source: i.source, title: clean(i.title).slice(0, 200) }));
+  return { ok: true, total: srcs.length, read, want, body, rest: Math.max(0, srcs.length - body - willRead), excl: out, max: fc.max };
+}
+
 async function topicArticles(env, ids) {
   if (!ids.length) return [];
   try {
@@ -685,11 +730,12 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
   if (!claudeUp(env)) return { ok: false, error: 'claude_down' };
   const spent = await spentToday(env, now);
   if (spent >= c.dailyUsd) return { ok: false, error: 'budget', spent };
-  const items = await topicItems(env, t, c, now);
+  const excl = await exclOf(env, r, t);
+  const items = (await topicItems(env, t, c, now)).filter((i) => !excl.has(i.id));
   if (!items.length && !pasted.length) return { ok: false, error: 'no_items' };
   const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
   const have = new Set(items.map((i) => i.id));
-  const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id)), c.maxSrc);
+  const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id) && !excl.has(a.id)), c.maxSrc);
   const ft = await attachFullText(env, srcs, { now }).catch(() => null);
   const user = `选题：${t.title_zh}（${t.title_en}）\n选题会给的理由：${t.why_zh}\n现在是北京时间 ${bjTime(now)}。以下是这个选题的 ${srcs.length + pasted.length} 条材料：\n\n${dossierText(srcs, pasted)}`;
   const res = await claudeText(env, { system: DOSSIER_SYSTEM, user, maxTokens: 14000, kind: 'dossier', effort: 'medium', model: c.model, timeout: 170_000 });
@@ -1110,13 +1156,14 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   if (!claudeUp(env)) return { ok: false, error: 'claude_down' };
   const spent = await spentToday(env, now);
   if (spent >= c.dailyUsd) return { ok: false, error: 'budget', spent };
-  const items = await topicItems(env, t, c, now);
+  const excl = await exclOf(env, r, t);
+  const items = (await topicItems(env, t, c, now)).filter((i) => !excl.has(i.id));
   const d = (await env.DB.prepare('SELECT body, pasted FROM desk_dossiers WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0];
   const pasted = safeJson(d?.pasted, []);
   if (!items.length && !pasted.length) return { ok: false, error: 'no_items' };
   const arts = await topicArticles(env, items.filter((i) => !i.dup_of).map((i) => i.id));
   const have = new Set(items.map((i) => i.id));
-  const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id)), c.maxSrc);
+  const srcs = dossierSources(items, arts.filter((a) => !have.has(a.id) && !excl.has(a.id)), c.maxSrc);
   const ft = await attachFullText(env, srcs, { now }).catch(() => null);
   const views = (t.views || []).map((v) => `- ${v.who ? String(v.who).split('|')[0] + ': ' : ''}${v.t}`).join('\n');
   // 参考价：用缓存里最近一次拿到的行情（10 分钟内不重复请求，Yahoo 被拒时自动歇 6 小时）；拿不到就照旧不写价格

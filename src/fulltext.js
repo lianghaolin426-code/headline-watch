@@ -193,6 +193,48 @@ export async function readAndStore(env, item, { fetcher = fetch, now = Date.now(
   return r.ok ? { ...r, text } : r;
 }
 
+/** 一组材料里哪些会去读全文、按什么顺序：来源在名单里、现在只有标题或摘要、带链接的；深度文章优先，其次分数高的；最多 12 篇 */
+export function ftCandidates(srcs, c) {
+  const cand = srcs
+    .filter((s) => s.url && s.k !== 'f' && c.sources.has(s.source))
+    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || (b.score || 0) - (a.score || 0));
+  // 先每家来源各取一篇，再取第二篇：免得读到的全是同一家的说法
+  const seen = new Map();
+  const round = new Map();
+  for (const s of cand) {
+    // 转述别家的（“据彭博社报道”）记在最初那家名下：三家都在转同一篇，读一篇就够
+    const who = countedAs(s);
+    round.set(s, seen.get(who) || 0);
+    seen.set(who, round.get(s) + 1);
+  }
+  cand.sort((a, b) => round.get(a) - round.get(b));
+  cand.splice(12);
+  return cand;
+}
+
+/**
+ * 不真的去读，只算“点了深读或写稿会读哪些全文”。和 attachFullText 用同一套挑法。
+ * st：have = 以前读到过，直接用；new = 这次会去读；fail = 最近读失败过，暂时不再试；over = 超过一次新读的篇数，这次轮不到
+ */
+export async function fullTextPlan(env, srcs, { now = Date.now() } = {}) {
+  const c = fullTextConfig(env);
+  if (!c.on) return [];
+  const cand = ftCandidates(srcs, c);
+  if (!cand.length) return [];
+  let rows = [];
+  try {
+    await ftTable(env);
+    rows = (await env.DB.prepare(`SELECT id, ts, ok, length(text) AS tl FROM fulltext WHERE id IN (${cand.map(() => '?').join(',')})`).bind(...cand.map((s) => s.id)).all()).results;
+  } catch {}
+  const have = new Map(rows.map((r) => [r.id, r]));
+  let todo = 0;
+  return cand.map((s) => {
+    const h = have.get(s.id);
+    const st = h?.ok && h.tl ? 'have' : h && now - h.ts < c.retryH * 3_600_000 ? 'fail' : todo++ < c.max ? 'new' : 'over';
+    return { id: s.id, source: s.source, title: s.title, url: s.url, from: s.from, st };
+  });
+}
+
 /**
  * 给一组材料（档案/英文稿用的 srcs）补全文：只挑来源在名单里、现在只有标题或摘要、带链接的；深度文章优先，其次分数高的。
  * 存过的直接用；没存过的最多新读 max 篇（同时读，各自 12 秒超时）。读到的把 body 换成全文、k 改成 'f'、full = true。
@@ -202,20 +244,7 @@ export async function attachFullText(env, srcs, { fetcher = fetch, now = Date.no
   const c = fullTextConfig(env);
   const out = { got: 0, fetched: 0, failed: [] };
   if (!c.on) return out;
-  let cand = srcs
-    .filter((s) => s.url && s.k !== 'f' && c.sources.has(s.source))
-    .sort((a, b) => (b.art ? 1 : 0) - (a.art ? 1 : 0) || (b.score || 0) - (a.score || 0));
-  // 先每家来源各取一篇，再取第二篇：免得读到的全是同一家的说法
-  const seen = new Map();
-  for (const s of cand) {
-    // 转述别家的（“据彭博社报道”）记在最初那家名下：三家都在转同一篇，读一篇就够
-    const who = countedAs(s);
-    s._round = seen.get(who) || 0;
-    seen.set(who, s._round + 1);
-  }
-  cand.sort((a, b) => a._round - b._round);
-  cand.splice(12);
-  for (const s of cand) delete s._round;
+  const cand = ftCandidates(srcs, c);
   if (!cand.length) return out;
   let rows = [];
   try {
