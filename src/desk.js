@@ -1017,7 +1017,7 @@ Hard rules on facts
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Futu, Jin10 or any "Chinese media". Never name Argaam either, even when the editor pasted its text and it is marked high reliability: use its facts and write "according to a company filing", "Tadawul data showed" or "reports said" as the text supports. Reuters, Bloomberg, WSJ, FT, CNBC may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
 4a. Lead with what is new. The materials carry dates and times; build the headline, summary and opening on the most recent developments (roughly the last 24 hours). When the story began days earlier, give the original event one or two sentences of background with its date, and do not present it as today's news.
-5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Each reference price carries a session label, and you must keep to it: [LAST CLOSE] is a closing price, say "closed at"; [INTRADAY] is a price while the market is open, say so and give the time, never call it a close; [PRE-MARKET] and [AFTER-HOURS] prices come from thin trading and are only an early indication: when you use one, first give the last close as the main reference, then the pre-market or after-hours price with its time, say that trading at that hour is thin, and do not build a headline on it alone. Saudi stocks have no pre-market or after-hours price. Do not imply that the news caused a price move unless the materials say so.
+5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Each reference price carries a session label, and you must keep to it: [LAST CLOSE] is a closing price, say "closed at"; [INTRADAY] is a price while the market is open, say so and give the time, never call it a close; [PRE-MARKET] and [AFTER-HOURS] prices come from thin trading and are only an early indication: when you use one, first give the last close as the main reference, then the pre-market or after-hours price with its time, say that trading at that hour is thin, and do not build a headline on it alone. Saudi stocks have no pre-market or after-hours price. How far a stock is from its 52-week high or low: use only the figure the "Reference prices" block computed, with the date of the price it was computed from; if a material gives a different distance, use the block's figure and add a CHECK line saying the two differ. If the block has no range for that stock, do not state a distance from the high or low at all unless a HIGH RELIABILITY item gives it, and list it under CHECK. Do not imply that the news caused a price move unless the materials say so.
 6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed", "nothing in the data tells us", "as this is written". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
 7. Keep figures in their own time frame. A cumulative figure (value lost over a whole selloff) must not be attached to a one-day move, in headlines above all. Do not give the same label ("three-year high") to a different figure than the materials do.
 8. If the US or Saudi market is still trading when you write, mark market figures as intraday in the sentence that gives them ("was down 1.2% in midday trading"). Do not open or close the article with a standalone note about when it was written, and if the article gives no market figures say nothing about it.
@@ -1205,9 +1205,18 @@ export function draftQuotes(t, quotes, now) {
     const ext = q.ext && now - q.ext.at < 3 * 3_600_000 ? `; [${q.ext.s === 'pre' ? 'PRE-MARKET' : 'AFTER-HOURS'}] ${q.ext.p}, ${q.ext.chg > 0 ? '+' : ''}${q.ext.chg}% versus that close, as of ${qWhen(q.ext.at, 'America/New_York')} New York time (thin trading, say so if you use it)` : '';
     // 时段：这笔价格是 40 分钟内的、且（美股）现在正开着盘，才算盘中价；否则就是最近一个交易日的收盘价
     const live = now - q.at < 40 * 60_000 && (sa || usOpen(now));
-    return `- ${NAMES[q.t] || q.t}: [${live ? 'INTRADAY, market open, not a close' : 'LAST CLOSE'}] ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}${ext}`;
+    return `- ${NAMES[q.t] || q.t}: [${live ? 'INTRADAY, market open, not a close' : 'LAST CLOSE'}] ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}${ext}${range52(q)}`;
   });
   return { text: lines.join('\n'), at: Math.max(...rows.map((q) => q.at)) };
+}
+
+/** 离 52 周高低点多远：程序自己算好给模型，不让它用转载文章里的说法 */
+export function range52(q) {
+  if (!(q?.hi52 > 0) || !(q?.lo52 > 0) || !(q.p > 0)) return '';
+  const pct = (x) => Math.round(Math.abs(x) * 1000) / 10;
+  const dHi = q.p / q.hi52 - 1, dLo = q.p / q.lo52 - 1;
+  const span = q.ipo ? `range since it began trading on ${new Date(q.ipo).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' })} (listed less than a year, so say "since listing", not "52-week")` : '52-week range';
+  return `; ${span}: high ${q.hi52}, low ${q.lo52} (intraday extremes); this price is ${dHi >= -0.0005 ? 'at the high' : pct(dHi) + '% below the high'} and ${dLo <= 0.0005 ? 'at the low' : pct(dLo) + '% above the low'} (computed by the desk)`;
 }
 
 /** 写（或重写）一个选题的英文稿。alt = true：换一种形式重写 */
@@ -1236,7 +1245,17 @@ export async function writeDraft(env, { run, rank, alt = false, now = Date.now()
   let px = null;
   try {
     const q = await deskQuotes(env, { now });
-    if (q.ok) px = draftQuotes(t, q.quotes, now);
+    if (q.ok) {
+      // 这篇稿子自己的股票不在缓存里的，只为它们补取一次（最多 2 只），不动缓存、不加轮询
+      const got = new Set(q.quotes.map((x) => x.t));
+      const miss = (t.tickers || []).filter((k) => /^([A-Z]{1,5}|\d{4})$/.test(k) && !got.has(k)).slice(0, 2); // 只补 2 只：连着 3 只取不到会被当成被拒、停 6 小时，代码写错的股票不该触发它
+      let more = [];
+      if (miss.length && q.src === 'yahoo') {
+        const r2 = await yahooQuotes(env, miss, now, fetch).catch(() => null);
+        if (r2?.ok) more = r2.quotes;
+      }
+      px = draftQuotes(t, q.quotes.concat(more), now);
+    }
   } catch {}
   let recent = [];
   try {
@@ -1299,6 +1318,14 @@ export function tidyYahoo(j, t) {
   let pc = closes.length >= 3 ? closes[closes.length - 2] : Number(m?.chartPreviousClose ?? m?.previousClose);
   if (!Number.isFinite(p) || !Number.isFinite(pc) || pc <= 0) return null;
   const out = { t, p, pc: Math.round(pc * 10000) / 10000, chg: Math.round((p / pc - 1) * 10000) / 100, at: m.regularMarketTime ? m.regularMarketTime * 1000 : undefined };
+  // 52 周高低点：就在这同一次返回的 meta 里，不多发请求。上市不满一年的，记下上市日，写稿时说明区间只从上市算起
+  const hi = Number(m?.fiftyTwoWeekHigh), lo = Number(m?.fiftyTwoWeekLow);
+  if (Number.isFinite(hi) && Number.isFinite(lo) && lo > 0 && hi >= lo) {
+    out.hi52 = hi;
+    out.lo52 = lo;
+    const ft = Number(m?.firstTradeDate) * 1000;
+    if (Number.isFinite(ft) && ft > 0 && out.at && out.at - ft < 365 * 86_400_000) out.ipo = ft;
+  }
   // 平时一天动多少：最近约 20 个交易日每天涨跌幅（绝对值）的中位数，不含今天
   if (closes.length >= 8) {
     const moves = [];

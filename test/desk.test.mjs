@@ -235,6 +235,13 @@ test('draftQuotes: topic tickers plus market index, with time and zone; stale or
   assert.ok(!/TASI|AAPL|QQQ/.test(r.text));
   assert.match(draftQuotes({ tickers: ['2222'], market: 'Saudi' }, q, now).text, /TASI\): \[LAST CLOSE\] 9913\.98.*3:00 PM Riyadh time \(delayed/);
   assert.equal(draftQuotes({ tickers: ['NVDA'], market: 'US' }, q, now + 10 * 86_400_000), null);
+  // 52 周高低：程序自己算距离；上市不满一年的说明从上市算起；没有区间数据就不写
+  const { tidyYahoo, range52 } = await import('../src/desk.js');
+  const at = Date.UTC(2026, 10, 25, 21, 0) / 1000;
+  const y = tidyYahoo({ chart: { result: [{ meta: { regularMarketPrice: 127.44, chartPreviousClose: 125.8, regularMarketTime: at, fiftyTwoWeekHigh: 201.8, fiftyTwoWeekLow: 110.2, firstTradeDate: Date.UTC(2026, 5, 12) / 1000 } }] } }, 'SPCX');
+  assert.match(range52(y), /since it began trading on Jun 1[12], 2026.*36\.8% below the high and 15\.6% above the low/);
+  assert.match(range52({ p: 26.38, hi52: 29.1, lo52: 24 }), /52-week range: high 29\.1, low 24 .*9\.3% below the high/);
+  assert.equal(range52({ p: 10 }), '');
 });
 
 test('parseDraft keeps an Arabic card only when it has the same shape', async () => {
