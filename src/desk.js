@@ -724,7 +724,7 @@ export async function writeDossier(env, { run, rank, paste = null, now = Date.no
   const text = paste ? clean(String(paste.text || '').slice(0, c.pasteMax * 2)).slice(0, c.pasteMax) : '';
   if (text.length >= 200) {
     pasted.push({ label: clean(paste.label).slice(0, 80), text, ts: now });
-    while (pasted.length > 3) pasted.shift();
+    while (pasted.length > 6) pasted.shift(); // 每件事最多留 6 段（2026-11-27 用户同意从 3 段放宽）
   } else if (paste) return { ok: false, error: 'paste_short' };
   else if (old && now - old.updated < c.dossierMin * 60_000) return { ok: true, cached: true, wait_min: Math.ceil((c.dossierMin * 60_000 - (now - old.updated)) / 60_000) };
   if (!claudeUp(env)) return { ok: false, error: 'claude_down' };
@@ -769,7 +769,7 @@ export async function deskPaste(env, { run, rank, paste = null, drop = null, now
     const text = clean(String(paste?.text || '').slice(0, c.pasteMax * 2)).slice(0, c.pasteMax);
     if (text.length < 200) return { ok: false, error: 'paste_short' };
     pasted.push({ label: clean(paste.label).slice(0, 80), text, ts: now });
-    while (pasted.length > 3) pasted.shift();
+    while (pasted.length > 6) pasted.shift(); // 每件事最多留 6 段（2026-11-27 用户同意从 3 段放宽）
   }
   if (old) await env.DB.prepare('UPDATE desk_dossiers SET pasted = ? WHERE run_id = ? AND rank = ?').bind(JSON.stringify(pasted), r.id, t.rank).run();
   else await env.DB.prepare('INSERT INTO desk_dossiers (run_id, rank, title, body, srcs, pasted, created, updated, writes, usd) VALUES (?, ?, ?, NULL, ?, ?, ?, 0, 0, 0)').bind(r.id, t.rank, '', '[]', JSON.stringify(pasted), now).run();
