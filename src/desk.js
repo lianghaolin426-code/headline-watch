@@ -1356,18 +1356,25 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
   }
   // 美股盘前盘后：正常时段的价格不动了，再各取一次带盘前盘后的 5 分钟线（最多 8 只美股，同样一只一只来，被拒就停）
   const ext = !status && out.length ? usExtended(now) : '';
+  // 盘前盘后取数的自检信息：试了几只、拿到几只、最后一笔是什么时候，方便只读排查
+  const dbg = ext ? { s: ext, tried: 0, got: 0, http: 0, last: 0, err: 0 } : undefined;
   if (ext) {
     for (const q of out.filter((x) => /^[A-Z]{1,5}$/.test(x.t) && x.t !== 'TASI').slice(0, 8)) {
       try {
-        const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.t) + '?interval=5m&range=1d&includePrePost=true', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
+        const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.t) + '?interval=5m&range=2d&includePrePost=true', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
         if ([401, 403, 429].includes(res.status)) {
           status = res.status;
           break;
         }
+        dbg.tried++;
+        if (!res.ok) dbg.http = res.status;
         const e = res.ok ? tidyYahooExt(await res.json()) : null;
+        if (e) dbg.last = Math.max(dbg.last, e.at);
         // 只有确实晚于正常时段最后一笔、且是这两个小时内的，才算盘前 / 盘后价
-        if (e && q.at && e.at > q.at + 60_000 && now - e.at < 2 * 3_600_000) q.ext = { s: ext, p: e.p, chg: Math.round((e.p / q.p - 1) * 10000) / 100, at: e.at };
-      } catch {}
+        if (e && q.at && e.at > q.at + 60_000 && now - e.at < 2 * 3_600_000) (q.ext = { s: ext, p: e.p, chg: Math.round((e.p / q.p - 1) * 10000) / 100, at: e.at }), dbg.got++;
+      } catch {
+        dbg.err++;
+      }
       if (gap) await sleep(gap);
     }
   }
@@ -1379,7 +1386,7 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
     if (!out.length) return { ok: false, error: status ? 'yahoo_http' : 'yahoo_fail', status: status || undefined };
   }
   if (!out.length) return { ok: false, error: 'yahoo_fail' };
-  return { ok: true, quotes: out, miss: tickers.length - out.length };
+  return { ok: true, quotes: out, miss: tickers.length - out.length, ext_dbg: dbg };
 }
 
 async function tiingoQuotes(env, tickers, fetcher) {
@@ -1408,11 +1415,11 @@ export async function deskQuotes(env, { now = Date.now(), fetcher = fetch, gap =
   const key = tickers.join(',');
   const ttl = 10 * 60_000;
   // 榜上的股票随时在变：10 分钟内已经拿过一轮的，不因为名单变了就再请求一轮
-  if (qmem.data && (qmem.key === key || extra) && now - qmem.at < ttl) return { ok: true, at: qmem.at, src: qmem.src, quotes: qmem.data };
+  if (qmem.data && (qmem.key === key || extra) && now - qmem.at < ttl) return { ok: true, at: qmem.at, src: qmem.src, quotes: qmem.data, ext_dbg: qmem.dbg };
   const m = await metaGet(env, 'desk_quotes');
   if ((m?.v?.key === key || extra) && m?.v && now - m.v.at < ttl) {
-    Object.assign(qmem, { at: m.v.at, key, data: m.v.data, src: m.v.src });
-    return { ok: true, at: m.v.at, src: m.v.src, quotes: m.v.data };
+    Object.assign(qmem, { at: m.v.at, key, data: m.v.data, src: m.v.src, dbg: m.v.dbg });
+    return { ok: true, at: m.v.at, src: m.v.src, quotes: m.v.data, ext_dbg: m.v.dbg };
   }
   let src = env.QUOTES === 'tiingo' ? '' : 'yahoo';
   let r = src ? await yahooQuotes(env, tickers, now, fetcher, gap) : { ok: false, error: 'off' };
@@ -1423,7 +1430,7 @@ export async function deskQuotes(env, { now = Date.now(), fetcher = fetch, gap =
     r = await tiingoQuotes(env, tickers, fetcher);
     if (!r.ok) return { ...r, yahoo: yErr };
   }
-  Object.assign(qmem, { at: now, key, data: r.quotes, src });
-  await metaSet(env, 'desk_quotes', { key, at: now, data: r.quotes, src }, now);
-  return { ok: true, at: now, src, quotes: r.quotes, miss: r.miss || undefined, yahoo: yErr };
+  Object.assign(qmem, { at: now, key, data: r.quotes, src, dbg: r.ext_dbg });
+  await metaSet(env, 'desk_quotes', { key, at: now, data: r.quotes, src, dbg: r.ext_dbg }, now);
+  return { ok: true, at: now, src, quotes: r.quotes, miss: r.miss || undefined, yahoo: yErr, ext_dbg: r.ext_dbg };
 }
