@@ -620,6 +620,7 @@ mark.k{background:linear-gradient(transparent 56%,color-mix(in srgb,var(--amber)
 .pill.hot{background:var(--red);color:#fff}
 .tip{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);font-size:13px;padding:9px 15px;border-radius:999px;opacity:0;pointer-events:none;transform:translate(-50%,10px) scale(.96);transition:opacity .18s linear,transform .32s var(--e-out);max-width:88vw;text-align:center}
 .tip.show{opacity:1;transform:translate(-50%,0)}
+.dft-ck li.ck-red{color:var(--red,#c8321e);font-weight:700}
 .nvb{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translateX(-50%);z-index:61;background:var(--ink);color:var(--bg);font:600 13px/1.2 var(--sans);padding:10px 16px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.22);cursor:pointer}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.3s}.tip.act{pointer-events:auto;cursor:pointer}
 
@@ -1338,7 +1339,7 @@ function dftHtml(rank){var d=state.desk,f=(d.drafts||{})[rank],busy=DK.fbusy===r
   var h='<div class="dft" lang="en" dir="ltr"><div class="dos-meta"><span>'+T('dfUpd',dhm(f.updated),f.writes)+'</span></div><ol class="dft-hd">'+f.heads.map(function(x,k){return '<li data-dos="head" data-k="'+k+'"><span>'+esc(x)+'</span><small>'+T('dfCopyH')+'</small></li>'}).join('')+'</ol>'+
     (f.format?'<div class="dft-fm">'+T('dfFmt',esc(f.format))+'</div>':'')+(f.summary?'<p class="dft-sum">'+esc(f.summary)+'</p>':'')+'<div class="dft-b">'+mdEn(f.body)+'</div>'+
     ((f.cards||[]).length?'<div class="dft-ch">'+T('dfCards')+'<small>'+T('dfCardsS')+'</small></div>'+f.cards.map(cardHtml).join(''):'')+'</div>'+
-    ((f.checks||[]).length?'<div class="dft-ck"><h5>'+T('dfCheck')+'</h5><ul>'+f.checks.map(function(x){return '<li dir="auto">'+esc(x)+'</li>'}).join('')+'</ul></div>':'')+(DK.ferr?'<div class="dk-err">'+esc(DK.ferr)+'</div>':'');
+    ((f.checks||[]).length?'<div class="dft-ck"><h5>'+T('dfCheck')+'</h5><ul>'+f.checks.map(function(x){return '<li dir="auto"'+(/代码待确认|ticker to confirm/i.test(x)?' class="ck-red"':'')+'>'+esc(x)+'</li>'}).join('')+'</ul></div>':'')+(DK.ferr?'<div class="dk-err">'+esc(DK.ferr)+'</div>':'');
   var tt=evOf(rank),done=tt&&tt.state==='published';
   return h+planHtml(rank,1)+'<div class="d-act"><button class="btn pri" data-dos="dcopy">'+T('dfCopyB')+'</button><button class="btn" data-dos="dcopym">'+T('dfCopyM')+'</button>'+(ADM?'<button class="btn" data-dos="dnew"'+(busy?' disabled':'')+'>'+T(busy?'dfBusy':'dfNew')+'</button><button class="btn" data-dos="dalt"'+(busy?' disabled':'')+'>'+T('dfAlt')+'</button>'+(done?'<span class="dk-ok">'+T('dkWrote',dhm(tt.state_ts||Date.now()))+'</span>':'<button class="btn" data-dos="dwr">'+T('dkWr')+'</button>'):'')+'</div>';}
 function mdPlain(t){return String(t||'').split('\n').map(function(l){l=l.replace(/^#{1,4}\s+/,'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/(^|[\s(])\*([^*\s][^*]*)\*/g,'$1$2');if(/^\s*\|?[\s:|-]+\|?\s*$/.test(l)&&l.indexOf('-')>=0&&l.indexOf('|')>=0)return null;if(l.trim().charAt(0)==='|')l=l.trim().replace(/^\||\|$/g,'').split('|').map(function(c){return c.trim()}).join('\t');return l;}).filter(function(l){return l!==null}).join('\n');}
