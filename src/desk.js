@@ -794,14 +794,28 @@ export async function deskPack(env, { run, rank, now = Date.now() }) {
   if (t.facts?.length) L.push('', '## 关键事实', ...t.facts.map((f) => `- ${f.t}（${f.src}）`));
   if (t.hooks?.length) L.push('', '## 吸睛资讯（可以当标题或开头的钩子）', ...t.hooks.map((h) => `- ${h.title}（${h.src}）：${h.t}${h.url ? ' ' + h.url : ''}`));
   if (t.views?.length) L.push('', '## 观点线索', ...t.views.map((v) => `- ${v.who ? String(v.who).split('|')[0] + '：' : ''}${v.t}${v.url ? ' ' + v.url : ''}`));
-  L.push('', `## 全部报道（${items.length + arts.filter((a) => !have.has(a.id)).length} 条，按时间）`);
-  for (const i of items.concat(arts.filter((a) => !have.has(a.id)))) {
-    const b = bodyOf(i);
-    L.push(`- ${bjTime(i.ts)} | ${i.source}${i.who ? ' | ' + String(i.who).split('|')[0] : ''} | ${clean(i.title)}${i.url ? '\n  ' + i.url : ''}${b.length >= 40 ? '\n  ' + b.slice(0, 1800) : ''}`);
+  // 真的全部：每条消息都带上；系统读到过的原文全文整篇放进来（不截短）；标出“这次不用”的
+  const all = items.concat(arts.filter((a) => !have.has(a.id)));
+  const excl = await exclOf(env, r, t).catch(() => new Set());
+  const full = new Map();
+  try {
+    for (let k = 0; k < all.length; k += 80) {
+      const part = all.slice(k, k + 80).map((i) => i.id);
+      for (const x of (await env.DB.prepare(`SELECT id, text FROM fulltext WHERE ok = 1 AND id IN (${part.map(() => '?').join(',')})`).bind(...part).all()).results) if (x.text) full.set(x.id, x.text);
+    }
+  } catch {}
+  L.push('', `## 全部报道（${all.length} 条，按时间；其中 ${full.size} 条带系统读到的原文全文）`);
+  for (const i of all) {
+    const b = full.get(i.id) || bodyOf(i);
+    L.push(`- ${bjTime(i.ts)} | ${i.source}${i.who ? ' | ' + String(i.who).split('|')[0] : ''} | ${clean(i.title)}${excl.has(i.id) ? ' | （你点了“这次不用”，写稿时不会读）' : ''}${i.url ? '\n  ' + i.url : ''}${b.length >= 40 ? '\n  ' + (full.has(i.id) ? '〔原文全文〕' + b : b.slice(0, 1800)) : ''}`);
   }
   if (d?.body) L.push('', `## 专题档案（AI 整理，北京时间 ${bjTime(d.updated)}；方括号里的 S 编号对应生成档案时的材料顺序）`, d.body);
   for (const p of safeJson(d?.pasted, [])) L.push('', `## 贴入的全文：${p.label || '未注明出处'}`, p.text);
-  return { ok: true, text: L.join('\n'), n: items.length };
+  try {
+    const f = (await env.DB.prepare('SELECT heads, summary, body, updated FROM desk_drafts WHERE run_id = ? AND rank = ?').bind(r.id, t.rank).all()).results?.[0];
+    if (f?.body) L.push('', `## 已生成的英文稿（北京时间 ${bjTime(f.updated)}）`, safeJson(f.heads, []).join('\n'), '', f.summary || '', '', f.body);
+  } catch {}
+  return { ok: true, text: L.join('\n'), n: all.length, full: full.size, pasted: safeJson(d?.pasted, []).length };
 }
 
 /* ---------- 选题状态：新出现 / 在升温 / 在降温 / 持续 ---------- */
