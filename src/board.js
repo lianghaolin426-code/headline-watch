@@ -542,7 +542,7 @@ export async function evAct(env, { id, act, state, note = '', item, snap = null,
   const log = (a, n) => env.DB.prepare('INSERT INTO ev_log (ts, ev, name, act, note, snap) VALUES (?, ?, ?, ?, ?, ?)').bind(now, row.id, row.name, a, String(n || '').slice(0, 300), snap ? JSON.stringify(snap).slice(0, 1200) : null).run();
   if (act === 'excl') {
     // 这条消息写稿和深读时不用（再点一次恢复）。只记在 meta 表，不动消息本身，也不影响排序
-    const iid = String(item || '').slice(0, 80);
+    const iid = String(item || '').slice(0, 500); // 消息 id 里可能带整条网址，不能截太短
     if (!iid) return { ok: false, error: 'no_item' };
     const key = 'ev_excl_' + row.id;
     const cur = (await metaGet(env, key))?.v;
