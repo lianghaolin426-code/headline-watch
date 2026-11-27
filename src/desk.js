@@ -1354,6 +1354,7 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
     }
     if (gap) await sleep(gap);
   }
+  // 注意：这里用明确的起止时间，不用 range=1d / 2d。盘前时 range 是按“上一个正常交易时段”算的，只会给到上个交易日盘后，拿不到当天盘前（2026-11-27 实测）
   // 美股盘前盘后：正常时段的价格不动了，再各取一次带盘前盘后的 5 分钟线（最多 8 只美股，同样一只一只来，被拒就停）
   const ext = !status && out.length ? usExtended(now) : '';
   // 盘前盘后取数的自检信息：试了几只、拿到几只、最后一笔是什么时候，方便只读排查
@@ -1361,7 +1362,7 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
   if (ext) {
     for (const q of out.filter((x) => /^[A-Z]{1,5}$/.test(x.t) && x.t !== 'TASI').slice(0, 8)) {
       try {
-        const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.t) + '?interval=5m&range=2d&includePrePost=true', { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
+        const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.t) + `?interval=5m&period1=${Math.floor(now / 1000) - 20 * 3600}&period2=${Math.floor(now / 1000) + 60}&includePrePost=true`, { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
         if ([401, 403, 429].includes(res.status)) {
           status = res.status;
           break;
