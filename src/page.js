@@ -485,6 +485,9 @@ mark.k{background:linear-gradient(transparent 56%,color-mix(in srgb,var(--amber)
 .fc-t time{color:#f8f3e8;font:700 13px var(--sans)}
 .fc-w li:before{background:#e2513a}
 .fc-l+.fc-l{border-top:1px solid rgba(243,237,224,.4)}
+.fc{background:#0b2a2c;border-color:#0b2a2c;color:#eaf6f4}.fc h4{color:#f4fbfa}.fc h4:before{background:#79dad3}.fc-w li:before{background:#79dad3}
+.fc-n b,.fc-t time,.fc-v h5{color:#f4fbfa}.fc-v h5{border-bottom-color:#79dad3}.fc-n span,.fc-v li,.fc-w li,.fc-t div{color:#bcd6d3}
+.fc-n div,.fc-v li,.fc-w li,.fc-t div,.fc-v>div+div{border-color:rgba(121,218,211,.18)}.fc-l+.fc-l{border-top-color:rgba(121,218,211,.45)}
 .fc-l[dir=rtl],.fc-l[dir=rtl] h4,.fc-l[dir=rtl] h5{font-family:var(--sans)}.fc-l[dir=rtl] h4{font-weight:700;font-size:23px;line-height:1.45;letter-spacing:0}.fc-l[dir=rtl] li,.fc-l[dir=rtl] span{line-height:1.7}
 @media (max-width:900px){.dk-md{grid-template-columns:1fr;gap:14px}.fc-v{grid-template-columns:1fr}.fc-v>div+div{border:0;padding:14px 0 0}.fc-n div{grid-template-columns:104px 1fr}.fc-n b{font-size:27px}}
 .dos-an{font:italic 400 17px/1.5 var(--serif);color:var(--ink3);margin:-6px 0 20px}
