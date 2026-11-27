@@ -1209,7 +1209,7 @@ async function loadEv(rank,force){var c=EVD[rank];if(c&&!force&&Date.now()-c.at<
 async function evMove(rank,id){var c=EVD[rank];try{var r=await dkPost('/api/ev/act',{id:rank,act:'move',item:id});if(!r.ok)return;}catch(e){return;}if(c)c.items=c.items.filter(function(x){return x.id!==id});tip(T('evMoved'));state.dkAt=Date.now();render(true);renderReader();}
 function dkResync(){setTimeout(function(){state.dkAt=0;state.dkSig='';loadDesk();},60);}
 async function dkPost(path,body){var d;try{var r=await fetch(api(path),{method:'POST',headers:{'Content-Type':'application/json','X-HW-Admin':ADM},body:JSON.stringify(body||{})});d=await r.json();}catch(e){tip(T('dkEfail'));dkResync();throw e;}
-  if(d&&d.desk)state.desk=d.desk;if(d&&d.ok===false){tip(dkErr(d),3200);if(!d.desk)dkResync();}else if(d&&d.cached)tip(T('dkEcool',d.wait_min||1),3200);return d;}
+  DK.actAt=Date.now();if(d&&d.desk)state.desk=d.desk;if(d&&d.ok===false){tip(dkErr(d),3200);if(!d.desk)dkResync();}else if(d&&d.cached)tip(T('dkEcool',d.wait_min||1),3200);return d;}
 function dkCopy(t){try{if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(t).catch(function(){dkCopy2(t)});}catch(e){}dkCopy2(t);return Promise.resolve();}
 function dkCopy2(t){var a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();}
 async function dkPack(rank){var d=state.desk;if(!d||!d.run)return;try{var r=await fetch(api('/api/desk/pack?run='+d.run.id+'&rank='+rank),{headers:{'X-HW-Admin':ADM},cache:'no-store'});var j=await r.json();if(!j.ok)return tip(dkErr(j));await dkCopy(j.text);tip(T('dkPacked',j.n));}catch(e){tip(T('dkEfail'));}}
@@ -1534,7 +1534,7 @@ var rdSig='';
 function setHtml(el,h){if(el.__h!==h){el.__h=h;el.innerHTML=h;}}
 function renderReader(bg){
   if(state.dos!=null){var rb=$('rbody'),nh=dosHtml(state.dos);
-    if(bg&&rb.__ev===state.dos&&rb.__h&&rb.__h!==nh&&Date.now()-(rb.__at||0)>5000&&document.body.classList.contains('open-reader')){
+    if(bg&&rb.__ev===state.dos&&rb.__h&&rb.__h!==nh&&Date.now()-(rb.__at||0)>5000&&Date.now()-(DK.actAt||0)>2000&&document.body.classList.contains('open-reader')){
       if(!rb.__pend){rb.__pend=1;rb.insertAdjacentHTML('afterbegin','<button class="ev-upd" data-dos="upd">'+T('evUpd')+'</button>');}return;}
     if(rb.__ev!==state.dos)rb.__at=Date.now();rb.__ev=state.dos;rb.__pend=0;setHtml(rb,nh);setHtml($('ract'),'');setHtml($('rpos'),'<span class="rl"><bdi>'+T('evK')+'</bdi></span>');$('rprev').style.display=$('rnext').style.display='none';$('reader').setAttribute('aria-label',T('evK'));rprog();return;}
   var i=state.sel&&byId(state.sel);if(!i)return;if(i.lite)fillOne(i.id);
