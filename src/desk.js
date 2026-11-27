@@ -351,7 +351,18 @@ export async function runDesk(env, { now = Date.now(), slot = 'manual', articles
   if (rows.length < 5) return { ok: false, error: 'too_few', n: rows.length };
   const inp = deskInput(rows, articles, c.maxItems);
   const user = `现在是北京时间 ${bjTime(now)}。过去 ${c.windowH} 小时里够格的材料共 ${rows.length} 条（其中观点线索 ${inp.views} 条），下面列出 ${inp.list.length} 条：\n\n${inp.text}`;
-  const res = await claudeText(env, { system: DESK_SYSTEM, user, maxTokens: 16000, kind: 'desk', effort: 'medium', model: c.model, timeout: 150_000 });
+  // 编辑在事件榜上已经表过态的事：告诉选题会，免得把否掉的、发过的又推荐一遍
+  let marks = '';
+  try {
+    const ev = (await env.DB.prepare("SELECT name, title, state, note FROM events WHERE gone = 0 AND state != 'new' AND state_ts > ? ORDER BY state_ts DESC LIMIT 40").bind(now - 72 * H).all()).results;
+    const nm = (e) => clean(/^[gi]:/.test(e.name) ? e.title || '' : e.name).slice(0, 40);
+    const ok = (e) => nm(e).length > 1;
+    const grp = (st) => ev.filter((e) => st.includes(e.state) && ok(e));
+    const line = (label, list, withNote) => (list.length ? `${label}：${list.map((e) => nm(e) + (withNote && e.note ? `（理由：${clean(e.note).slice(0, 40)}）` : '')).join('；')}\n` : '');
+    marks = line('编辑决定不写', grp(['skip']), true) + line('编辑已经发布过', grp(['published'])) + line('编辑决定要写或已经在写', grp(['write', 'drafted'])) + line('编辑在关注', grp(['follow']));
+    if (marks) marks = `\n\n编辑已经表过态的事件（按事件名对应材料里的“事件”）：\n${marks}规则：“决定不写”和“已经发布过”的不要再推荐，除非之后出现了足以改变判断的重大新进展，这时在理由里写明新进展是什么；“决定要写”和“在关注”的说明编辑对这类题感兴趣，够格就可以推荐，但不要因此降低标准。`;
+  } catch {}
+  const res = await claudeText(env, { system: DESK_SYSTEM, user: user + marks, maxTokens: 16000, kind: 'desk', effort: 'medium', model: c.model, timeout: 150_000 });
   if (!res) return { ok: false, error: 'model', detail: claudeState().last_error };
   const topics = parseDesk(res.text, inp.list, c.maxTopics);
   if (!topics) return { ok: false, error: 'parse' };
@@ -933,6 +944,7 @@ Hard rules on facts
 2. Most materials are Chinese paraphrases. Use quotation marks only when the exact English words appear in the materials or in the text the editor pasted. Otherwise paraphrase and attribute ("Goldman Sachs said...").
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
+4a. Lead with what is new. The materials carry dates and times; build the headline, summary and opening on the most recent developments (roughly the last 24 hours). When the story began days earlier, give the original event one or two sentences of background with its date, and do not present it as today's news.
 5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Do not imply that the news caused a price move unless the materials say so.
 6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed", "nothing in the data tells us", "as this is written". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
 7. Keep figures in their own time frame. A cumulative figure (value lost over a whole selloff) must not be attached to a one-day move, in headlines above all. Do not give the same label ("three-year high") to a different figure than the materials do.

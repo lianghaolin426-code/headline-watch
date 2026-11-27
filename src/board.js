@@ -163,6 +163,9 @@ export function eventCard(name, items, gts, now) {
     if (w && (!whos.has(w) || i.ts < whos.get(w))) whos.set(w, i.ts);
   }
   const top = its.reduce((a, b) => ((b.score || 0) > (a.score || 0) ? b : a), its[0]);
+  // 分量看“现在还剩多少”：一条消息过了 12 小时开始打折，每小时少 0.1 分，最多少 3 分。几天前的大新闻不会一直占着第一
+  const fade = (i) => (i.score || 0) - Math.min(3, Math.max(0, (now - i.ts) / H - 12) * 0.1);
+  const eff = Math.max(...its.map(fade));
   const heat = heatOf({ ts: its.map((i) => i.ts), outs: [...outs].map(([o, first]) => ({ o, first })), sc: its.map((i) => ({ ts: i.ts, s: i.score || 0 })), whos: [...whos].map(([w, first]) => ({ w, first })) }, gts, now);
   const tkc = new Map();
   for (const i of its) for (const t of String(i.tickers || '').split(',')) if (t.trim()) tkc.set(t.trim().toUpperCase(), (tkc.get(t.trim().toUpperCase()) || 0) + 1);
@@ -183,13 +186,15 @@ export function eventCard(name, items, gts, now) {
     outs: [...outs].sort((a, b) => a[1] - b[1]).map((x) => x[0]).slice(0, 8),
     relay: [...origins].slice(0, 4),
     top: r1(top.score || 0),
+    eff: r1(eff),
+    topAge: Math.round((now - top.ts) / H),
     pk: r1(Math.max(0, ...its.map((i) => i.pick || 0))) || undefined,
     first: Math.min(...its.map((i) => i.ts)),
     last: its[0].ts,
     st: heat.st,
     heat: { k2: heat.k2, exp: heat.exp, newOut: heat.newOut.slice(0, 3), dev: heat.dev || undefined, quiet: heat.quiet },
     market: marketOf(its),
-    tickers: [...tkc].sort((a, b) => b[1] - a[1]).map((x) => x[0]).filter((t) => /^([A-Z]{1,5}|\d{4})$/.test(t)).slice(0, 4),
+    tickers: [...tkc].sort((a, b) => b[1] - a[1]).filter((x) => its.length < 4 || (x[1] >= 2 && x[1] >= its.length * 0.1)).map((x) => x[0]).filter((t) => /^([A-Z]{1,5}|\d{4})$/.test(t)).slice(0, 4),
     tag: [...tpc].sort((a, b) => b[1] - a[1])[0]?.[0] || '',
     lead: lite(top),
     latest: its.slice(0, 3).map(lite),
@@ -213,6 +218,7 @@ export function weigh(c, now) {
     w += v;
     parts.push([code, v, arg]);
   };
+  if (c.eff != null && c.eff < c.top - 0.25) add('old', c.eff - c.top, c.topAge);
   add('out', c.outlets >= 2 ? Math.min(2, Math.log2(1 + c.outlets) * 0.6) : 0, c.outlets);
   add('vol', Math.min(0.8, Math.log2(Math.max(1, c.n)) / 6));
   if (c.pk >= 7) add('pick', Math.min(1.2, (c.pk - 6) * 0.4), c.pk);
@@ -328,11 +334,12 @@ export async function boardState(env, { now = Date.now() } = {}) {
     const wm = matchWritten({ rank: row?.id || -1, ids: card.ids, stories: card.stories, tsl: card.tsl }, 0, wr);
     if (wm) card.wr = wm;
     if (quotes) {
-      // 价格确认：相关股票今天的涨跌幅是它自己平时（约 20 个交易日）的 2 倍以上
+      // 价格确认：相关股票今天的涨跌幅是它自己平时（约 20 个交易日涨跌幅绝对值的中位数）的 3 倍以上。
+      // 正态分布下中位数约等于 0.67 个标准差，3 倍约等于业界常说的“2 个标准差”，大约每 20 个交易日出现一次
       let best = null;
       for (const t of card.tickers) {
         const q = quotes.get(t);
-        if (q && q.typ > 0 && Math.abs(q.chg) >= q.typ * 2 && (!best || Math.abs(q.chg) / q.typ > best.x)) best = { t, chg: q.chg, x: r1(Math.abs(q.chg) / q.typ) };
+        if (q && q.typ > 0 && Math.abs(q.chg) >= q.typ * 3 && (!best || Math.abs(q.chg) / q.typ > best.x)) best = { t, chg: q.chg, x: r1(Math.abs(q.chg) / q.typ) };
       }
       if (best) card.px = best; // 只当作一个信号和加分项，不单凭它把一件没有新消息的事标成“在升温”
     }
@@ -351,6 +358,7 @@ export async function boardState(env, { now = Date.now() } = {}) {
       state_ts: row?.state_ts || undefined,
       note: row?.note || undefined,
       seen: row?.seen || undefined,
+      days: row?.created && now - row.created >= 36 * H ? Math.floor((now - row.created) / (24 * H)) + 1 : undefined,
       fresh: row?.seen ? card.tsl.filter((t) => t > row.seen).length : undefined,
     });
     if (snap?.market && card.n === 0) card.market = snap.market;
@@ -543,6 +551,42 @@ export async function evAct(env, { id, act, state, note = '', item, snap = null,
     await log('move', it.id + ' | ' + it.story);
     return { ok: true };
   }
+  if (act === 'join') {
+    // 手动把两件事并成一行一起写。任何一边已经是合并行，就往那一行里加
+    const other = await rowOf(env, item);
+    if (!other || other.id === row.id) return { ok: false, error: 'no_event' };
+    if (row.name.startsWith('i:') || other.name.startsWith('i:')) return { ok: false, error: 'no_event' };
+    const mem = (r) => (r.kind === 'g' ? safeJson(r.members, []) : [r.name]);
+    const all = [...new Set(mem(row).concat(mem(other)))].slice(0, 8);
+    const order = ['new', 'follow', 'write', 'drafted', 'published'];
+    const st = order[Math.max(0, order.indexOf(row.state), order.indexOf(other.state))];
+    const host = row.kind === 'g' ? row : other.kind === 'g' ? other : null;
+    let gid;
+    if (host) {
+      await env.DB.prepare('UPDATE events SET members = ?, state = ? WHERE id = ?').bind(JSON.stringify(all), st, host.id).run();
+      const guest = host === row ? other : row;
+      if (guest.kind === 'g') await env.DB.prepare('UPDATE events SET gone = 1 WHERE id = ?').bind(guest.id).run();
+      gid = host.id;
+    } else {
+      const tt = (await metaGet(env, 'story_alias'))?.v?.titles || {};
+      const zh = (r) => r.title || tt[r.name]?.zh || r.name;
+      const en = (r) => r.title_en || tt[r.name]?.en || '';
+      const title = (zh(row) + ' ＋ ' + zh(other)).slice(0, 80);
+      const title_en = en(row) && en(other) ? (en(row) + ' + ' + en(other)).slice(0, 160) : null;
+      const r = await env.DB.prepare("INSERT INTO events (name, kind, members, title, title_en, state, state_ts, created) VALUES (?, 'g', ?, ?, ?, ?, ?, ?)").bind('g:m:' + now + ':' + row.id, JSON.stringify(all), title, title_en, st, now, Math.min(row.created || now, other.created || now)).run();
+      gid = r.meta?.last_row_id || (await env.DB.prepare('SELECT id FROM events WHERE name = ?').bind('g:m:' + now + ':' + row.id).all()).results?.[0]?.id;
+    }
+    // 并进去的两件事自己的状态清掉，不然它们会各自再占一行
+    for (const r of [row, other]) if (r.kind !== 'g') await env.DB.prepare("UPDATE events SET state = 'new' WHERE id = ?").bind(r.id).run();
+    await log('join', other.name);
+    return { ok: true, id: gid };
+  }
+  if (act === 'split') {
+    if (row.kind !== 'g') return { ok: false, error: 'no_event' };
+    await env.DB.prepare('UPDATE events SET gone = 1 WHERE id = ?').bind(row.id).run();
+    await log('split', '');
+    return { ok: true };
+  }
   if (act === 'state') {
     if (!STATES.includes(state)) return { ok: false, error: 'bad_state' };
     await env.DB.prepare('UPDATE events SET state = ?, state_ts = ?, note = ? WHERE id = ?').bind(state, now, String(note || '').slice(0, 300), row.id).run();
@@ -635,7 +679,7 @@ export async function applyDeskRun(env, run, { now = Date.now() } = {}) {
     }
   }
   // 没动过的旧合并行解散
-  for (const g of groups) if (!reuse.has(g.id) && !String(g.name).startsWith(`g:${run.id}:`)) await env.DB.prepare('UPDATE events SET gone = 1 WHERE id = ?').bind(g.id).run();
+  for (const g of groups) if (!reuse.has(g.id) && !String(g.name).startsWith(`g:${run.id}:`) && !String(g.name).startsWith('g:m:')) await env.DB.prepare('UPDATE events SET gone = 1 WHERE id = ?').bind(g.id).run();
   return { made, tagged };
 }
 
