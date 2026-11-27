@@ -1135,6 +1135,19 @@ export function draftLint(out, sourceText) {
   // 稿子里带了代码的股票列出来，方便编辑逐个关联、顺手核对代码
   const tk = [...new Set([...body.matchAll(/\(([A-Z]{1,5}|\d{4})\)/g)].map((m) => m[1]))].slice(0, 12);
   const out5 = warn.slice(0, 5);
+  // 数字核对：正文里的数字在材料里找不到原样（换算成亿、万后也找不到）的，列出来请编辑重点核对
+  const srcN = src.replace(/(\d),(?=\d{3})/g, '$1');
+  const miss = [];
+  for (const m of body.replace(/(\d),(?=\d{3})/g, '$1').matchAll(/\$?\d+(?:\.\d+)?%?/g)) {
+    const raw = m[0].replace('$', ''), pct = raw.endsWith('%'), n = parseFloat(raw);
+    if (!Number.isFinite(n) || miss.includes(raw)) continue;
+    if (!pct && Number.isInteger(n) && (n < 100 || (n >= 1900 && n <= 2100))) continue; // 日期、年份、小计数不查
+    const forms = [n, n / 100, n * 10, n / 10, n * 100, n / 1000, n * 1000].map((x) => String(Math.round(x * 1e6) / 1e6));
+    const hit = forms.some((f, i) => new RegExp('(^|[^\\d.])' + f.replace('.', '\\.') + (f.includes('.') ? '0*' : '(?:\\.0+)?') + (i === 0 && pct ? '\\s*(%|％|percent|个百分点)' : '(?![\\d]|\\.\\d)')).test(srcN));
+    const cheng = pct && n % 10 === 0 && n >= 10 && n <= 90 && srcN.includes('一二三四五六七八九'[n / 10 - 1] + '成');
+    if (!hit && !cheng) miss.push(raw);
+  }
+  if (miss.length) out5.push(`这 ${miss.length} 个数字在材料里找不到原样，可能是 AI 换算、四舍五入或写错的，发稿前请重点核对：${miss.slice(0, 10).join('、')}${miss.length > 10 ? ' 等' : ''}`);
   if (tk.length) out5.push(`稿子里带代码的股票有 ${tk.length} 只：${tk.join('、')}。关联前请核对代码。`);
   return out5;
 }
