@@ -593,12 +593,15 @@ export function dossierSources(items, arts, max) {
   return all.map((i, k) => ({ n: k + 1, id: i.id, source: i.source, title: clean(i.title), body: bodyOf(i), ts: i.ts, url: i.url, score: i.score, k: thickness(i), art: i.art, from: originOf(i) || undefined }));
 }
 
+/** 主编贴进来的原文是不是来自一线媒体（彭博、路透、华尔街日报、金融时报、Argaam）：这些当作可信度高的材料 */
+export const topTier = (label) => /bloomberg|彭博|reuters|路透|wall street journal|\bwsj\b|华尔街日报|financial times|\bft\b|金融时报|argaam|阿格姆/i.test(String(label || ''));
+
 export function dossierText(srcs, pasted) {
   const a = srcs.map((s) => {
     const head = `[S${s.n}] ${bjTime(s.ts)} | ${s.source}${s.from ? '（转述 ' + s.from + ' 的报道）' : ''}${s.art ? '（深度文章）' : ''} | 〔${THICK[s.k]}〕${s.score != null && !s.art ? ` | ${Math.round(s.score * 10) / 10}分` : ''} | ${s.title}`;
     return s.k === 'h' ? head : `${head}\n    ${s.body.slice(0, s.full ? 3200 : 1800)}`;
   });
-  const b = pasted.map((p, k) => `[P${k + 1}] 主编贴进来的全文 | 〔正文〕 | ${p.label || '未注明出处'}\n    ${p.text}`);
+  const b = pasted.map((p, k) => `[P${k + 1}] 主编贴进来的全文 | 〔正文〕 | ${p.label || '未注明出处'}${topTier(p.label) ? ' | 可信度高：一线媒体的原文 (HIGH RELIABILITY: original text from a top-tier outlet)' : ''}\n    ${p.text}`);
   return a.concat(b).join('\n');
 }
 
@@ -1009,6 +1012,7 @@ export const DRAFT_SYSTEM = `You are a senior markets writer for a retail invest
 
 Hard rules on facts
 1. Every fact, number, date and quotation must come from the materials given. Do not add background, history, figures or identities from your own knowledge. If the materials do not say it, do not write it.
+1a. Reliability. A [P…] item marked HIGH RELIABILITY is the original text of a top-tier outlet that the editor pasted in. Treat its facts, figures and quotations as reliable: use them directly, prefer them when a relay or aggregator says something different, quote from them exactly, and do not put them under CHECK merely because only one outlet reported them. Everything else keeps its normal standing, and a figure that rests only on an aggregator or relay article with no original source named still goes under CHECK. If you are not confident about a fact, figure or attributed statement that matters to the piece, do not drop the doubt silently: add a CHECK line that starts with the exact words "建议查证：" and says what to confirm.
 2. Most materials are Chinese paraphrases. Use quotation marks only when the exact English words appear in the materials or in the text the editor pasted. Otherwise paraphrase and attribute ("Goldman Sachs said...").
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
