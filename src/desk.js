@@ -1013,7 +1013,7 @@ Hard rules on facts
 3. Attribute views to the institution or person who holds them (Goldman Sachs, Deutsche Bank, Jeffrey Gundlach). If the materials do not show who originated a fact, state it plainly or write "reports said"; never invent a label such as "Bloomberg-style commentary". Never name the aggregators that relayed them: do not mention Wallstreetcn, Gelonghui, Zhitong, Jin10 or any "Chinese media". Reuters, Bloomberg, WSJ, CNBC, Argaam may be credited only when the material shows they originated the reporting.
 4. Keep states apart: an anonymous report is not a confirmation; proposed is not approved; signed is not closed; a forecast is not a result.
 4a. Lead with what is new. The materials carry dates and times; build the headline, summary and opening on the most recent developments (roughly the last 24 hours). When the story began days earlier, give the original event one or two sentences of background with its date, and do not present it as today's news.
-5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Do not imply that the news caused a price move unless the materials say so.
+5. Do not state share prices or percentage moves unless the materials or the "Reference prices" block give them. When you use a figure from "Reference prices", give its time and time zone the way the block does (for example "as of the Nov 25 close, New York time" or "as of 2:45 p.m. Riyadh time on Nov 26"), use only the few that matter to this story, and never describe a move as today's if the block shows an earlier date. Each reference price carries a session label, and you must keep to it: [LAST CLOSE] is a closing price, say "closed at"; [INTRADAY] is a price while the market is open, say so and give the time, never call it a close; [PRE-MARKET] and [AFTER-HOURS] prices come from thin trading and are only an early indication: when you use one, first give the last close as the main reference, then the pre-market or after-hours price with its time, say that trading at that hour is thin, and do not build a headline on it alone. Saudi stocks have no pre-market or after-hours price. Do not imply that the news caused a price move unless the materials say so.
 6. The article is for readers, not for the editor. Never write about your materials or process in the headlines, summary, article or cards: no "the materials do not include", "per the reports", "sources reviewed", "nothing in the data tells us", "as this is written". If something is unknown, either leave it out or say plainly what is not yet known in the world ("the closing level was not yet available"), and put the gap under CHECK.
 7. Keep figures in their own time frame. A cumulative figure (value lost over a whole selloff) must not be attached to a one-day move, in headlines above all. Do not give the same label ("three-year high") to a different figure than the materials do.
 8. If the US or Saudi market is still trading when you write, mark market figures as intraday in the sentence that gives them ("was down 1.2% in midday trading"). Do not open or close the article with a standalone note about when it was written, and if the article gives no market figures say nothing about it.
@@ -1198,8 +1198,10 @@ export function draftQuotes(t, quotes, now) {
   if (!rows.length) return null;
   const lines = rows.map((q) => {
     const sa = q.t === 'TASI' || /^\d{4}$/.test(q.t);
-    const ext = q.ext && now - q.ext.at < 3 * 3_600_000 ? `; in ${q.ext.s === 'pre' ? 'pre-market' : 'after-hours'} trading ${q.ext.p}, ${q.ext.chg > 0 ? '+' : ''}${q.ext.chg}% versus that close, as of ${qWhen(q.ext.at, 'America/New_York')} New York time (thin trading, say so if you use it)` : '';
-    return `- ${NAMES[q.t] || q.t}: ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}${ext}`;
+    const ext = q.ext && now - q.ext.at < 3 * 3_600_000 ? `; [${q.ext.s === 'pre' ? 'PRE-MARKET' : 'AFTER-HOURS'}] ${q.ext.p}, ${q.ext.chg > 0 ? '+' : ''}${q.ext.chg}% versus that close, as of ${qWhen(q.ext.at, 'America/New_York')} New York time (thin trading, say so if you use it)` : '';
+    // 时段：这笔价格是 40 分钟内的、且（美股）现在正开着盘，才算盘中价；否则就是最近一个交易日的收盘价
+    const live = now - q.at < 40 * 60_000 && (sa || usOpen(now));
+    return `- ${NAMES[q.t] || q.t}: [${live ? 'INTRADAY, market open, not a close' : 'LAST CLOSE'}] ${q.p}, ${q.chg > 0 ? '+' : ''}${q.chg}% versus the previous close, as of ${qWhen(q.at, sa ? 'Asia/Riyadh' : 'America/New_York')} ${sa ? 'Riyadh' : 'New York'} time${sa ? ' (delayed about 15 minutes)' : ''}${ext}`;
   });
   return { text: lines.join('\n'), at: Math.max(...rows.map((q) => q.at)) };
 }
@@ -1360,7 +1362,8 @@ async function yahooQuotes(env, tickers, now, fetcher, gap = 250) {
   // 盘前盘后取数的自检信息：试了几只、拿到几只、最后一笔是什么时候，方便只读排查
   const dbg = ext ? { s: ext, tried: 0, got: 0, http: 0, last: 0, err: 0 } : undefined;
   if (ext) {
-    for (const q of out.filter((x) => /^[A-Z]{1,5}$/.test(x.t) && x.t !== 'TASI').slice(0, 8)) {
+    const rk = (x) => (x.t === 'SPY' || x.t === 'QQQ' ? 0 : QUOTE_BASE.includes(x.t) ? 2 : 1);
+    for (const q of out.filter((x) => /^[A-Z]{1,5}$/.test(x.t) && x.t !== 'TASI').sort((a, b) => rk(a) - rk(b)).slice(0, 8)) {
       try {
         const res = await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.t) + `?interval=5m&period1=${Math.floor(now / 1000) - 20 * 3600}&period2=${Math.floor(now / 1000) + 60}&includePrePost=true`, { headers: { 'User-Agent': 'headline-watch/1.0 (private news dashboard)', Accept: 'application/json' } });
         if ([401, 403, 429].includes(res.status)) {

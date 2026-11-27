@@ -225,10 +225,15 @@ test('draftQuotes: topic tickers plus market index, with time and zone; stale or
     { t: 'QQQ', p: 1, pc: 1, chg: 0 },
   ];
   const r = draftQuotes({ tickers: ['NVDA'], market: 'US' }, q, now);
-  assert.match(r.text, /NVDA: 182\.3, \+1\.28% versus the previous close, as of Nov 25, 4:00 PM New York time/);
+  assert.match(r.text, /NVDA: \[LAST CLOSE\] 182\.3, \+1\.28% versus the previous close, as of Nov 25, 4:00 PM New York time/);
+  // 盘中：价格是刚刚的、美股开着，标成盘中价；盘前价单独标出来
+  const open = Date.UTC(2026, 10, 25, 16, 0);
+  assert.match(draftQuotes({ tickers: ['NVDA'], market: 'US' }, [{ t: 'NVDA', p: 181, pc: 180, chg: 0.56, at: open - 60_000 }], open).text, /NVDA: \[INTRADAY/);
+  const pre = Date.UTC(2026, 10, 26, 12, 30);
+  assert.match(draftQuotes({ tickers: ['NVDA'], market: 'US' }, [{ t: 'NVDA', p: 182.3, pc: 180, chg: 1.28, at: Date.UTC(2026, 10, 25, 21, 0), ext: { s: 'pre', p: 184, chg: 0.93, at: pre - 300_000 } }], pre).text, /\[LAST CLOSE\] 182\.3.*\[PRE-MARKET\] 184, \+0\.93%/);
   assert.match(r.text, /SPY/);
   assert.ok(!/TASI|AAPL|QQQ/.test(r.text));
-  assert.match(draftQuotes({ tickers: ['2222'], market: 'Saudi' }, q, now).text, /TASI\): 9913\.98.*3:00 PM Riyadh time \(delayed/);
+  assert.match(draftQuotes({ tickers: ['2222'], market: 'Saudi' }, q, now).text, /TASI\): \[LAST CLOSE\] 9913\.98.*3:00 PM Riyadh time \(delayed/);
   assert.equal(draftQuotes({ tickers: ['NVDA'], market: 'US' }, q, now + 10 * 86_400_000), null);
 });
 
