@@ -41,12 +41,16 @@ function toMs(v) {
   return Date.parse(v);
 }
 
+const FUTU_SKIP = new Set(['华尔街见闻', '格隆汇', '快讯']);
+
 const URLS = {
   cls: (o) => o.shareurl || `https://www.cls.cn/detail/${o.id}`,
   wscn: (o) => o.uri || `https://wallstreetcn.com/livenews/${o.id}`,
   wscnArticle: (o) => o.uri || `https://wallstreetcn.com/articles/${o.id}`,
   gelonghui: (o) => (o.route ? new URL(o.route, 'https://www.gelonghui.com').href : `https://www.gelonghui.com/live/${o.id}`),
   jin10: (o) => `https://flash.jin10.com/detail/${o.id}`,
+  futu: (o) => o.detailUrl || `https://news.futunn.com/flash/${o.id}`,
+  futuArticle: (o) => o.uri || `https://news.futunn.com/post/${o.id}`,
 };
 
 export function parseCnJson(text, sourceName, format) {
@@ -65,8 +69,15 @@ export function parseCnJson(text, sourceName, format) {
       if (o.resource_type !== 'article') continue;
       o = o.resource;
     }
+    // 富途“要闻”文章列表：转载自各家（财联社、金十、智通、券商研究、富途自己的早报等）。
+    // 华尔街见闻和格隆汇的文章我们直接抓了，“快讯”就是快讯栏目的重复，这三类跳过；原出处写进正文开头
+    if (format === 'futuArticle') {
+      if (!o || FUTU_SKIP.has(String(o.source || '').trim())) continue;
+      o = { id: o.newsId, title: o.title, content: [o.source ? `来源：${String(o.source).trim()}` : '', o.abstract || ''].filter(Boolean).join(' · '), ctime: o.timestamp, uri: o.url };
+    }
     if (!o || o.id == null) continue;
-    const content = strip(o.content_text || o.content || o.brief || o.summary || (o.data && (o.data.content || o.data.title)) || '');
+    // content_short：华尔街见闻文章接口公开给出的导语（约 150 字；正文不在这个接口里）
+    const content = strip(o.content_text || o.content || o.content_short || o.brief || o.summary || (o.data && (o.data.content || o.data.title)) || '');
     // 很多快讯是“【标题】正文”的格式，取方括号里的做标题
     const bracket = content.match(/^【([^】]{4,120})】/);
     const title = strip(o.title) || (bracket ? bracket[1] : content.slice(0, 280));
@@ -82,4 +93,54 @@ export function parseCnJson(text, sourceName, format) {
     });
   }
   return out;
+}
+
+/**
+ * 从文章列表网页（服务器直接输出的 HTML）里取文章：智通财经美股频道、格隆汇首页这类没有公开 JSON 接口的来源。
+ * src.link 是认文章链接的正则（第一个有值的括号是文章编号）。标题取链接文字，导语和时间取链接后面、下一篇之前的文字。
+ * 只读公开网页上列出的标题和导语，不进文章页。
+ */
+export function parseHtmlList(html, src, now = Date.now()) {
+  const linkRe = new RegExp(src.link);
+  const body = String(html || '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ');
+  const A = /<a\b[^>]*?href=(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>/gi;
+  const hits = [];
+  let m;
+  while ((m = A.exec(body))) {
+    const href = m[1] || m[2] || m[3];
+    const g = href.match(linkRe);
+    const id = g && g.slice(1).find((x) => x);
+    if (id) hits.push({ id, href, text: strip(m[4]), at: m.index, end: A.lastIndex });
+  }
+  const out = new Map();
+  hits.forEach((h, k) => {
+    let o = out.get(h.id);
+    if (!o) out.set(h.id, (o = { id: h.id, href: h.href, title: '', tail: '' }));
+    if (h.text.length > o.title.length) o.title = h.text;
+    // 这篇的最后一个链接之后、别的文章的第一个链接之前的那段文字
+    const next = hits.slice(k + 1).find((x) => x.id !== h.id);
+    if (!hits.slice(k + 1).some((x) => x.id === h.id)) o.tail = strip(body.slice(h.end, Math.min(next ? next.at : h.end + 1500, h.end + 1500)));
+  });
+  const items = [];
+  for (const o of out.values()) {
+    if (o.title.length < 8) continue;
+    let ts = NaN;
+    const abs = o.tail.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
+    const rel = o.tail.match(/(\d+)\s*(分钟|小时)前/);
+    if (abs) ts = toMs(abs[1] + ' ' + abs[2]);
+    else if (rel) ts = now - Number(rel[1]) * (rel[2] === '小时' ? 3_600_000 : 60_000);
+    const sum = o.tail.split(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}|来自主题|\d+\s*(?:分钟|小时)前/)[0].trim();
+    let url = o.href;
+    try {
+      url = new URL(o.href, src.url).href;
+    } catch {}
+    items.push({ id: `${src.format || 'html'}:${o.id}`, source: src.name, title: o.title.slice(0, 280), body: sum.length >= 30 && sum !== o.title ? sum.slice(0, 500) : '', url, ts: Number.isNaN(ts) || ts > now + 600_000 ? now : ts });
+  }
+  // 一条都没解析出来：把页面长什么样记进错误里（长度、有没有文章链接、页面标题），方便判断是被拦了、改版了还是要靠 JS 加载
+  if (!items.length) {
+    const raw = String(html || '');
+    const t = (raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '';
+    throw new Error(`htmllist empty: len=${raw.length} anchors=${(raw.match(/<a\b/gi) || []).length} linkhits=${(raw.match(new RegExp(src.link, 'g')) || []).length} title=${strip(t).slice(0, 60)}`);
+  }
+  return items;
 }

@@ -16,6 +16,9 @@ database_name = "headline-watch"
 database_id = "eb5967b8-b07e-4a1f-977b-825f928fe7ea"
 
 [vars]
+# 深度文章（华尔街见闻文章）：AI 打分（只用来排序，不推送、不算多源确认）；Claude 判断文章对应哪几条快讯
+ARTICLE_AI_SCORING = "true"
+RELATED_CLAUDE = "true"
 # Cloudflare 自己抓的 RSS 源。
 # Telegram 频道和 Google 新闻会拒绝 Cloudflare 的访问，所以 Telegram 改由 GitHub 定时任务抓取后推送到 /api/ingest（见 .github/workflows/telegram.yml）。
 SOURCES = '''
@@ -37,9 +40,12 @@ SOURCES = '''
   {"type": "rss", "name": "Nasdaq", "url": "https://www.nasdaq.com/feed/rssoutbound?category=Markets"},
   {"type": "rss", "name": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
   {"type": "rss", "name": "Federal Reserve", "url": "https://www.federalreserve.gov/feeds/press_all.xml"},
-  {"type": "rss", "name": "PR Newswire", "url": "https://www.prnewswire.com/rss/news-releases-list.rss"},
+  {"type": "rss", "name": "PR Newswire", "skip": "pr", "enOnly": true, "url": "https://www.prnewswire.com/rss/news-releases-list.rss"},
   {"type": "cnjson", "format": "wscn", "name": "华尔街见闻", "focus": true, "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives?channel=global-channel&limit=30"},
-  {"type": "cnjson", "format": "wscnArticle", "name": "华尔街见闻文章", "focus": true, "every": 3, "url": "https://api-one-wscn.awtmt.com/apiv1/content/information-flow?channel=global-channel&accept=article&limit=30"},
+  {"type": "cnjson", "format": "wscnArticle", "kind": "article", "name": "华尔街见闻文章", "focus": true, "every": 3, "url": "https://api-one-wscn.awtmt.com/apiv1/content/information-flow?channel=global-channel&accept=article&limit=30"},
+  {"type": "htmllist", "format": "glhpost", "kind": "article", "name": "格隆汇文章", "focus": true, "every": 5, "link": "gelonghui\\.com/p/(\\d+)|^/p/(\\d+)", "url": "https://www.gelonghui.com/"},
+  {"type": "cnjson", "format": "futuArticle", "kind": "article", "name": "富途文章", "focus": true, "honestUa": true, "every": 5, "url": "https://news.futunn.com/news-site-api/main/get-market-list?size=50"},
+  {"type": "cnjson", "format": "futu", "name": "富途", "focus": true, "onlyNew": true, "honestUa": true, "every": 2, "url": "https://news.futunn.com/news-site-api/main/get-flash-list?pageSize=50"},
   {"type": "cnjson", "format": "gelonghui", "name": "格隆汇", "focus": true, "url": "https://www.gelonghui.com/api/live-channels/all/lives/v4?category=all&limit=30"},
   {"type": "rss", "name": "Argaam", "tzHours": 3, "url": "https://www.argaam.com/en/rss/ho-main-news?sectionid=1524"},
   {"type": "rss", "name": "Arab News", "url": "https://www.arabnews.com/rss.xml"}
@@ -51,13 +57,27 @@ KEYWORDS = "short sellers, bankruptcy, halts trading, ousted, 破产"
 
 # 重要性评分（0-10）达到多少分才算重要、才推送
 AI_THRESHOLD = "8"
+# AI 打分时顺便给 5 分以上的快讯贴标签：利好/利空方向、股票代码、话题、板块（看板的热门股票、话题、多空情绪用）。
+# 需要先跑 migrate-v6.sql。设为 "false" 就回到只打分。
+AI_TAGS = "true"
+AI_STORIES = "true" # 打分时顺带把 5 分以上的快讯归到具体的事件；"false" 退回按股票 / 话题归拢
+# 打分和贴标签首选 Claude Haiku：密钥用 `wrangler secret put ANTHROPIC_API_KEY` 存成机密变量，不要写在这个文件里。
+# 配了密钥后新快讯当轮就打分；Claude 出错时自动退回 Workers AI（这时才按下面的规则攒批省额度），再不行退回规则。
+# 想临时停用 Claude：AI_PROVIDER = "workers"。用量和花费见 /api/status 的 claude 一栏。
+# 攒批打分，省额度：规则命中或高权重来源的快讯马上打分，其余的攒够 AI_BATCH_SIZE 条或等满 AI_BATCH_WAIT_MIN 分钟再一起打分。
+# AI_BATCH_WAIT_MIN = "0" 表示不攒批，每分钟有新快讯就打分。
+AI_BATCH_WAIT_MIN = "8"
+AI_BATCH_SIZE = "15"
+# 这些快讯源以快为主，最多只等 AI_URGENT_WAIT_MIN 分钟（逗号分隔，名字和 SOURCES 里的一致）。规则命中的快讯不等，马上打分。
+AI_URGENT_WAIT_MIN = "3"
+AI_URGENT_SOURCES = "Reuters (Bluesky),Bloomberg (Bluesky),FinancialJuice,First Squawk,Walter Bloomberg,investingLive"
 
 # AI 打分开关；关掉则只用规则（关键词或 >= BIG_NUMBER_MIN_BILLION 十亿美元的金额 = 8 分）
 AI_SCORING = "true"
 BIG_NUMBER_MIN_BILLION = "10"
 
 # 来源加权：加到 AI 分上。快讯类频道更快，加分；综合新闻账号（夹杂科普、生活类）减分，但它们仍可作为“多源互证”的佐证
-SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5, "WSJ (Bluesky)": -1, "AP (Bluesky)": -1, "CNBC (Bluesky)": -0.5, "BBC Business": -0.5, "Arab News": -1, "格隆汇": -0.5}'
+SOURCE_WEIGHTS = '{"Walter Bloomberg": 1, "First Squawk": 0.5, "FinancialJuice": 0.5, "Unusual Whales (Bluesky)": 0.5, "WSJ Markets": 0.5, "WSJ (Bluesky)": -1, "AP (Bluesky)": -1, "CNBC (Bluesky)": -0.5, "BBC Business": -0.5, "Arab News": -1, "格隆汇": -0.5, "Nasdaq": -1}'
 
 # 是否把“含大数字”的快讯也算粗筛命中（如 $24 billion、2万亿美元）
 BIG_NUMBERS = "true"
@@ -78,3 +98,27 @@ MAX_AGE_MINUTES = "30"
 #   RESEND_API_KEY + EMAIL_TO + EMAIL_FROM   邮件
 #   WEBHOOK_URL      任意 webhook
 #   ACCESS_KEY       设了之后，网页需要 ?key=这个密码 才能打开
+
+# 服务器端中英互译：让手机和非 Chrome 浏览器也有译文（电脑 Chrome 仍可在浏览器里自己翻）。
+# TRANSLATE_PROVIDER = "claude"：Claude Haiku，标题和摘要都翻，质量最好；需要机密变量 ANTHROPIC_API_KEY。
+# TRANSLATE_PROVIDER = "mymemory"：免费公共接口 MyMemory，只翻标题，不占 Workers AI 额度；
+#   邮箱放在机密变量 MYMEMORY_EMAIL 里（wrangler secret put MYMEMORY_EMAIL），带邮箱每天约 5 万字符。
+# TRANSLATE_PROVIDER = "ai"：Workers AI，标题和摘要都翻，和评分共用免费额度。可用 TRANSLATE_MODEL 换模型。
+# 只翻评分达到 TRANSLATE_MIN_SCORE 的快讯，额度用完时显示原文。
+TRANSLATE = "true"
+TRANSLATE_PROVIDER = "claude"
+# Claude 翻不出来（出错、密钥失效）时交给谁："mymemory" 或 "ai"
+TRANSLATE_FALLBACK = "mymemory"
+TRANSLATE_MIN_SCORE = "6"
+MAX_TRANSLATE_PER_RUN = "10"
+
+# 选题台（小试）：每天两次“选题会”（沙特开盘前、美股开盘前，也可在网页上随时开），用更强的模型从最近 12 小时的要闻里挑 5 个选题；
+# 选中后按需生成专题档案。DESK = "false" 整个关掉。选题会 + 档案合计每天最多花 DESK_DAILY_USD 美元。
+DESK = "true"
+DESK_MODEL = "claude-sonnet-5-5"
+DESK_DAILY_USD = "1.00"
+DESK_AUTO = "false" # 用户要求：选题会只在点“现在开一次”时开，不按时间自动开
+
+# 事件归并：每隔几分钟把名字不同、其实是同一件事的事件并成一件（Haiku）。"false" 关掉
+EVENT_MERGE = "true"
+EVENT_MERGE_EVERY_MIN = "20" # 实测一次约 0.002 美元（带思考），20 分钟一次一天最多约 0.15 美元

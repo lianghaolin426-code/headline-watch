@@ -62,3 +62,9 @@ export function sameStory(a, b, weight = () => 1) {
 export function confirmBoost(n) {
   return n >= 2 ? 1.5 : n === 1 ? 0.75 : 0;
 }
+
+/** 中文标题里夹着英文、数字（如“PCE数据”“AI资本支出”）时，先在汉字和非汉字之间断开再切词；
+ *  tokens() 会把这种混排当成一个超长的词，同一条快讯的两种写法就对不上了 */
+export function tokensMixed(title) {
+  return tokens(String(title).replace(/(\p{Script=Han})(?=[^\p{Script=Han}\s\p{P}])|([^\p{Script=Han}\s\p{P}])(?=\p{Script=Han})/gu, '$1$2 '));
+}
